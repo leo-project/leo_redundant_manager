@@ -212,14 +212,15 @@ defer_heartbeat(Time) ->
 -spec(exec(?SERVER_MANAGER | ?SERVER_STORAGE | ?SERVER_GATEWAY, list()) ->
              ok | {error, any()}).
 exec(?SERVER_MANAGER = ServerType, Managers) ->
-    case leo_redundant_manager_mnesia:get_members() of
-        {ok, Members} ->
-            ClusterNodes = lists:map(fun(#member{node = Node, state = State}) ->
-                                             {storage, Node ,State}
-                                     end, Members);
-        _Error ->
-            ClusterNodes = []
-    end,
+    ClusterNodes =
+        case leo_redundant_manager_mnesia:get_members() of
+            {ok, Members} ->
+                lists:map(fun(#member{node = Node, state = State}) ->
+                                  {storage, Node ,State}
+                          end, Members);
+            _Error ->
+                []
+        end,
     exec1(ServerType, Managers, ClusterNodes);
 
 %% @doc Execute for gateway and storage nodes.
@@ -373,23 +374,23 @@ notify_error_to_manager(Managers, HashType, Hashs) ->
     {ok, [Mod, Fun]} = application:get_env(?APP, ?PROP_SYNC_MF),
 
     lists:foldl(
-      fun(Node, false) ->
-              case is_atom(Node) of
-                  true  -> NewNode = Node;
-                  false -> NewNode = list_to_atom(Node)
-              end,
+      fun(Node0, false) ->
+              Node1 = case is_atom(Node0) of
+                          true  -> Node0;
+                          false -> list_to_atom(Node0)
+                      end,
 
-              case rpc:call(NewNode, Mod, Fun, [HashType, Hashs], ?DEF_TIMEOUT) of
+              case rpc:call(Node1, Mod, Fun, [HashType, Hashs], ?DEF_TIMEOUT) of
                   ok ->
                       true;
                   Error ->
                       error_logger:warning_msg("~p,~p,~p,~p~n",
                                                [{module, ?MODULE_STRING},
                                                 {function, "notify_error_to_manager/3"},
-                                                {line, ?LINE}, {body, {NewNode, Error}}]),
+                                                {line, ?LINE}, {body, {Node1, Error}}]),
                       false
               end;
-         (_Node, true) ->
+         (_, true) ->
               true
       end, false, Managers).
 

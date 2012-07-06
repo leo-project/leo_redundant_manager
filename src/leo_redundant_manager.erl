@@ -179,33 +179,33 @@ handle_call(stop,_From,State) ->
 
 
 handle_call({create}, _From, State) ->
-    case leo_redundant_manager_mnesia:get_members() of
-        {ok, Members} ->
-            Reply = add_members(Members);
-        Error ->
-            Reply = Error
-    end,
+    Reply = case leo_redundant_manager_mnesia:get_members() of
+                {ok, Members} ->
+                    add_members(Members);
+                Error ->
+                    Error
+            end,
     {reply, Reply, State};
 
 handle_call({checksum, ?CHECKSUM_MEMBER}, _From, State) ->
-    case leo_redundant_manager_mnesia:get_members() of
-        {ok, Members} ->
-            Reply = {ok, erlang:crc32(term_to_binary(Members))};
-        _ ->
-            Reply = {ok, -1}
-    end,
+    Reply = case leo_redundant_manager_mnesia:get_members() of
+                {ok, Members} ->
+                    {ok, erlang:crc32(term_to_binary(Members))};
+                _ ->
+                    {ok, -1}
+            end,
     {reply, Reply, State};
 
 handle_call({checksum, _}, _From, State) ->
     {reply, {error, badarg}, State};
 
 handle_call({has_member, Node}, _From, State) ->
-    case leo_redundant_manager_mnesia:get_member_by_node(Node) of
-        {ok, _} ->
-            Reply = true;
-        _ ->
-            Reply = false
-    end,
+    Reply = case leo_redundant_manager_mnesia:get_member_by_node(Node) of
+                {ok, _} ->
+                    true;
+                _ ->
+                    false
+            end,
     {reply, Reply, State};
 
 
@@ -218,62 +218,62 @@ handle_call({get_members, ?VER_PREV    = Mode}, _From, State) ->
     {reply, Reply, State};
 
 handle_call({get_member_by_node, Node}, _From, State) ->
-    case leo_redundant_manager_mnesia:get_member_by_node(Node) of
-        {ok, [Member|_]} ->
-            Reply = {ok, Member};
-        not_found = Cause ->
-            Reply = {error, Cause};
-        Error ->
-            Reply = Error
-    end,
+    Reply = case leo_redundant_manager_mnesia:get_member_by_node(Node) of
+                {ok, [Member|_]} ->
+                    {ok, Member};
+                not_found = Cause ->
+                    {error, Cause};
+                Error ->
+                    Error
+            end,
     {reply, Reply, State};
 
 
 handle_call({update_member_by_node, Node, Clock, NodeState}, _From, State) ->
-    case leo_redundant_manager_mnesia:update_member_by_node(Node, Clock, NodeState) of
-        ok ->
-            case leo_redundant_manager_mnesia:get_members() of
-                {ok, Members} ->
-                    Reply = {ok, Members};
+    Reply = case leo_redundant_manager_mnesia:update_member_by_node(Node, Clock, NodeState) of
+                ok ->
+                    case leo_redundant_manager_mnesia:get_members() of
+                        {ok, Members} ->
+                            {ok, Members};
+                        Error ->
+                            Error
+                    end;
                 Error ->
-                    Reply = Error
-            end;
-        Error ->
-            Reply = Error
-    end,
+                    Error
+            end,
     {reply, Reply, State};
 
 
 handle_call({update_members, Members}, _From, State) ->
-    case leo_redundant_manager_mnesia:get_members() of
-        {ok, CurMembers} ->
-            CurMembersHash = erlang:crc32(term_to_binary(CurMembers)),
-            MembersHash    = erlang:crc32(term_to_binary(Members)),
+    Reply = case leo_redundant_manager_mnesia:get_members() of
+                {ok, CurMembers} ->
+                    CurMembersHash = erlang:crc32(term_to_binary(CurMembers)),
+                    MembersHash    = erlang:crc32(term_to_binary(Members)),
 
-            case (MembersHash =:= CurMembersHash) of
-                true ->
-                    Reply = ok;
-                false ->
-                    Reply = leo_redundant_manager_mnesia:refresh_members(CurMembers, Members)
-            end;
-        not_found ->
-            Reply = leo_redundant_manager_mnesia:refresh_members([], Members);
-        Error ->
-            Reply = Error
-    end,
+                    case (MembersHash =:= CurMembersHash) of
+                        true ->
+                            ok;
+                        false ->
+                            leo_redundant_manager_mnesia:refresh_members(CurMembers, Members)
+                    end;
+                not_found ->
+                    leo_redundant_manager_mnesia:refresh_members([], Members);
+                Error ->
+                    Error
+            end,
     {reply, Reply, State};
 
 
 handle_call({synchronize, TblInfo, MgrRing, MyRing}, _From, State) ->
     %% 1. MyRing.vnode-id -> MgrRing.vnode-id
     lists:foreach(fun({VNodeId0, Node0}) ->
-                          case lists:keyfind(VNodeId0, 1, MgrRing) of
-                              {VNodeId1, Node1} when VNodeId0 == VNodeId1 andalso
-                                                     Node0    == Node1 ->
-                                  Res = true;
-                              false ->
-                                  Res = false
-                          end,
+                          Res = case lists:keyfind(VNodeId0, 1, MgrRing) of
+                                    {VNodeId1, Node1} when VNodeId0 == VNodeId1 andalso
+                                                           Node0    == Node1 ->
+                                        true;
+                                    false ->
+                                        false
+                                end,
 
                           case Res of
                               true ->
@@ -285,13 +285,13 @@ handle_call({synchronize, TblInfo, MgrRing, MyRing}, _From, State) ->
 
     %% 2. MyRing.vnode-id -> MgrRing.vnode-id
     lists:foreach(fun({VNodeId0, Node0}) ->
-                          case lists:keyfind(VNodeId0, 1, MyRing) of
-                              {VNodeId1, Node1} when VNodeId0 == VNodeId1 andalso
-                                                     Node0    == Node1 ->
-                                  Res = true;
-                              false ->
-                                  Res = false
-                          end,
+                          Res = case lists:keyfind(VNodeId0, 1, MyRing) of
+                                    {VNodeId1, Node1} when VNodeId0 == VNodeId1 andalso
+                                                           Node0    == Node1 ->
+                                        true;
+                                    false ->
+                                        false
+                                end,
 
                           case Res of
                               true ->
@@ -309,15 +309,15 @@ handle_call({adjust, CurRingTable, PrevRingTable, VNodeId}, _From, State) ->
 
 
 handle_call({dump, member}, _From, State) ->
-    case leo_redundant_manager_mnesia:get_members() of
-        {ok, Members} ->
-            FileName = ?DUMP_FILE_MEMBERS ++ integer_to_list(leo_utils:now()),
-            Reply = leo_utils:file_unconsult(FileName, Members);
-        not_found = Cause ->
-            Reply = {error, Cause};
-        Error ->
-            Reply = Error
-    end,
+    Reply = case leo_redundant_manager_mnesia:get_members() of
+                {ok, Members} ->
+                    FileName = ?DUMP_FILE_MEMBERS ++ integer_to_list(leo_utils:now()),
+                    leo_utils:file_unconsult(FileName, Members);
+                not_found = Cause ->
+                    {error, Cause};
+                Error ->
+                    Error
+            end,
     {reply, Reply, State};
 
 handle_call({dump, ring}, _From, State) ->
@@ -340,28 +340,28 @@ handle_call({attach, Node, Clock, NumOfVNodes}, _From, State) ->
 
 
 handle_call({detach, Node, Clock}, _From, State) ->
-    case leo_redundant_manager_mnesia:get_member_by_node(Node) of
-        {ok, [Member|_]} ->
-            TblInfo = leo_redundant_manager_api:table_info(?VER_CURRENT),
-            Reply   = detach_fun(TblInfo, Member#member{clock = Clock});
-        Error ->
-            Reply = Error
-    end,
+    Reply = case leo_redundant_manager_mnesia:get_member_by_node(Node) of
+                {ok, [Member|_]} ->
+                    TblInfo = leo_redundant_manager_api:table_info(?VER_CURRENT),
+                    detach_fun(TblInfo, Member#member{clock = Clock});
+                Error ->
+                    Error
+            end,
     {reply, Reply, State};
 
 
 handle_call({suspend, Node, Clock}, _From, State) ->
-    case leo_redundant_manager_mnesia:update_member_by_node(Node, Clock, ?STATE_SUSPEND) of
-        ok ->
-            case leo_redundant_manager_mnesia:get_members() of
-                {ok, Members} ->
-                    Reply = {ok, Members};
+    Reply = case leo_redundant_manager_mnesia:update_member_by_node(Node, Clock, ?STATE_SUSPEND) of
+                ok ->
+                    case leo_redundant_manager_mnesia:get_members() of
+                        {ok, Members} ->
+                            {ok, Members};
+                        Error ->
+                            Error
+                    end;
                 Error ->
-                    Reply = Error
-            end;
-        Error ->
-            Reply = Error
-    end,
+                    Error
+            end,
     {reply, Reply, State}.
 
 

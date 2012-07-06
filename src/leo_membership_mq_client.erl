@@ -76,16 +76,16 @@ start(?SERVER_STORAGE, RootPath) ->
 start(_, _) ->
     {error, badarg}.
 
-start1(InstanceId, RootPath) ->
-    case (string:len(RootPath) == string:rstr(RootPath, "/")) of
-        true  -> NewRootPath = RootPath;
-        false -> NewRootPath = RootPath ++ "/"
-    end,
+start1(InstanceId, RootPath0) ->
+    RootPath1 = case (string:len(RootPath0) == string:rstr(RootPath0, "/")) of
+                    true  -> RootPath0;
+                    false -> RootPath0 ++ "/"
+                end,
 
     leo_mq_api:new(InstanceId, [{?MQ_PROP_MOD,          ?MODULE},
                                 {?MQ_PROP_FUN,          ?MQ_SUBSCRIBE_FUN},
                                 {?MQ_PROP_DB_PROCS,     1},
-                                {?MQ_PROP_ROOT_PATH,    NewRootPath ++ ?MQ_DB_PATH},
+                                {?MQ_PROP_ROOT_PATH,    RootPath1 ++ ?MQ_DB_PATH},
                                 {?MQ_PROP_MAX_INTERVAL, ?DEF_MAX_INTERVAL},
                                 {?MQ_PROP_MIN_INTERVAL, ?DEF_MIN_INTERVAL}
                                ]),

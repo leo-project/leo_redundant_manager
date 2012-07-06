@@ -69,30 +69,30 @@
 %%
 -spec(start(server_type(), list(), string()) ->
              ok | {error, any()}).
-start(ServerType, Managers, MQStoragePath) ->
-    start(ServerType, Managers, MQStoragePath, []).
+start(ServerType0, Managers, MQStoragePath) ->
+    start(ServerType0, Managers, MQStoragePath, []).
 
-start(ServerType, Managers, MQStoragePath, Options) ->
-    case start(ServerType) of
+start(ServerType0, Managers, MQStoragePath, Options) ->
+    case start(ServerType0) of
         ok ->
-            case ServerType of
-                master -> NewServerType = ?SERVER_MANAGER;
-                slave  -> NewServerType = ?SERVER_MANAGER;
-                _Other -> NewServerType = ServerType
-            end,
-            application:set_env(?APP, ?PROP_SERVER_TYPE, NewServerType, 3000),
+            ServerType1 = case ServerType0 of
+                              master -> ?SERVER_MANAGER;
+                              slave  -> ?SERVER_MANAGER;
+                              _      -> ServerType0
+                          end,
+            application:set_env(?APP, ?PROP_SERVER_TYPE, ServerType1, 3000),
 
             case (Options == []) of
                 true  -> void;
                 false -> set_options(Options)
             end,
 
-            Args = [NewServerType, Managers],
+            Args = [ServerType1, Managers],
             ChildSpec = {leo_membership, {leo_membership, start_link, Args},
                          permanent, 2000, worker, [leo_membership]},
 
             _ = supervisor:start_child(leo_redundant_manager_sup, ChildSpec),
-            start_membership(NewServerType, MQStoragePath);
+            start_membership(ServerType1, MQStoragePath);
         Error ->
             Error
     end.
@@ -104,8 +104,8 @@ start()  ->
 
 -spec(start(server_type()) ->
              ok | {error, any()}).
-start(ServerType)  ->
-    start_app(ServerType).
+start(ServerType0)  ->
+    start_app(ServerType0).
 
 
 %% @doc Stop this application.
@@ -265,8 +265,8 @@ synchronize(?SYNC_MODE_BOTH, Members, Options) ->
             Error
     end;
 
-synchronize([],_Ring0, Acc) ->
-    Res = lists:reverse(Acc),
+synchronize([],_Ring0,_Acc) ->
+    %% _ = lists:reverse(Acc),
     checksum(?CHECKSUM_RING);
 
 synchronize([RingVer|T], Ring0, Acc) ->

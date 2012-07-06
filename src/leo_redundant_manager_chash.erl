@@ -150,22 +150,21 @@ redundancies(next, _Table, _, _Members, -1,      #redundancies{nodes = Acc} = R)
 
 redundancies(next, Table, NumOfReplicas, Members, VNodeId0, #redundancies{temp_nodes = Acc0,
                                                                           nodes      = Acc1} = R) ->
-    case leo_redundant_manager_table:next(Table, VNodeId0) of
-        '$end_of_table' ->
-            case leo_redundant_manager_table:first(Table) of
-                '$end_of_table' ->
-                    VNodeId1 = -1;
-                VNodeId1 ->
-                    VNodeId1
-            end;
-        VNodeId1 ->
-            VNodeId1
-    end,
+    VNodeId2 =
+        case leo_redundant_manager_table:next(Table, VNodeId0) of
+            '$end_of_table' ->
+                case leo_redundant_manager_table:first(Table) of
+                    '$end_of_table' -> -1;
+                    VNodeId1        -> VNodeId1
+                end;
+            VNodeId1 ->
+                VNodeId1
+        end,
 
-    Value = leo_redundant_manager_table:lookup(Table, VNodeId1),
+    Value = leo_redundant_manager_table:lookup(Table, VNodeId2),
     case lists:member(Value, Acc0) of
-        true  -> redundancies(next, Table, NumOfReplicas,   Members, VNodeId1, R);
-        false -> redundancies(next, Table, NumOfReplicas-1, Members, VNodeId1,
+        true  -> redundancies(next, Table, NumOfReplicas,   Members, VNodeId2, R);
+        false -> redundancies(next, Table, NumOfReplicas-1, Members, VNodeId2,
                               R#redundancies{temp_nodes = [Value|Acc0],
                                              nodes      = [get_member(Members, Value)|Acc1]})
     end.
@@ -254,7 +253,7 @@ export(Table, FileName) ->
         0 ->
             ok;
         _ ->
-            List0 = leo_redundant_manager_table:tab2list(Table),            
+            List0 = leo_redundant_manager_table:tab2list(Table),
             leo_utils:file_unconsult(FileName, List0)
     end.
 
