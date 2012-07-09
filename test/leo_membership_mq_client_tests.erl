@@ -56,6 +56,9 @@ setup() ->
     {ok, Node0} = slave:start_link(list_to_atom(Hostname), 'node_0'),
     {ok, Mgr0}  = slave:start_link(list_to_atom(Hostname), 'manager_master'),
 
+    true = rpc:call(Node0, code, add_path, ["../deps/meck/ebin"]),
+    true = rpc:call(Mgr0,  code, add_path, ["../deps/meck/ebin"]),
+
     S = os:cmd("pwd"),
     Path = string:substr(S, 1, length(S) -1) ++ "/db",
 

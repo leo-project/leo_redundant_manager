@@ -56,6 +56,13 @@ setup() ->
     {ok, Node2} = slave:start_link(list_to_atom(Hostname), 'node_2'),
     {ok, Mgr0}  = slave:start_link(list_to_atom(Hostname), 'manager_master'),
     {ok, Mgr1}  = slave:start_link(list_to_atom(Hostname), 'manager_slave'),
+
+    true = rpc:call(Node0, code, add_path, ["../deps/meck/ebin"]),
+    true = rpc:call(Node1, code, add_path, ["../deps/meck/ebin"]),
+    true = rpc:call(Node2, code, add_path, ["../deps/meck/ebin"]),
+    true = rpc:call(Mgr0,  code, add_path, ["../deps/meck/ebin"]),
+    true = rpc:call(Mgr1,  code, add_path, ["../deps/meck/ebin"]),
+
     timer:sleep(100),
 
     %% start applications

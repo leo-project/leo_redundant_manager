@@ -66,7 +66,7 @@ teardown(_) ->
     application:stop(leo_mq),
     application:stop(leo_backend_db),
     application:stop(leo_redundant_manager),
-    meck:unload(),
+    %% meck:unload(),
 
     os:cmd("rm -rf queue"),
     os:cmd("rm ring_*"),
