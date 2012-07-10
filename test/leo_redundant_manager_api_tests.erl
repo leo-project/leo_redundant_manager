@@ -289,6 +289,8 @@ inspect0(Hostname) ->
 
     {ok, {Chksum2, Chksum3}} = leo_redundant_manager_api:checksum(?CHECKSUM_RING),
     {ok, Chksum4} = leo_redundant_manager_api:checksum(member),
+    application:set_env(?APP, ?PROP_RING_HASH, Chksum2),
+
     ?assertEqual(true, (-1 =< Chksum2)),
     ?assertEqual(true, (-1 =< Chksum3)),
     ?assertEqual(true, (-1 =< Chksum4)),
