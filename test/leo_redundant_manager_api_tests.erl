@@ -247,10 +247,10 @@ prepare(Hostname, ServerType) ->
 
     ok = leo_redundant_manager_api:start(ServerType),
     leo_redundant_manager_api:set_options([{n, 3},
-                                            {r, 1},
-                                            {w ,2},
-                                            {d, 2},
-                                            {bit_of_ring, 128}]),
+                                           {r, 1},
+                                           {w ,2},
+                                           {d, 2},
+                                           {bit_of_ring, 128}]),
     leo_redundant_manager_api:attach(list_to_atom("node_0@" ++ Hostname)),
     leo_redundant_manager_api:attach(list_to_atom("node_1@" ++ Hostname)),
     leo_redundant_manager_api:attach(list_to_atom("node_2@" ++ Hostname)),
@@ -313,7 +313,7 @@ inspect0(Hostname) ->
                                                               end, Nodes0a)
                                         end, Nodes0),
                           ?assertEqual(3, length(Nodes0))
-                  end, lists:seq(0, 1000)),
+                  end, lists:seq(0, 300)),
     lists:foreach(fun(_) ->
                           Id = random:uniform(Max),
                           {ok, #redundancies{id       = _Id0,
@@ -331,7 +331,7 @@ inspect0(Hostname) ->
                                                               end, Nodes0a)
                                         end, Nodes0),
                           ?assertEqual(3, length(Nodes0))
-                  end, lists:seq(0, 1000)),
+                  end, lists:seq(0, 300)),
 
     {ok, #redundancies{id       = Id,
                        vnode_id = VNodeId1,
