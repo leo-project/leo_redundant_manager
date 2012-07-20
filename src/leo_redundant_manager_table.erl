@@ -39,7 +39,7 @@
 %%
 lookup({mnesia, Table}, VNodeId) ->
     case catch mnesia:ets(fun ets:lookup/2, [Table, VNodeId]) of
-        [#ring{node = Node}] ->
+        [#ring{node = Node}|_] ->
             Node;
         [] = Reply ->
             Reply;
@@ -48,7 +48,7 @@ lookup({mnesia, Table}, VNodeId) ->
     end;
 lookup({ets, Table}, VNodeId) ->
     case catch ets:lookup(Table, VNodeId) of
-        [{_VNodeId, Node}] ->
+        [{_VNodeId, Node}|_] ->
             Node;
         [] = Reply ->
             Reply;
@@ -116,7 +116,7 @@ delete_all_objects({ets, Table}) ->
     ets:delete_all_objects(Table).
 
 
-%% @doc Retrieve a next record from the table.
+%% @doc Retrieve total of records.
 %%
 size({mnesia, Table}) ->
     mnesia:ets(fun ets:info/2, [Table, size]);

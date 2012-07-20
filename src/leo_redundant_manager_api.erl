@@ -54,12 +54,12 @@
 
 -ifdef(TEST).
 -define(MNESIA_TYPE_COPIES, 'ram_copies').
--define(MODULE_SET_ENV_1, application:set_env(?APP, 'notify_mf', [leo_manager_api, notify])).
--define(MODULE_SET_ENV_2, application:set_env(?APP, 'sync_mf',   [leo_manager_api, synchronize])).
+-define(MODULE_SET_ENV_1(), application:set_env(?APP, 'notify_mf', [leo_manager_api, notify])).
+-define(MODULE_SET_ENV_2(), application:set_env(?APP, 'sync_mf',   [leo_manager_api, synchronize])).
 -else.
 -define(MNESIA_TYPE_COPIES, 'disc_copies').
--define(MODULE_SET_ENV_1, void).
--define(MODULE_SET_ENV_2, void).
+-define(MODULE_SET_ENV_1(), void).
+-define(MODULE_SET_ENV_2(), void).
 -endif.
 
 %%--------------------------------------------------------------------
@@ -80,11 +80,11 @@ start(ServerType0, Managers, MQStoragePath, Options) ->
                               slave  -> ?SERVER_MANAGER;
                               _      -> ServerType0
                           end,
-            application:set_env(?APP, ?PROP_SERVER_TYPE, ServerType1, 3000),
+            ok = application:set_env(?APP, ?PROP_SERVER_TYPE, ServerType1, 3000),
 
             case (Options == []) of
                 true  -> void;
-                false -> set_options(Options)
+                false -> ok = set_options(Options)
             end,
 
             Args = [ServerType1, Managers],
@@ -131,7 +131,7 @@ create() ->
 
             {ok, Chksums} = checksum(?CHECKSUM_RING),
             {CurRingHash, _PrevRingHash} = Chksums,
-            application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
+            ok = application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
 
             {ok, Chksum0} = checksum(?CHECKSUM_MEMBER),
             {ok, Members, [{?CHECKSUM_RING, Chksums},
@@ -163,7 +163,7 @@ create([#member{node = Node, clock = Clock}|T], Options) ->
 -spec(set_options(list()) ->
              ok).
 set_options(Options) ->
-    application:set_env(?APP, ?PROP_OPTIONS, Options, 3000),
+    ok = application:set_env(?APP, ?PROP_OPTIONS, Options, 3000),
     ok.
 
 
@@ -292,7 +292,7 @@ synchronize(?SYNC_MODE_CUR_RING = Ver, Ring0) ->
     case leo_redundant_manager:synchronize(TblInfo, Ring0, Ring1) of
         ok ->
             {ok, {CurRingHash, _PrevRingHash}} = checksum(?CHECKSUM_RING),
-            application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
+            ok = application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
             checksum(?CHECKSUM_RING);
         Error ->
             Error
@@ -385,7 +385,7 @@ get_redundancies_by_addr_id(TblInfo, AddrId, Options) ->
 
 get_redundancies_by_addr_id(?SERVER_MANAGER, TblInfo, AddrId, Options) ->
     {ok, {CurRingHash, _PrevRingHash}} = checksum(?CHECKSUM_RING),
-    application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
+    ok = application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
 
     Ret = leo_redundant_manager_mnesia:get_members(),
     get_redundancies_by_addr_id_1(Ret, TblInfo, AddrId, Options);
@@ -572,13 +572,13 @@ start_app(ServerType) ->
     Module = leo_redundant_manager,
     case application:start(Module) of
         ok ->
-            ?MODULE_SET_ENV_1,
-            ?MODULE_SET_ENV_2,
+            ?MODULE_SET_ENV_1(),
+            ?MODULE_SET_ENV_2(),
             ok = init_ring_tables(ServerType),
 
             case get_members() of
                 {ok, Members} ->
-                    set_members_to_env(Members);
+                    ok = set_members_to_env(Members);
                 _ ->
                     void
             end,
@@ -595,16 +595,16 @@ start_app(ServerType) ->
 -spec(init_ring_tables(server_type()) ->
              ok).
 init_ring_tables(master) ->
-    application:set_env(?APP, ?PROP_CUR_RING_TBL,  {mnesia, ?CUR_RING_TABLE},  3000),
-    application:set_env(?APP, ?PROP_PREV_RING_TBL, {mnesia, ?PREV_RING_TABLE}, 3000),
+    ok = application:set_env(?APP, ?PROP_CUR_RING_TBL,  {mnesia, ?CUR_RING_TABLE},  3000),
+    ok = application:set_env(?APP, ?PROP_PREV_RING_TBL, {mnesia, ?PREV_RING_TABLE}, 3000),
     ok;
 init_ring_tables(slave) ->
-    application:set_env(?APP, ?PROP_CUR_RING_TBL,  {mnesia, ?CUR_RING_TABLE},  3000),
-    application:set_env(?APP, ?PROP_PREV_RING_TBL, {mnesia, ?PREV_RING_TABLE}, 3000),
+    ok = application:set_env(?APP, ?PROP_CUR_RING_TBL,  {mnesia, ?CUR_RING_TABLE},  3000),
+    ok = application:set_env(?APP, ?PROP_PREV_RING_TBL, {mnesia, ?PREV_RING_TABLE}, 3000),
     ok;
 init_ring_tables(_Other) ->
-    application:set_env(?APP, ?PROP_CUR_RING_TBL,  {ets, ?CUR_RING_TABLE},  3000),
-    application:set_env(?APP, ?PROP_PREV_RING_TBL, {ets, ?PREV_RING_TABLE}, 3000),
+    ok = application:set_env(?APP, ?PROP_CUR_RING_TBL,  {ets, ?CUR_RING_TABLE},  3000),
+    ok = application:set_env(?APP, ?PROP_PREV_RING_TBL, {ets, ?PREV_RING_TABLE}, 3000),
     ?CUR_RING_TABLE =
         ets:new(?CUR_RING_TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
     ?PREV_RING_TABLE =
@@ -618,8 +618,8 @@ init_ring_tables(_Other) ->
              ok).
 set_members_to_env(Members) ->
     {ok, {CurRingHash, _PrevRingHash}} = checksum(?CHECKSUM_RING),
-    application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
-    application:set_env(?APP, ?PROP_MEMBERS,   Members,     3000),
+    ok = application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
+    ok = application:set_env(?APP, ?PROP_MEMBERS,   Members,     3000),
     ok.
 
 
