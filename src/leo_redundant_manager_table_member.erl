@@ -28,20 +28,28 @@
 -author('Yosuke Hara').
 
 -include("leo_redundant_manager.hrl").
+-include_lib("stdlib/include/qlc.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([create_members/1, create_members/2,
-         lookup/2, insert/2, delete/2, size/1, tab2list/1]).
+-export([create_members/0, create_members/1, create_members/2,
+         lookup/2, find_all/1, insert/2, delete/2, replace_members/3,
+         size/1, tab2list/1]).
 
 -define(TABLE, members).
 -type(mnesia_copies() :: disc_copies | ram_copies).
 
 %% @doc create member table.
 %%
+-spec(create_members() -> ok).
+create_members() ->
+    ?TABLE = ets:new(?TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
+    ok.
+
 -spec(create_members(mnesia_copies()) -> ok).
 create_members(Mode) ->
     create_members(Mode, [erlang:node()]).
 
+-spec(create_members(mnesia_copies(), list()) -> ok).
 create_members(Mode, Nodes) ->
     mnesia:create_table(
       members,
@@ -62,21 +70,45 @@ create_members(Mode, Nodes) ->
 %%
 lookup(mnesia, Node) ->
     case catch mnesia:ets(fun ets:lookup/2, [?TABLE, Node]) of
-        [#ring{node = Node}|_] ->
-            Node;
+        [H|_T] ->
+            {ok, H};
         [] ->
             not_found;
         {'EXIT', Cause} ->
             {error, Cause}
     end;
+
 lookup(ets, Node) ->
     case catch ets:lookup(?TABLE, Node) of
-        [{_Node, Node}|_] ->
-            Node;
+        [{_, H}|_T] ->
+            {ok, H};
         [] ->
             not_found;
         {'EXIT', Cause} ->
             {error, Cause}
+    end.
+
+
+%% @doc Retrieve all members from the table.
+%%
+find_all(mnesia) ->
+    F = fun() ->
+                Q1 = qlc:q([X || X <- mnesia:table(members)]),
+                Q2 = qlc:sort(Q1, [{order, descending}]),
+                qlc:e(Q2)
+        end,
+    leo_mnesia_utils:read(F);
+
+find_all(ets) ->
+    case catch ets:foldl(fun({_, Member}, Acc) ->
+                                 ordsets:add_element(Member, Acc)
+                         end, [], members) of
+        {'EXIT', Cause} ->
+            {error, Cause};
+        [] ->
+            not_found;
+        Members ->
+            {ok, Members}
     end.
 
 
@@ -110,6 +142,24 @@ delete(ets, Node) ->
         {'EXIT', Cause} ->
             {error, Cause}
     end.
+
+
+%% @doc Replace members into the db.
+%%
+-spec(replace_members(ets | mnesia, list(), list()) ->
+             ok).
+replace_members(Type, OldMembers, NewMembers) ->
+    lists:foreach(fun(Item) ->
+                          delete(Type, Item#member.node)
+                  end, OldMembers),
+    lists:foreach(
+      fun(Item) ->
+              insert(Type, {Item#member.node, #member{node          = Item#member.node,
+                                                      clock         = Item#member.clock,
+                                                      num_of_vnodes = Item#member.num_of_vnodes,
+                                                      state         = Item#member.state}})
+      end, NewMembers),
+    ok.
 
 
 %% @doc Retrieve total of records.

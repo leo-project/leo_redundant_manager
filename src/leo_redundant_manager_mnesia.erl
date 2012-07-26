@@ -31,8 +31,6 @@
 -include_lib("stdlib/include/qlc.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
-%% -type(mnesia_copies() :: disc_copies | ram_copies).
-
 %% API
 -export([get_members/0,
          get_members_count/0,

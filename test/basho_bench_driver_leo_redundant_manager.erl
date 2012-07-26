@@ -40,7 +40,7 @@ new(_Id) ->
     net_kernel:start([Test0Node, shortnames]),
 
     application:start(mnesia),
-    leo_redundant_manager_mnesia:create_table(ram_copies),
+    leo_redundant_manager_table_member:create_table(ram_copies),
 
     leo_redundant_manager_api:start(),
     leo_redundant_manager_api:set_options([{n, 3},
