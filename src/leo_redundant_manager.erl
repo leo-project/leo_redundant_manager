@@ -229,6 +229,7 @@ handle_call({get_member_by_node, Node}, _From, State) ->
 
 
 handle_call({update_member_by_node, Node, Clock, NodeState}, _From, State) ->
+    %% TODO
     Reply = case leo_redundant_manager_mnesia:update_member_by_node(Node, Clock, NodeState) of
                 ok ->
                     case leo_redundant_manager_mnesia:get_members() of
@@ -278,7 +279,7 @@ handle_call({synchronize, TblInfo, MgrRing, MyRing}, _From, State) ->
                               true ->
                                   void;
                               false ->
-                                  leo_redundant_manager_table:delete(TblInfo, VNodeId0)
+                                  leo_redundant_manager_table_ring:delete(TblInfo, VNodeId0)
                           end
                   end, MyRing),
 
@@ -296,7 +297,7 @@ handle_call({synchronize, TblInfo, MgrRing, MyRing}, _From, State) ->
                               true ->
                                   void;
                               false ->
-                                  leo_redundant_manager_table:insert(TblInfo, {VNodeId0, Node0})
+                                  leo_redundant_manager_table_ring:insert(TblInfo, {VNodeId0, Node0})
                           end
                   end, MgrRing),
     {reply, ok, State};
@@ -350,6 +351,7 @@ handle_call({detach, Node, Clock}, _From, State) ->
 
 
 handle_call({suspend, Node, Clock}, _From, State) ->
+    %% @TODO
     Reply = case leo_redundant_manager_mnesia:update_member_by_node(Node, Clock, ?STATE_SUSPEND) of
                 ok ->
                     case leo_redundant_manager_mnesia:get_members() of
@@ -402,6 +404,7 @@ add_members(Members) ->
     NewMembers = lists:map(
                    fun(#member{node  = Node,
                                clock = Clock} = Member) ->
+                           %% @TODO
                            leo_redundant_manager_mnesia:update_member_by_node(Node, Clock, State),
                            Member#member{state = State}
                    end, Members),
@@ -409,13 +412,13 @@ add_members(Members) ->
     TblInfo0 = leo_redundant_manager_api:table_info(?VER_CURRENT),
     TblInfo1 = leo_redundant_manager_api:table_info(?VER_PREV),
 
-    true = leo_redundant_manager_table:delete_all_objects(TblInfo1),
-    case leo_redundant_manager_table:tab2list(TblInfo0) of
+    true = leo_redundant_manager_table_ring:delete_all_objects(TblInfo1),
+    case leo_redundant_manager_table_ring:tab2list(TblInfo0) of
         [] ->
             void;
         List when is_list(List) ->
             lists:foreach(fun({K,V}) ->
-                                  leo_redundant_manager_table:insert(TblInfo1, {K, V})
+                                  leo_redundant_manager_table_ring:insert(TblInfo1, {K, V})
                           end, List);
         _Error ->
             void
@@ -426,6 +429,7 @@ add_members(Members) ->
 
 
 attach_fun({_, ?CUR_RING_TABLE} = TblInfo, Member) ->
+    %% @TODO
     case leo_redundant_manager_mnesia:insert_member(Member) of
         ok ->
             attach_fun1(TblInfo, Member);
@@ -452,6 +456,7 @@ attach_fun1(TblInfo, Member) ->
 
 
 detach_fun({_, ?CUR_RING_TABLE} = TblInfo, Member) ->
+    %% TODO
     case leo_redundant_manager_mnesia:update_member_by_node(
            Member#member.node, Member#member.clock, ?STATE_DETACHED) of
         ok ->
@@ -489,7 +494,7 @@ get_members_fun(?VER_CURRENT) ->
     end;
 get_members_fun(?VER_PREV) ->
     TblInfo = leo_redundant_manager_api:table_info(?VER_PREV),
-    Ring    = leo_redundant_manager_table:tab2list(TblInfo),
+    Ring    = leo_redundant_manager_table_ring:tab2list(TblInfo),
     case Ring of
         [] ->
             not_found;

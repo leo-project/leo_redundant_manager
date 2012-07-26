@@ -295,8 +295,8 @@ inspect0(Hostname) ->
     ?assertEqual(true, (-1 =< Chksum3)),
     ?assertEqual(true, (-1 =< Chksum4)),
 
-    ?assertEqual(1536, leo_redundant_manager_table:size({mnesia, ?CUR_RING_TABLE} )),
-    ?assertEqual(1536, leo_redundant_manager_table:size({mnesia, ?PREV_RING_TABLE})),
+    ?assertEqual(1536, leo_redundant_manager_table_ring:size({mnesia, ?CUR_RING_TABLE} )),
+    ?assertEqual(1536, leo_redundant_manager_table_ring:size({mnesia, ?PREV_RING_TABLE})),
 
     Max = leo_utils:power(2, ?MD5),
     lists:foreach(fun(Num) ->

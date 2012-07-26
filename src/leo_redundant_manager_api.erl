@@ -133,8 +133,8 @@ create() ->
             ok = application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
 
             {ok, Chksum0} = checksum(?CHECKSUM_MEMBER),
-            {ok, Members, [{?CHECKSUM_RING, Chksums},
-                           {?CHECKSUM_MEMBER,        Chksum0}]};
+            {ok, Members, [{?CHECKSUM_RING,   Chksums},
+                           {?CHECKSUM_MEMBER, Chksum0}]};
         Error ->
             Error
     end.
@@ -383,13 +383,11 @@ get_redundancies_by_addr_id(TblInfo, AddrId, Options) ->
     get_redundancies_by_addr_id(ServerType, TblInfo, AddrId, Options).
 
 get_redundancies_by_addr_id(?SERVER_MANAGER, TblInfo, AddrId, Options) ->
-    {ok, {CurRingHash, _PrevRingHash}} = checksum(?CHECKSUM_RING),
-    ok = application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
-
     Ret = leo_redundant_manager_mnesia:get_members(),
     get_redundancies_by_addr_id_1(Ret, TblInfo, AddrId, Options);
 
 get_redundancies_by_addr_id(_ServerType, TblInfo, AddrId, Options) ->
+    %% @TODO
     Ret = application:get_env(?APP, ?PROP_MEMBERS),
     get_redundancies_by_addr_id_1(Ret, TblInfo, AddrId, Options).
 
@@ -449,6 +447,7 @@ rebalance(?SERVER_MANAGER, N) ->
     Ret = leo_redundant_manager_mnesia:get_members(),
     rebalance_1(Ret, N);
 rebalance(_, N) ->
+    %% @TODO
     Ret = application:get_env(?APP, ?PROP_MEMBERS),
     rebalance_1(Ret, N).
 
@@ -534,11 +533,11 @@ update_member_by_node(Node, Clock, State) ->
              {ok, list()}).
 get_ring(?SYNC_MODE_CUR_RING) ->
     TblInfo = table_info(?VER_CURRENT),
-    Ring = leo_redundant_manager_table:tab2list(TblInfo),
+    Ring = leo_redundant_manager_table_ring:tab2list(TblInfo),
     {ok, Ring};
 get_ring(?SYNC_MODE_PREV_RING) ->
     TblInfo = table_info(?VER_PREV),
-    Ring = leo_redundant_manager_table:tab2list(TblInfo),
+    Ring = leo_redundant_manager_table_ring:tab2list(TblInfo),
     {ok, Ring}.
 
 
@@ -618,7 +617,9 @@ init_ring_tables(_Other) ->
 set_members_to_env(Members) ->
     {ok, {CurRingHash, _PrevRingHash}} = checksum(?CHECKSUM_RING),
     ok = application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
-    ok = application:set_env(?APP, ?PROP_MEMBERS,   Members,     3000),
+
+    %% @TODO
+    ok = application:set_env(?APP, ?PROP_MEMBERS, Members, 3000),
     ok.
 
 
