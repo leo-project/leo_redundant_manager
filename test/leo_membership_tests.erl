@@ -67,7 +67,7 @@ setup() ->
 
     %% start applications
     application:start(mnesia),
-    leo_redundant_manager_mnesia:create_members(ram_copies),
+    leo_redundant_manager_table_member:create_members(ram_copies),
     {Hostname, Mgr0, Mgr1, Node0, Node1, Node2}.
 
 teardown({_, Mgr0, Mgr1, Node0, Node1, Node2}) ->

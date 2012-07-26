@@ -31,13 +31,10 @@
 -include_lib("stdlib/include/qlc.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--type(mnesia_copies() :: disc_copies | ram_copies).
+%% -type(mnesia_copies() :: disc_copies | ram_copies).
 
 %% API
--export([create_members/1, create_members/2,
-         create_ring_current/1, create_ring_current/2,
-         create_ring_prev/1, create_ring_prev/2,
-         get_members/0,
+-export([get_members/0,
          get_members_count/0,
          get_member_by_node/1,
          update_member_by_node/3,
@@ -45,68 +42,6 @@
          insert_member/1,
          delete_member/1
         ]).
-
-
-%% @doc create member table.
-%%
--spec(create_members(mnesia_copies()) -> ok).
-create_members(Mode) ->
-    create_members(Mode, [erlang:node()]).
-
-create_members(Mode, Nodes) ->
-    mnesia:create_table(
-      members,
-      [{Mode, Nodes},
-       {type, set},
-       {record_name, member},
-       {attributes, record_info(fields, member)},
-       {user_properties,
-        [{node,          {varchar,   undefined},  false, primary,   undefined, identity,  atom   },
-         {clock,         {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {num_of_vnodes, {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {state,         {varchar,   undefined},  false, undefined, undefined, undefined, atom   }
-        ]}
-      ]).
-
-
-%% @doc create ring-current table.
-%%
--spec(create_ring_current(mnesia_copies()) -> ok).
-create_ring_current(Mode) ->
-    create_ring_current(Mode, [erlang:node()]).
-
-create_ring_current(Mode, Nodes) ->
-    mnesia:create_table(
-      ?CUR_RING_TABLE,
-      [{Mode, Nodes},
-       {type, ordered_set},
-       {record_name, ring},
-       {attributes, record_info(fields, ring)},
-       {user_properties,
-        [{vnode_id,      {integer,   undefined},  false, primary,   undefined, identity,  integer},
-         {atom,          {varchar,   undefined},  false, undefined, undefined, undefined, atom   }
-        ]}
-      ]).
-
-
-%% @doc create ring-prev table.
-%%
--spec(create_ring_prev(mnesia_copies()) -> ok).
-create_ring_prev(Mode) ->
-    create_ring_prev(Mode, [erlang:node()]).
-
-create_ring_prev(Mode, Nodes) ->
-    mnesia:create_table(
-      ?PREV_RING_TABLE,
-      [{Mode, Nodes},
-       {type, ordered_set},
-       {record_name, ring},
-       {attributes, record_info(fields, ring)},
-       {user_properties,
-        [{vnode_id,      {integer,   undefined},  false, primary,   undefined, identity,  integer},
-         {atom,          {varchar,   undefined},  false, undefined, undefined, undefined, atom   }
-        ]}
-      ]).
 
 
 %% @doc get member list.

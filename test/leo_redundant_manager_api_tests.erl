@@ -57,7 +57,7 @@ setup() ->
     {ok, Hostname} = inet:gethostname(),
 
     application:start(mnesia),
-    leo_redundant_manager_mnesia:create_members(ram_copies),
+    leo_redundant_manager_table_member:create_members(ram_copies),
     mnesia:wait_for_tables([members], 30000),
     {Hostname}.
 
@@ -158,8 +158,8 @@ synchronize_0_(_Arg) ->
                {w ,2},
                {d, 2},
                {bit_of_ring, 128}],
-    leo_redundant_manager_mnesia:create_ring_current(ram_copies, [node()]),
-    leo_redundant_manager_mnesia:create_ring_prev(ram_copies, [node()]),
+    leo_redundant_manager_table_ring:create_ring_current(ram_copies, [node()]),
+    leo_redundant_manager_table_ring:create_ring_prev(ram_copies, [node()]),
 
     {ok, NewMember, Checksums} = leo_redundant_manager_api:synchronize(?SYNC_MODE_BOTH, ?TEST_MEMBERS, Options),
     {CurRing,PrevRing} = proplists:get_value(?CHECKSUM_RING,   Checksums),
@@ -239,8 +239,8 @@ suspend_({Hostname}) ->
 prepare(Hostname, ServerType) ->
     case ServerType of
         master ->
-            leo_redundant_manager_mnesia:create_ring_current(ram_copies, [node()]),
-            leo_redundant_manager_mnesia:create_ring_prev(ram_copies, [node()]);
+            leo_redundant_manager_table_ring:create_ring_current(ram_copies, [node()]),
+            leo_redundant_manager_table_ring:create_ring_prev(ram_copies, [node()]);
         _ ->
             void
     end,
