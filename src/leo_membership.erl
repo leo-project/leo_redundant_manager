@@ -26,7 +26,6 @@
 -module(leo_membership).
 
 -author('Yosuke Hara').
--vsn('0.9.1').
 
 -behaviour(gen_server).
 

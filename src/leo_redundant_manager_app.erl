@@ -26,7 +26,6 @@
 -module(leo_redundant_manager_app).
 
 -author('Yosuke Hara').
--vsn('0.9.1').
 
 -behaviour(application).
 
