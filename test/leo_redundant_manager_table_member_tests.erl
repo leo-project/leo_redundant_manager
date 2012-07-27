@@ -62,64 +62,73 @@ teardown(_) ->
     ok.
 
 suite_mnesia_(_) ->
-    application:start(mnesia),
-
-
-
-    application:stop(mnesia),
+    _ =application:start(mnesia),
+    _ = leo_redundant_manager_table_member:create_members('ram_copies', [node()]),
+    ok = inspect(?MNESIA),
+    _ = application:stop(mnesia),
     ok.
 
 suite_ets_(_) ->
     ok = leo_redundant_manager_table_member:create_members(),
-    ok = leo_redundant_manager_table_member:insert(?ETS, {?NODE_0, ?MEMBER_0}),
-    ok = leo_redundant_manager_table_member:insert(?ETS, {?NODE_1, ?MEMBER_1}),
-    ok = leo_redundant_manager_table_member:insert(?ETS, {?NODE_2, ?MEMBER_2}),
-    ok = leo_redundant_manager_table_member:insert(?ETS, {?NODE_3, ?MEMBER_3}),
-    ok = leo_redundant_manager_table_member:insert(?ETS, {?NODE_4, ?MEMBER_4}),
+    ok = inspect(?ETS),
+    ok.
 
-    Res0 = leo_redundant_manager_table_member:size(?ETS),
+inspect(Table) ->
+    not_found = leo_redundant_manager_table_member:find_all(Table),
+    not_found = leo_redundant_manager_table_member:lookup(Table, ?NODE_0),
+
+    ok = leo_redundant_manager_table_member:insert(Table, {?NODE_0, ?MEMBER_0}),
+    ok = leo_redundant_manager_table_member:insert(Table, {?NODE_1, ?MEMBER_1}),
+    ok = leo_redundant_manager_table_member:insert(Table, {?NODE_2, ?MEMBER_2}),
+    ok = leo_redundant_manager_table_member:insert(Table, {?NODE_3, ?MEMBER_3}),
+    ok = leo_redundant_manager_table_member:insert(Table, {?NODE_4, ?MEMBER_4}),
+
+    Res0 = leo_redundant_manager_table_member:size(Table),
     ?assertEqual(5, Res0),
 
-    Res1 = leo_redundant_manager_table_member:lookup(?ETS, ?NODE_0),
+    Res1 = leo_redundant_manager_table_member:lookup(Table, ?NODE_0),
     ?assertEqual({ok, ?MEMBER_0}, Res1),
-    Res2 = leo_redundant_manager_table_member:lookup(?ETS, ?NODE_1),
+    Res2 = leo_redundant_manager_table_member:lookup(Table, ?NODE_1),
     ?assertEqual({ok, ?MEMBER_1}, Res2),
-    Res3 = leo_redundant_manager_table_member:lookup(?ETS, ?NODE_2),
+    Res3 = leo_redundant_manager_table_member:lookup(Table, ?NODE_2),
     ?assertEqual({ok, ?MEMBER_2}, Res3),
-    Res4 = leo_redundant_manager_table_member:lookup(?ETS, ?NODE_3),
+    Res4 = leo_redundant_manager_table_member:lookup(Table, ?NODE_3),
     ?assertEqual({ok, ?MEMBER_3}, Res4),
-    Res5 = leo_redundant_manager_table_member:lookup(?ETS, ?NODE_4),
+    Res5 = leo_redundant_manager_table_member:lookup(Table, ?NODE_4),
     ?assertEqual({ok, ?MEMBER_4}, Res5),
 
-    {ok, Res6} = leo_redundant_manager_table_member:find_all(?ETS),
+    {ok, Res6} = leo_redundant_manager_table_member:find_all(Table),
     ?assertEqual(5, length(Res6)),
 
-    ok = leo_redundant_manager_table_member:delete(?ETS, ?NODE_0),
-    Res7 = leo_redundant_manager_table_member:size(?ETS),
+    ok = leo_redundant_manager_table_member:delete(Table, ?NODE_0),
+    not_found = leo_redundant_manager_table_member:lookup(Table, ?NODE_0),
+    Res7 = leo_redundant_manager_table_member:size(Table),
     ?assertEqual(4, Res7),
 
-    Ret8 = leo_redundant_manager_table_member:tab2list(?ETS),
+    Ret8 = leo_redundant_manager_table_member:tab2list(Table),
     ?assertEqual(4, length(Ret8)),
 
     ok = leo_redundant_manager_table_member:replace_members(
-             ?ETS,
+             Table,
              [?MEMBER_1, ?MEMBER_2, ?MEMBER_3, ?MEMBER_4],
              [?MEMBER_3, ?MEMBER_4]),
 
-    Ret9 = leo_redundant_manager_table_member:tab2list(?ETS),
+    Ret9 = leo_redundant_manager_table_member:tab2list(Table),
     ?assertEqual(2, length(Ret9)),
 
-    Res10 = leo_redundant_manager_table_member:size(?ETS),
+    Res10 = leo_redundant_manager_table_member:size(Table),
     ?assertEqual(2, Res10),
 
-    ok = leo_redundant_manager_table_member:insert(?ETS, {?NODE_0, ?MEMBER_0}),
-    ok = leo_redundant_manager_table_member:insert(?ETS, {?NODE_0, ?MEMBER_0}),
+    ok = leo_redundant_manager_table_member:insert(Table, {?NODE_0, ?MEMBER_0}),
+    ok = leo_redundant_manager_table_member:insert(Table, {?NODE_0, ?MEMBER_0}),
 
-    Res11 = leo_redundant_manager_table_member:size(?ETS),
+    Res11 = leo_redundant_manager_table_member:size(Table),
     ?assertEqual(3, Res11),
-    Ret12 = leo_redundant_manager_table_member:tab2list(?ETS),
+    Ret12 = leo_redundant_manager_table_member:tab2list(Table),
     ?assertEqual(3, length(Ret12)),
     ok.
+
+
 
 -endif.
 

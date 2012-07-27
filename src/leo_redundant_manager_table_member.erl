@@ -130,11 +130,16 @@ insert(ets, {Node, Member}) ->
 %% @doc Remove a record from the table.
 %%
 delete(mnesia, Node) ->
-    Member = lookup(mnesia, Node),
-    Fun = fun() ->
-                  mnesia:delete_object(?TABLE, Member, write)
-          end,
-    leo_mnesia_utils:delete(Fun);
+    case lookup(mnesia, Node) of
+        {ok, Member} ->
+            Fun = fun() ->
+                          mnesia:delete_object(?TABLE, Member, write)
+                  end,
+            leo_mnesia_utils:delete(Fun);
+        Error ->
+            Error
+    end;
+
 delete(ets, Node) ->
     case catch ets:delete(?TABLE, Node) of
         true ->
