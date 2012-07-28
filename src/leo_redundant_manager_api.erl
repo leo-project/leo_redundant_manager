@@ -383,7 +383,7 @@ get_redundancies_by_addr_id(TblInfo, AddrId, Options) ->
     get_redundancies_by_addr_id(ServerType, TblInfo, AddrId, Options).
 
 get_redundancies_by_addr_id(?SERVER_MANAGER, TblInfo, AddrId, Options) ->
-    Ret = leo_redundant_manager_mnesia:get_members(),
+    Ret = leo_redundant_manager_table_member:find_all(),
     get_redundancies_by_addr_id_1(Ret, TblInfo, AddrId, Options);
 
 get_redundancies_by_addr_id(_ServerType, TblInfo, AddrId, Options) ->
@@ -444,7 +444,7 @@ rebalance() ->
     end.
 
 rebalance(?SERVER_MANAGER, N) ->
-    Ret = leo_redundant_manager_mnesia:get_members(),
+    Ret = leo_redundant_manager_table_member:find_all(),
     rebalance_1(Ret, N);
 rebalance(_, N) ->
     %% @TODO
@@ -498,7 +498,7 @@ get_member_by_node(Node) ->
 -spec(get_members_count() ->
              integer() | {error, any()}).
 get_members_count() ->
-    leo_redundant_manager_mnesia:get_members_count().
+    leo_redundant_manager_table_member:size().
 
 
 %% @doc update members.

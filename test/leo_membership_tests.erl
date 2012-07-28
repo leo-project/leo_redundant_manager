@@ -66,6 +66,7 @@ setup() ->
     timer:sleep(100),
 
     %% start applications
+    application:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
     application:start(mnesia),
     leo_redundant_manager_table_member:create_members(ram_copies),
     {Hostname, Mgr0, Mgr1, Node0, Node1, Node2}.

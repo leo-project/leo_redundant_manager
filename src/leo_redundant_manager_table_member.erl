@@ -32,10 +32,19 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -export([create_members/0, create_members/1, create_members/2,
-         lookup/2, find_all/1, insert/2, delete/2, replace_members/3,
-         size/1, tab2list/1]).
+         lookup/1, lookup/2, find_all/0, find_all/1,
+         insert/1, insert/2, delete/1, delete/2, replace/2, replace/3,
+         size/0, size/1, tab2list/0, tab2list/1]).
 
 -define(TABLE, members).
+-define(table_type(), case application:get_env(?APP, ?PROP_SERVER_TYPE) of
+                          {ok, Value} when Value == ?SERVER_MANAGER -> mnesia;
+                          {ok, Value} when Value == ?SERVER_STORAGE -> ets;
+                          {ok, Value} when Value == ?SERVER_GATEWAY -> ets;
+                          _ ->
+                              undefined
+                      end).    
+
 -type(mnesia_copies() :: disc_copies | ram_copies).
 
 %% @doc create member table.
@@ -68,6 +77,9 @@ create_members(Mode, Nodes) ->
 
 %% Retrieve a record by key from the table.
 %%
+lookup(Node) ->
+    lookup(?table_type(), Node).
+
 lookup(mnesia, Node) ->
     case catch mnesia:ets(fun ets:lookup/2, [?TABLE, Node]) of
         [H|_T] ->
@@ -91,6 +103,9 @@ lookup(ets, Node) ->
 
 %% @doc Retrieve all members from the table.
 %%
+find_all() ->
+    find_all(?table_type()).
+
 find_all(mnesia) ->
     F = fun() ->
                 Q1 = qlc:q([X || X <- mnesia:table(members)]),
@@ -114,6 +129,9 @@ find_all(ets) ->
 
 %% @doc Insert a record into the table.
 %%
+insert({Node, Member}) ->
+    insert(?table_type(), {Node, Member}).
+
 insert(mnesia, {_, Member}) ->
     Fun = fun() -> mnesia:write(?TABLE, Member, write) end,
     leo_mnesia_utils:write(Fun);
@@ -129,6 +147,9 @@ insert(ets, {Node, Member}) ->
 
 %% @doc Remove a record from the table.
 %%
+delete(Node) ->
+    delete(?table_type(), Node).
+
 delete(mnesia, Node) ->
     case lookup(mnesia, Node) of
         {ok, Member} ->
@@ -151,24 +172,30 @@ delete(ets, Node) ->
 
 %% @doc Replace members into the db.
 %%
--spec(replace_members(ets | mnesia, list(), list()) ->
+replace(OldMembers, NewMembers) ->
+    replace(?table_type(), OldMembers, NewMembers).
+
+-spec(replace(ets | mnesia, list(), list()) ->
              ok).
-replace_members(Type, OldMembers, NewMembers) ->
+replace(Table, OldMembers, NewMembers) ->
     lists:foreach(fun(Item) ->
-                          delete(Type, Item#member.node)
+                          delete(Table, Item#member.node)
                   end, OldMembers),
     lists:foreach(
       fun(Item) ->
-              insert(Type, {Item#member.node, #member{node          = Item#member.node,
-                                                      clock         = Item#member.clock,
-                                                      num_of_vnodes = Item#member.num_of_vnodes,
-                                                      state         = Item#member.state}})
+              insert(Table, {Item#member.node, #member{node          = Item#member.node,
+                                                       clock         = Item#member.clock,
+                                                       num_of_vnodes = Item#member.num_of_vnodes,
+                                                       state         = Item#member.state}})
       end, NewMembers),
     ok.
 
 
 %% @doc Retrieve total of records.
 %%
+size() ->
+    ?MODULE:size(?table_type()).
+
 size(mnesia) ->
     mnesia:ets(fun ets:info/2, [?TABLE, size]);
 size(ets) ->
@@ -177,6 +204,9 @@ size(ets) ->
 
 %% @doc Retrieve list from the table.
 %%
+tab2list() ->
+    tab2list(?table_type()).
+
 tab2list(mnesia) ->
     case mnesia:ets(fun ets:tab2list/1, [?TABLE]) of
         [] ->

@@ -212,7 +212,7 @@ defer_heartbeat(Time) ->
              ok | {error, any()}).
 exec(?SERVER_MANAGER = ServerType, Managers) ->
     ClusterNodes =
-        case leo_redundant_manager_mnesia:get_members() of
+        case leo_redundant_manager_table_member:find_all() of
             {ok, Members} ->
                 lists:map(fun(#member{node = Node, state = State}) ->
                                   {storage, Node ,State}

@@ -108,7 +108,7 @@ inspect(Table) ->
     Ret8 = leo_redundant_manager_table_member:tab2list(Table),
     ?assertEqual(4, length(Ret8)),
 
-    ok = leo_redundant_manager_table_member:replace_members(
+    ok = leo_redundant_manager_table_member:replace(
              Table,
              [?MEMBER_1, ?MEMBER_2, ?MEMBER_3, ?MEMBER_4],
              [?MEMBER_3, ?MEMBER_4]),

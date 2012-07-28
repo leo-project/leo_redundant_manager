@@ -56,6 +56,7 @@ setup() ->
     [] = os:cmd("epmd -daemon"),
     {ok, Hostname} = inet:gethostname(),
 
+    application:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
     application:start(mnesia),
     leo_redundant_manager_table_member:create_members(ram_copies),
     mnesia:wait_for_tables([members], 30000),
@@ -124,30 +125,33 @@ detach_({Hostname}) ->
                        #member{node = 'node_2@127.0.0.1'}]).
 members_table_(_Arg) ->
     %% create -> get -> not-found.
-    not_found = leo_redundant_manager_mnesia:get_members(),
+    not_found = leo_redundant_manager_table_member:find_all(),
 
-    ?assertEqual(0, leo_redundant_manager_mnesia:get_members_count()),
-    ?assertEqual(not_found, leo_redundant_manager_mnesia:get_member_by_node('node_0@127.0.0.1')),
+    ?assertEqual(0, leo_redundant_manager_table_member:size()),
+    ?assertEqual(not_found, leo_redundant_manager_table_member:lookup('node_0@127.0.0.1')),
 
     %% insert.
     lists:foreach(fun(Item) ->
-                          ?assertEqual(ok, leo_redundant_manager_mnesia:insert_member(Item))
+                          ?assertEqual(ok, leo_redundant_manager_table_member:insert({Item#member.node, Item}))
                   end, ?TEST_MEMBERS),
 
     %% update.
-    ok = leo_redundant_manager_mnesia:update_member_by_node('node_1@127.0.0.1', 12345, 'suspend'),
+    ok = leo_redundant_manager_table_member:insert({'node_1@127.0.0.1', #member{node  = 'node_1@127.0.0.1',
+                                                                                clock = 12345,
+                                                                                state = 'suspend'}}),
 
     %% get.
-    {ok, Members} = leo_redundant_manager_mnesia:get_members(),
-    ?assertEqual(3, leo_redundant_manager_mnesia:get_members_count()),
+    {ok, Members} = leo_redundant_manager_table_member:find_all(),
+    ?assertEqual(3, leo_redundant_manager_table_member:size()),
     ?assertEqual(3, length(Members)),
 
-    ?assertEqual({ok, [lists:nth(1,?TEST_MEMBERS)]},
-                 leo_redundant_manager_mnesia:get_member_by_node('node_0@127.0.0.1')),
+    ?assertEqual({ok, lists:nth(1,?TEST_MEMBERS)},
+                 leo_redundant_manager_table_member:lookup('node_0@127.0.0.1')),
 
     %% delete.
-    leo_redundant_manager_mnesia:delete_member(lists:nth(1, ?TEST_MEMBERS)),
-    ?assertEqual(2, leo_redundant_manager_mnesia:get_members_count()),
+    #member{node = Node} = lists:nth(1, ?TEST_MEMBERS),
+    leo_redundant_manager_table_member:delete(Node),
+    ?assertEqual(2, leo_redundant_manager_table_member:size()),
     ok.
 
 
