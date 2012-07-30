@@ -74,14 +74,8 @@ start(ServerType0, Managers, MQStoragePath) ->
 start(ServerType0, Managers, MQStoragePath, Options) ->
     case start(ServerType0) of
         ok ->
-            ServerType1 = case ServerType0 of
-                              master -> ?SERVER_MANAGER;
-                              slave  -> ?SERVER_MANAGER;
-                              _      -> ServerType0
-                          end,
+            ServerType1 = server_type(ServerType0),
             ok = application:set_env(?APP, ?PROP_SERVER_TYPE, ServerType1, 3000),
-            ?debugVal({ServerType1, application:get_env(?APP, ?PROP_SERVER_TYPE)}),
-
 
             case (Options == []) of
                 true  -> void;
@@ -558,16 +552,25 @@ table_info(?VER_PREV) ->
 %%--------------------------------------------------------------------
 %% INNTERNAL FUNCTIONS
 %%--------------------------------------------------------------------
-%% @doc start object storage application.
-%%
+%% @doc Retrieve a server-type.
+%% @private
+server_type(master) -> ?SERVER_MANAGER;
+server_type(slave)  -> ?SERVER_MANAGER;
+server_type(Type)   -> Type.
+
+
+%% @doc Launch the application.
+%% @private
 -spec(start_app(server_type()) ->
              ok | {error, any()}).
 start_app(ServerType) ->
     Module = leo_redundant_manager,
+
     case application:start(Module) of
         ok ->
             ?MODULE_SET_ENV_1(),
             ?MODULE_SET_ENV_2(),
+            ok = init_members_table(ServerType),
             ok = init_ring_tables(ServerType),
             ok;
         {error, {already_started, Module}} ->
@@ -577,8 +580,21 @@ start_app(ServerType) ->
     end.
 
 
-%% @doc Set
-%%
+%% @doc Create members table.
+%% @private
+-spec(init_members_table(server_type()) ->
+             ok).
+init_members_table(master) ->
+    ok;
+init_members_table(slave) ->
+    ok;
+init_members_table(_Other) ->
+    ok = leo_redundant_manager_table_member:create_members(),
+    ok.
+
+
+%% @doc Set ring-table related values.
+%% @private
 -spec(init_ring_tables(server_type()) ->
              ok).
 init_ring_tables(master) ->
@@ -599,8 +615,8 @@ init_ring_tables(_Other) ->
     ok.
 
 
-%% @doc start membership.
-%%
+%% @doc Launch the membership.
+%% @private
 -spec(start_membership(server_type(), string()) ->
              ok).
 start_membership(ServerType, Path) ->
@@ -609,7 +625,7 @@ start_membership(ServerType, Path) ->
 
 
 %% @doc Specify ETS's table.
-%%
+%% @private
 -spec(ring_table(method()) ->
              ring_table_info()).
 ring_table(default) -> table_info(?VER_CURRENT);
