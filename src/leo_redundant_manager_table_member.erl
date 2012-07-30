@@ -41,9 +41,10 @@
                           {ok, Value} when Value == ?SERVER_MANAGER -> mnesia;
                           {ok, Value} when Value == ?SERVER_STORAGE -> ets;
                           {ok, Value} when Value == ?SERVER_GATEWAY -> ets;
-                          _ ->
+                          _Error ->
+                              ?debugVal({?APP, ?PROP_SERVER_TYPE, _Error}),
                               undefined
-                      end).    
+                      end).
 
 -type(mnesia_copies() :: disc_copies | ram_copies).
 

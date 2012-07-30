@@ -80,6 +80,8 @@ start(ServerType0, Managers, MQStoragePath, Options) ->
                               _      -> ServerType0
                           end,
             ok = application:set_env(?APP, ?PROP_SERVER_TYPE, ServerType1, 3000),
+            ?debugVal({ServerType1, application:get_env(?APP, ?PROP_SERVER_TYPE)}),
+
 
             case (Options == []) of
                 true  -> void;
@@ -119,15 +121,13 @@ stop() ->
     ok.
 
 
-%% @doc crate routing-table.
+%% @doc Create the RING
 %%
 -spec(create() ->
              {ok, list(), list()} | {error, any()}).
 create() ->
     case leo_redundant_manager:create() of
         {ok, Members} ->
-            ok = set_members_to_env(Members),
-
             {ok, Chksums} = checksum(?CHECKSUM_RING),
             {CurRingHash, _PrevRingHash} = Chksums,
             ok = application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
@@ -184,8 +184,8 @@ attach(Node, Clock) ->
     attach(Node, Clock, ?DEF_NUMBER_OF_VNODES).
 attach(Node, Clock, NumOfVNodes) ->
     case leo_redundant_manager:attach(Node, Clock, NumOfVNodes) of
-        {ok, Members} ->
-            ok = set_members_to_env(Members);
+        ok ->
+            ok;
         Error ->
             Error
     end.
@@ -199,8 +199,8 @@ detach(Node) ->
     detach(Node, leo_utils:clock()).
 detach(Node, Clock) ->
     case leo_redundant_manager:detach(Node, Clock) of
-        {ok, Members} ->
-            ok = set_members_to_env(Members);
+        ok ->
+            ok;
         Error ->
             Error
     end.
@@ -214,8 +214,8 @@ suspend(Node) ->
     suspend(Node, leo_utils:clock()).
 suspend(Node, Clock) ->
     case leo_redundant_manager:suspend(Node, Clock) of
-        {ok, Members} ->
-            ok = set_members_to_env(Members);
+        ok ->
+            ok;
         Error ->
             Error
     end.
@@ -265,7 +265,6 @@ synchronize(?SYNC_MODE_BOTH, Members, Options) ->
     end;
 
 synchronize([],_Ring0,_Acc) ->
-    %% _ = lists:reverse(Acc),
     checksum(?CHECKSUM_RING);
 
 synchronize([RingVer|T], Ring0, Acc) ->
@@ -278,7 +277,6 @@ synchronize([RingVer|T], Ring0, Acc) ->
 synchronize(?SYNC_MODE_MEMBERS, Members) ->
     case leo_redundant_manager:update_members(Members) of
         ok ->
-            ok = set_members_to_env(Members),
             leo_redundant_manager:checksum(?CHECKSUM_MEMBER);
         Error ->
             Error
@@ -387,8 +385,7 @@ get_redundancies_by_addr_id(?SERVER_MANAGER, TblInfo, AddrId, Options) ->
     get_redundancies_by_addr_id_1(Ret, TblInfo, AddrId, Options);
 
 get_redundancies_by_addr_id(_ServerType, TblInfo, AddrId, Options) ->
-    %% @TODO
-    Ret = application:get_env(?APP, ?PROP_MEMBERS),
+    Ret = leo_redundant_manager_table_member:find_all(),
     get_redundancies_by_addr_id_1(Ret, TblInfo, AddrId, Options).
 
 get_redundancies_by_addr_id_1({ok, Members}, TblInfo, AddrId, Options) ->
@@ -447,8 +444,7 @@ rebalance(?SERVER_MANAGER, N) ->
     Ret = leo_redundant_manager_table_member:find_all(),
     rebalance_1(Ret, N);
 rebalance(_, N) ->
-    %% @TODO
-    Ret = application:get_env(?APP, ?PROP_MEMBERS),
+    Ret = leo_redundant_manager_table_member:find_all(),
     rebalance_1(Ret, N).
 
 rebalance_1({ok, Members}, N) ->
@@ -508,7 +504,7 @@ get_members_count() ->
 update_members(Members) ->
     case leo_redundant_manager:update_members(Members) of
         ok ->
-            set_members_to_env(Members);
+            ok;
         Error ->
             Error
     end.
@@ -520,8 +516,8 @@ update_members(Members) ->
              ok | {error, any()}).
 update_member_by_node(Node, Clock, State) ->
     case leo_redundant_manager:update_member_by_node(Node, Clock, State) of
-        {ok, Members} ->
-            set_members_to_env(Members);
+        ok ->
+            ok;
         Error ->
             Error
     end.
@@ -573,13 +569,6 @@ start_app(ServerType) ->
             ?MODULE_SET_ENV_1(),
             ?MODULE_SET_ENV_2(),
             ok = init_ring_tables(ServerType),
-
-            case get_members() of
-                {ok, Members} ->
-                    ok = set_members_to_env(Members);
-                _ ->
-                    void
-            end,
             ok;
         {error, {already_started, Module}} ->
             ok;
@@ -607,19 +596,6 @@ init_ring_tables(_Other) ->
         ets:new(?CUR_RING_TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
     ?PREV_RING_TABLE =
         ets:new(?PREV_RING_TABLE,[named_table, ordered_set, public, {read_concurrency, true}]),
-    ok.
-
-
-%% @doc set members to application-env.
-%%
--spec(set_members_to_env(list()) ->
-             ok).
-set_members_to_env(Members) ->
-    {ok, {CurRingHash, _PrevRingHash}} = checksum(?CHECKSUM_RING),
-    ok = application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
-
-    %% @TODO
-    ok = application:set_env(?APP, ?PROP_MEMBERS, Members, 3000),
     ok.
 
 

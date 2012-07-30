@@ -234,12 +234,7 @@ handle_call({update_member_by_node, Node, Clock, NodeState}, _From, State) ->
                                   clock = Clock,
                                   state = NodeState}}) of
                 ok ->
-                    case leo_redundant_manager_table_member:find_all() of
-                        {ok, Members} ->
-                            {ok, Members};
-                        Error ->
-                            Error
-                    end;
+                    ok;
                 Error ->
                     Error
             end,
@@ -358,12 +353,7 @@ handle_call({suspend, Node, Clock}, _From, State) ->
                                   clock = Clock,
                                   state = ?STATE_SUSPEND}}) of
                 ok ->
-                    case leo_redundant_manager_table_member:find_all() of
-                        {ok, Members} ->
-                            {ok, Members};
-                        Error ->
-                            Error
-                    end;
+                    ok;
                 Error ->
                     Error
             end,
@@ -448,13 +438,7 @@ attach_fun1(TblInfo, Member) ->
     case leo_redundant_manager_chash:add(TblInfo, Member) of
         ok ->
             dump_ring_tabs(),
-
-            case leo_redundant_manager_table_member:find_all() of
-                {ok, Members} ->
-                    {ok, Members};
-                Error ->
-                    Error
-            end;
+            ok;
         Error ->
             Error
     end.
@@ -478,13 +462,7 @@ detach_fun1(TblInfo, Member) ->
     case leo_redundant_manager_chash:remove(TblInfo, Member) of
         ok ->
             dump_ring_tabs(),
-
-            case leo_redundant_manager_table_member:find_all() of
-                {ok, Members} ->
-                    {ok, Members};
-                Error ->
-                    Error
-            end;
+            ok;
         Error ->
             Error
     end.
