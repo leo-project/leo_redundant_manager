@@ -52,7 +52,7 @@
 %%
 -spec(create_members() -> ok).
 create_members() ->
-    ?TABLE = ets:new(?TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
+    catch ets:new(?TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
     ok.
 
 -spec(create_members(mnesia_copies()) -> ok).
@@ -73,7 +73,8 @@ create_members(Mode, Nodes) ->
          {num_of_vnodes, {integer,   undefined},  false, undefined, undefined, undefined, integer},
          {state,         {varchar,   undefined},  false, undefined, undefined, undefined, atom   }
         ]}
-      ]).
+      ]),
+    ok.
 
 
 %% Retrieve a record by key from the table.

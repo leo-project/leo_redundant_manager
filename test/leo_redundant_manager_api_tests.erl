@@ -263,6 +263,7 @@ prepare(Hostname, ServerType) ->
     leo_redundant_manager_api:attach(list_to_atom("node_5@" ++ Hostname)),
     leo_redundant_manager_api:attach(list_to_atom("node_6@" ++ Hostname)),
     leo_redundant_manager_api:attach(list_to_atom("node_7@" ++ Hostname)),
+    ?debugVal(leo_redundant_manager_table_member:size()),
     ok.
 
 
@@ -299,8 +300,8 @@ inspect0(Hostname) ->
     ?assertEqual(true, (-1 =< Chksum3)),
     ?assertEqual(true, (-1 =< Chksum4)),
 
-    ?assertEqual(1536, leo_redundant_manager_table_ring:size({mnesia, ?CUR_RING_TABLE} )),
-    ?assertEqual(1536, leo_redundant_manager_table_ring:size({mnesia, ?PREV_RING_TABLE})),
+    ?assertEqual(512, leo_redundant_manager_table_ring:size({mnesia, ?CUR_RING_TABLE} )),
+    ?assertEqual(512, leo_redundant_manager_table_ring:size({mnesia, ?PREV_RING_TABLE})),
 
     Max = leo_utils:power(2, ?MD5),
     lists:foreach(fun(Num) ->

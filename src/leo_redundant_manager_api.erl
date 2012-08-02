@@ -35,7 +35,8 @@
          set_options/1, get_options/0,
          attach/1, attach/2, detach/1, detach/2,
          suspend/1, suspend/2, append/3,
-         checksum/1, synchronize/2, synchronize/3, adjust/1, dump/1
+         checksum/1, synchronize/2, synchronize/3, adjust/1,
+         get_ring/0, dump/1
         ]).
 
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
@@ -323,6 +324,14 @@ adjust(VNodeId) ->
     end.
 
 
+%% @doc Retrieve Current Ring
+%%
+-spec(get_ring() ->
+             {ok, list()} | {error, any()}).
+get_ring() ->
+    {ok, ets:tab2list(?CUR_RING_TABLE)}.
+
+
 %% @doc Dump table-records.
 %%
 -spec(dump(member | ring) ->
@@ -570,6 +579,7 @@ start_app(ServerType) ->
         ok ->
             ?MODULE_SET_ENV_1(),
             ?MODULE_SET_ENV_2(),
+
             ok = init_members_table(ServerType),
             ok = init_ring_tables(ServerType),
             ok;
@@ -584,6 +594,8 @@ start_app(ServerType) ->
 %% @private
 -spec(init_members_table(server_type()) ->
              ok).
+init_members_table(manager) ->
+    ok;
 init_members_table(master) ->
     ok;
 init_members_table(slave) ->

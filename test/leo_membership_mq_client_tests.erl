@@ -189,6 +189,11 @@ prepare() ->
                         {ok, [#member{node  = ?NODEDOWN_NODE,
                                       state = ?STATE_DOWNED}]}
                 end),
+    meck:expect(leo_redundant_manager_table_member, create_members,
+                fun() ->
+                        ok
+                end),
+
 
     meck:new(leo_redundant_manager_table_ring),
     meck:expect(leo_redundant_manager_table_ring, create_ring_current,

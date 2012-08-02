@@ -25,7 +25,6 @@
 %%======================================================================
 -module(leo_membership_tests).
 -author('yosuke hara').
--vsn('0.9.1').
 
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
