@@ -26,7 +26,6 @@
 -module(leo_redundant_manager_chash).
 
 -author('yosuke hara').
--vsn('0.9.1').
 
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -56,7 +55,7 @@ add(N,_Table, #member{num_of_vnodes = NumOfVNodes}) when NumOfVNodes == N ->
     ok;
 add(N, Table, #member{node = Node} = Member) ->
     VNodeId = vnode_id([atom_to_list(Node) ++ integer_to_list(N)]),
-    true = leo_redundant_manager_table:insert(Table, {VNodeId, Node}),
+    true = leo_redundant_manager_table_ring:insert(Table, {VNodeId, Node}),
     add(N + 1, Table, Member).
 
 
@@ -65,7 +64,7 @@ add(N, Table, #member{node = Node} = Member) ->
 -spec(append(atom(), integer(), atom()) ->
              ok).
 append(Table, VNodeId, Node) ->
-    true = leo_redundant_manager_table:insert(Table, {VNodeId, Node}),
+    true = leo_redundant_manager_table_ring:insert(Table, {VNodeId, Node}),
     ok.
 
 
@@ -74,11 +73,11 @@ append(Table, VNodeId, Node) ->
 -spec(adjust(atom(), atom(), integer()) ->
              ok).
 adjust(CurRingTable, PrevRingTable, VNodeId) ->
-    case leo_redundant_manager_table:lookup(CurRingTable, VNodeId) of
+    case leo_redundant_manager_table_ring:lookup(CurRingTable, VNodeId) of
         {error, _Cause} ->
             void;
-        []   -> true = leo_redundant_manager_table:delete(PrevRingTable, VNodeId);
-        Node -> true = leo_redundant_manager_table:insert(PrevRingTable, {VNodeId, Node})
+        []   -> true = leo_redundant_manager_table_ring:delete(PrevRingTable, VNodeId);
+        Node -> true = leo_redundant_manager_table_ring:insert(PrevRingTable, {VNodeId, Node})
     end,
     ok.
 
@@ -94,7 +93,7 @@ remove(N,_Table, #member{num_of_vnodes = NumOfVNodes}) when NumOfVNodes == N ->
     ok;
 remove(N, Table, #member{node = Node} = Member) ->
     VNodeId = vnode_id([atom_to_list(Node) ++ integer_to_list(N)]),
-    true = leo_redundant_manager_table:delete(Table, VNodeId),
+    true = leo_redundant_manager_table_ring:delete(Table, VNodeId),
     remove(N + 1, Table, Member).
 
 
@@ -107,17 +106,17 @@ redundancies(_Table,_VNodeId, NumOfReplicas,_Members) when NumOfReplicas < 1;
     {error, out_of_renge};
 
 redundancies(Table, VNodeId0, NumOfReplicas, Members) ->
-    case leo_redundant_manager_table:lookup(Table, VNodeId0) of
+    case leo_redundant_manager_table_ring:lookup(Table, VNodeId0) of
         {error, Cause} ->
             {error, Cause};
         [] ->
-            case leo_redundant_manager_table:next(Table, VNodeId0) of
+            case leo_redundant_manager_table_ring:next(Table, VNodeId0) of
                 '$end_of_table' ->
-                    case leo_redundant_manager_table:first(Table) of
+                    case leo_redundant_manager_table_ring:first(Table) of
                         '$end_of_table' ->
                             {error, no_entry};
                         VNodeId1 ->
-                            Value = leo_redundant_manager_table:lookup(Table, VNodeId1),
+                            Value = leo_redundant_manager_table_ring:lookup(Table, VNodeId1),
                             redundancies(next, Table, NumOfReplicas-1, Members, VNodeId1,
                                          #redundancies{id         = VNodeId0,
                                                        vnode_id   = VNodeId1,
@@ -125,7 +124,7 @@ redundancies(Table, VNodeId0, NumOfReplicas, Members) ->
                                                        nodes      = [get_member(Members, Value)]})
                     end;
                 VNodeId1 ->
-                    Value = leo_redundant_manager_table:lookup(Table, VNodeId1),
+                    Value = leo_redundant_manager_table_ring:lookup(Table, VNodeId1),
                     redundancies(next, Table, NumOfReplicas-1, Members, VNodeId1,
                                  #redundancies{id         = VNodeId0,
                                                vnode_id   = VNodeId1,
@@ -151,9 +150,9 @@ redundancies(next, _Table, _, _Members, -1,      #redundancies{nodes = Acc} = R)
 redundancies(next, Table, NumOfReplicas, Members, VNodeId0, #redundancies{temp_nodes = Acc0,
                                                                           nodes      = Acc1} = R) ->
     VNodeId2 =
-        case leo_redundant_manager_table:next(Table, VNodeId0) of
+        case leo_redundant_manager_table_ring:next(Table, VNodeId0) of
             '$end_of_table' ->
-                case leo_redundant_manager_table:first(Table) of
+                case leo_redundant_manager_table_ring:first(Table) of
                     '$end_of_table' -> -1;
                     VNodeId1        -> VNodeId1
                 end;
@@ -161,7 +160,7 @@ redundancies(next, Table, NumOfReplicas, Members, VNodeId0, #redundancies{temp_n
                 VNodeId1
         end,
 
-    Value = leo_redundant_manager_table:lookup(Table, VNodeId2),
+    Value = leo_redundant_manager_table_ring:lookup(Table, VNodeId2),
     case lists:member(Value, Acc0) of
         true  -> redundancies(next, Table, NumOfReplicas,   Members, VNodeId2, R);
         false -> redundancies(next, Table, NumOfReplicas-1, Members, VNodeId2,
@@ -181,7 +180,7 @@ rebalance(Tables, NumOfReplicas, Members) ->
                       members  = Members,
                       src_tbl  = SrcTbl,
                       dest_tbl = DestTbl},
-    Size = leo_redundant_manager_table:size(SrcTbl),
+    Size = leo_redundant_manager_table_ring:size(SrcTbl),
     rebalance(Info, Size, 0, []).
 
 rebalance(_Info, 0,   _AddrId, Acc) ->
@@ -220,7 +219,7 @@ rebalance( Info, Size, AddrId, Acc) ->
 -spec(checksum(ring_table_info()) ->
              integer()).
 checksum(Table) ->
-    case catch leo_redundant_manager_table:tab2list(Table) of
+    case catch leo_redundant_manager_table_ring:tab2list(Table) of
         {'EXIT', _Cause} ->
             {ok, -1};
         [] ->
@@ -249,11 +248,11 @@ vnode_id(_, _) ->
 -spec(export(atom(), string()) ->
              ok | {error, any()}).
 export(Table, FileName) ->
-    case leo_redundant_manager_table:size(Table) of
+    case leo_redundant_manager_table_ring:size(Table) of
         0 ->
             ok;
         _ ->
-            List0 = leo_redundant_manager_table:tab2list(Table),
+            List0 = leo_redundant_manager_table_ring:tab2list(Table),
             leo_utils:file_unconsult(FileName, List0)
     end.
 
@@ -263,11 +262,11 @@ export(Table, FileName) ->
 -spec(import(atom(), string()) ->
              ok | {error, any()}).
 import(Table, FileName) ->
-    case (leo_redundant_manager_table:size(Table) == 0) of
+    case (leo_redundant_manager_table_ring:size(Table) == 0) of
         true ->
             ok;
         false ->
-            true = leo_redundant_manager_table:delete_all_objects(Table),
+            true = leo_redundant_manager_table_ring:delete_all_objects(Table),
             case file:consult(FileName) of
                 {ok, List} ->
                     lists:foreach(fun({VNodeId, Node}) ->
@@ -298,13 +297,13 @@ get_member([#member{node = Node0}|T], Node1) when Node0 /= Node1 ->
 %% @doc Retrieve range of vnodes.
 %% @private
 range_of_vnodes(Table, VNodeId0) ->
-    Res = case leo_redundant_manager_table:lookup(Table, VNodeId0) of
+    Res = case leo_redundant_manager_table_ring:lookup(Table, VNodeId0) of
               {error, Cause} ->
                   {error, Cause};
               [] ->
-                  case leo_redundant_manager_table:next(Table, VNodeId0) of
+                  case leo_redundant_manager_table_ring:next(Table, VNodeId0) of
                       '$end_of_table' ->
-                          case leo_redundant_manager_table:first(Table) of
+                          case leo_redundant_manager_table_ring:first(Table) of
                               '$end_of_table' ->
                                   {error, no_entry};
                               VNodeId1 ->
@@ -321,15 +320,15 @@ range_of_vnodes(Table, VNodeId0) ->
 range_of_vnodes_1(_Table, {error, _} = Error) ->
     Error;
 range_of_vnodes_1(Table, {ok, ToVNodeId}) ->
-    Res = case leo_redundant_manager_table:lookup(Table, ToVNodeId) of
+    Res = case leo_redundant_manager_table_ring:lookup(Table, ToVNodeId) of
               {error, Cause} ->
                   {error, Cause};
               [] ->
                   {error, no_entry};
               _Value ->
-                  case leo_redundant_manager_table:prev(Table, ToVNodeId) of
+                  case leo_redundant_manager_table_ring:prev(Table, ToVNodeId) of
                       '$end_of_table' ->
-                          case leo_redundant_manager_table:last(Table) of
+                          case leo_redundant_manager_table_ring:last(Table) of
                               '$end_of_table' ->
                                   {error, no_entry};
                               VNodeId1 ->

@@ -23,23 +23,65 @@
 %% @doc
 %% @end
 %%======================================================================
--module(leo_redundant_manager_table).
+-module(leo_redundant_manager_table_ring).
 
 -author('Yosuke Hara').
--vsn('0.9.1').
 
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([lookup/2, insert/2, delete/2, first/1, last/1, prev/2, next/2,
+-export([create_ring_current/1, create_ring_current/2,
+         create_ring_prev/1, create_ring_prev/2,
+         lookup/2, insert/2, delete/2, first/1, last/1, prev/2, next/2,
          delete_all_objects/1, size/1, tab2list/1]).
+
+-type(mnesia_copies() :: disc_copies | ram_copies).
+
+%% @doc create ring-current table.
+%%
+-spec(create_ring_current(mnesia_copies()) -> ok).
+create_ring_current(Mode) ->
+    create_ring_current(Mode, [erlang:node()]).
+
+create_ring_current(Mode, Nodes) ->
+    mnesia:create_table(
+      ?CUR_RING_TABLE,
+      [{Mode, Nodes},
+       {type, ordered_set},
+       {record_name, ring},
+       {attributes, record_info(fields, ring)},
+       {user_properties,
+        [{vnode_id,      {integer,   undefined},  false, primary,   undefined, identity,  integer},
+         {atom,          {varchar,   undefined},  false, undefined, undefined, undefined, atom   }
+        ]}
+      ]).
+
+
+%% @doc create ring-prev table.
+%%
+-spec(create_ring_prev(mnesia_copies()) -> ok).
+create_ring_prev(Mode) ->
+    create_ring_prev(Mode, [erlang:node()]).
+
+create_ring_prev(Mode, Nodes) ->
+    mnesia:create_table(
+      ?PREV_RING_TABLE,
+      [{Mode, Nodes},
+       {type, ordered_set},
+       {record_name, ring},
+       {attributes, record_info(fields, ring)},
+       {user_properties,
+        [{vnode_id,      {integer,   undefined},  false, primary,   undefined, identity,  integer},
+         {atom,          {varchar,   undefined},  false, undefined, undefined, undefined, atom   }
+        ]}
+      ]).
 
 
 %% Retrieve a record by key from the table.
 %%
 lookup({mnesia, Table}, VNodeId) ->
     case catch mnesia:ets(fun ets:lookup/2, [Table, VNodeId]) of
-        [#ring{node = Node}] ->
+        [#ring{node = Node}|_] ->
             Node;
         [] = Reply ->
             Reply;
@@ -48,7 +90,7 @@ lookup({mnesia, Table}, VNodeId) ->
     end;
 lookup({ets, Table}, VNodeId) ->
     case catch ets:lookup(Table, VNodeId) of
-        [{_VNodeId, Node}] ->
+        [{_VNodeId, Node}|_] ->
             Node;
         [] = Reply ->
             Reply;
@@ -116,7 +158,7 @@ delete_all_objects({ets, Table}) ->
     ets:delete_all_objects(Table).
 
 
-%% @doc Retrieve a next record from the table.
+%% @doc Retrieve total of records.
 %%
 size({mnesia, Table}) ->
     mnesia:ets(fun ets:info/2, [Table, size]);

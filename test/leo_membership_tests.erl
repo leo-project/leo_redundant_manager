@@ -25,7 +25,6 @@
 %%======================================================================
 -module(leo_membership_tests).
 -author('yosuke hara').
--vsn('0.9.1').
 
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -66,8 +65,9 @@ setup() ->
     timer:sleep(100),
 
     %% start applications
+    application:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
     application:start(mnesia),
-    leo_redundant_manager_mnesia:create_members(ram_copies),
+    leo_redundant_manager_table_member:create_members(ram_copies),
     {Hostname, Mgr0, Mgr1, Node0, Node1, Node2}.
 
 teardown({_, Mgr0, Mgr1, Node0, Node1, Node2}) ->

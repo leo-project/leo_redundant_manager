@@ -26,7 +26,6 @@
 -module(leo_redundant_manager_api).
 
 -author('Yosuke Hara').
--vsn('0.9.1').
 
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -36,7 +35,8 @@
          set_options/1, get_options/0,
          attach/1, attach/2, detach/1, detach/2,
          suspend/1, suspend/2, append/3,
-         checksum/1, synchronize/2, synchronize/3, adjust/1, dump/1
+         checksum/1, synchronize/2, synchronize/3, adjust/1,
+         get_ring/0, dump/1
         ]).
 
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
@@ -54,12 +54,12 @@
 
 -ifdef(TEST).
 -define(MNESIA_TYPE_COPIES, 'ram_copies').
--define(MODULE_SET_ENV_1, application:set_env(?APP, 'notify_mf', [leo_manager_api, notify])).
--define(MODULE_SET_ENV_2, application:set_env(?APP, 'sync_mf',   [leo_manager_api, synchronize])).
+-define(MODULE_SET_ENV_1(), application:set_env(?APP, 'notify_mf', [leo_manager_api, notify])).
+-define(MODULE_SET_ENV_2(), application:set_env(?APP, 'sync_mf',   [leo_manager_api, synchronize])).
 -else.
 -define(MNESIA_TYPE_COPIES, 'disc_copies').
--define(MODULE_SET_ENV_1, void).
--define(MODULE_SET_ENV_2, void).
+-define(MODULE_SET_ENV_1(), void).
+-define(MODULE_SET_ENV_2(), void).
 -endif.
 
 %%--------------------------------------------------------------------
@@ -75,16 +75,12 @@ start(ServerType0, Managers, MQStoragePath) ->
 start(ServerType0, Managers, MQStoragePath, Options) ->
     case start(ServerType0) of
         ok ->
-            ServerType1 = case ServerType0 of
-                              master -> ?SERVER_MANAGER;
-                              slave  -> ?SERVER_MANAGER;
-                              _      -> ServerType0
-                          end,
-            application:set_env(?APP, ?PROP_SERVER_TYPE, ServerType1, 3000),
+            ServerType1 = server_type(ServerType0),
+            ok = application:set_env(?APP, ?PROP_SERVER_TYPE, ServerType1, 3000),
 
             case (Options == []) of
                 true  -> void;
-                false -> set_options(Options)
+                false -> ok = set_options(Options)
             end,
 
             Args = [ServerType1, Managers],
@@ -120,22 +116,20 @@ stop() ->
     ok.
 
 
-%% @doc crate routing-table.
+%% @doc Create the RING
 %%
 -spec(create() ->
              {ok, list(), list()} | {error, any()}).
 create() ->
     case leo_redundant_manager:create() of
         {ok, Members} ->
-            ok = set_members_to_env(Members),
-
             {ok, Chksums} = checksum(?CHECKSUM_RING),
             {CurRingHash, _PrevRingHash} = Chksums,
-            application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
+            ok = application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
 
             {ok, Chksum0} = checksum(?CHECKSUM_MEMBER),
-            {ok, Members, [{?CHECKSUM_RING, Chksums},
-                           {?CHECKSUM_MEMBER,        Chksum0}]};
+            {ok, Members, [{?CHECKSUM_RING,   Chksums},
+                           {?CHECKSUM_MEMBER, Chksum0}]};
         Error ->
             Error
     end.
@@ -163,7 +157,7 @@ create([#member{node = Node, clock = Clock}|T], Options) ->
 -spec(set_options(list()) ->
              ok).
 set_options(Options) ->
-    application:set_env(?APP, ?PROP_OPTIONS, Options, 3000),
+    ok = application:set_env(?APP, ?PROP_OPTIONS, Options, 3000),
     ok.
 
 
@@ -185,8 +179,8 @@ attach(Node, Clock) ->
     attach(Node, Clock, ?DEF_NUMBER_OF_VNODES).
 attach(Node, Clock, NumOfVNodes) ->
     case leo_redundant_manager:attach(Node, Clock, NumOfVNodes) of
-        {ok, Members} ->
-            ok = set_members_to_env(Members);
+        ok ->
+            ok;
         Error ->
             Error
     end.
@@ -200,8 +194,8 @@ detach(Node) ->
     detach(Node, leo_utils:clock()).
 detach(Node, Clock) ->
     case leo_redundant_manager:detach(Node, Clock) of
-        {ok, Members} ->
-            ok = set_members_to_env(Members);
+        ok ->
+            ok;
         Error ->
             Error
     end.
@@ -215,8 +209,8 @@ suspend(Node) ->
     suspend(Node, leo_utils:clock()).
 suspend(Node, Clock) ->
     case leo_redundant_manager:suspend(Node, Clock) of
-        {ok, Members} ->
-            ok = set_members_to_env(Members);
+        ok ->
+            ok;
         Error ->
             Error
     end.
@@ -266,7 +260,6 @@ synchronize(?SYNC_MODE_BOTH, Members, Options) ->
     end;
 
 synchronize([],_Ring0,_Acc) ->
-    %% _ = lists:reverse(Acc),
     checksum(?CHECKSUM_RING);
 
 synchronize([RingVer|T], Ring0, Acc) ->
@@ -279,7 +272,6 @@ synchronize([RingVer|T], Ring0, Acc) ->
 synchronize(?SYNC_MODE_MEMBERS, Members) ->
     case leo_redundant_manager:update_members(Members) of
         ok ->
-            ok = set_members_to_env(Members),
             leo_redundant_manager:checksum(?CHECKSUM_MEMBER);
         Error ->
             Error
@@ -292,7 +284,7 @@ synchronize(?SYNC_MODE_CUR_RING = Ver, Ring0) ->
     case leo_redundant_manager:synchronize(TblInfo, Ring0, Ring1) of
         ok ->
             {ok, {CurRingHash, _PrevRingHash}} = checksum(?CHECKSUM_RING),
-            application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
+            ok = application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
             checksum(?CHECKSUM_RING);
         Error ->
             Error
@@ -330,6 +322,14 @@ adjust(VNodeId) ->
         Error ->
             Error
     end.
+
+
+%% @doc Retrieve Current Ring
+%%
+-spec(get_ring() ->
+             {ok, list()} | {error, any()}).
+get_ring() ->
+    {ok, ets:tab2list(?CUR_RING_TABLE)}.
 
 
 %% @doc Dump table-records.
@@ -384,14 +384,11 @@ get_redundancies_by_addr_id(TblInfo, AddrId, Options) ->
     get_redundancies_by_addr_id(ServerType, TblInfo, AddrId, Options).
 
 get_redundancies_by_addr_id(?SERVER_MANAGER, TblInfo, AddrId, Options) ->
-    {ok, {CurRingHash, _PrevRingHash}} = checksum(?CHECKSUM_RING),
-    application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
-
-    Ret = leo_redundant_manager_mnesia:get_members(),
+    Ret = leo_redundant_manager_table_member:find_all(),
     get_redundancies_by_addr_id_1(Ret, TblInfo, AddrId, Options);
 
 get_redundancies_by_addr_id(_ServerType, TblInfo, AddrId, Options) ->
-    Ret = application:get_env(?APP, ?PROP_MEMBERS),
+    Ret = leo_redundant_manager_table_member:find_all(),
     get_redundancies_by_addr_id_1(Ret, TblInfo, AddrId, Options).
 
 get_redundancies_by_addr_id_1({ok, Members}, TblInfo, AddrId, Options) ->
@@ -447,10 +444,10 @@ rebalance() ->
     end.
 
 rebalance(?SERVER_MANAGER, N) ->
-    Ret = leo_redundant_manager_mnesia:get_members(),
+    Ret = leo_redundant_manager_table_member:find_all(),
     rebalance_1(Ret, N);
 rebalance(_, N) ->
-    Ret = application:get_env(?APP, ?PROP_MEMBERS),
+    Ret = leo_redundant_manager_table_member:find_all(),
     rebalance_1(Ret, N).
 
 rebalance_1({ok, Members}, N) ->
@@ -500,7 +497,7 @@ get_member_by_node(Node) ->
 -spec(get_members_count() ->
              integer() | {error, any()}).
 get_members_count() ->
-    leo_redundant_manager_mnesia:get_members_count().
+    leo_redundant_manager_table_member:size().
 
 
 %% @doc update members.
@@ -510,7 +507,7 @@ get_members_count() ->
 update_members(Members) ->
     case leo_redundant_manager:update_members(Members) of
         ok ->
-            set_members_to_env(Members);
+            ok;
         Error ->
             Error
     end.
@@ -522,8 +519,8 @@ update_members(Members) ->
              ok | {error, any()}).
 update_member_by_node(Node, Clock, State) ->
     case leo_redundant_manager:update_member_by_node(Node, Clock, State) of
-        {ok, Members} ->
-            set_members_to_env(Members);
+        ok ->
+            ok;
         Error ->
             Error
     end.
@@ -535,11 +532,11 @@ update_member_by_node(Node, Clock, State) ->
              {ok, list()}).
 get_ring(?SYNC_MODE_CUR_RING) ->
     TblInfo = table_info(?VER_CURRENT),
-    Ring = leo_redundant_manager_table:tab2list(TblInfo),
+    Ring = leo_redundant_manager_table_ring:tab2list(TblInfo),
     {ok, Ring};
 get_ring(?SYNC_MODE_PREV_RING) ->
     TblInfo = table_info(?VER_PREV),
-    Ring = leo_redundant_manager_table:tab2list(TblInfo),
+    Ring = leo_redundant_manager_table_ring:tab2list(TblInfo),
     {ok, Ring}.
 
 
@@ -564,24 +561,27 @@ table_info(?VER_PREV) ->
 %%--------------------------------------------------------------------
 %% INNTERNAL FUNCTIONS
 %%--------------------------------------------------------------------
-%% @doc start object storage application.
-%%
+%% @doc Retrieve a server-type.
+%% @private
+server_type(master) -> ?SERVER_MANAGER;
+server_type(slave)  -> ?SERVER_MANAGER;
+server_type(Type)   -> Type.
+
+
+%% @doc Launch the application.
+%% @private
 -spec(start_app(server_type()) ->
              ok | {error, any()}).
 start_app(ServerType) ->
     Module = leo_redundant_manager,
+
     case application:start(Module) of
         ok ->
-            ?MODULE_SET_ENV_1,
-            ?MODULE_SET_ENV_2,
-            ok = init_ring_tables(ServerType),
+            ?MODULE_SET_ENV_1(),
+            ?MODULE_SET_ENV_2(),
 
-            case get_members() of
-                {ok, Members} ->
-                    set_members_to_env(Members);
-                _ ->
-                    void
-            end,
+            ok = init_members_table(ServerType),
+            ok = init_ring_tables(ServerType),
             ok;
         {error, {already_started, Module}} ->
             ok;
@@ -590,21 +590,36 @@ start_app(ServerType) ->
     end.
 
 
-%% @doc Set
-%%
+%% @doc Create members table.
+%% @private
+-spec(init_members_table(server_type()) ->
+             ok).
+init_members_table(manager) ->
+    ok;
+init_members_table(master) ->
+    ok;
+init_members_table(slave) ->
+    ok;
+init_members_table(_Other) ->
+    ok = leo_redundant_manager_table_member:create_members(),
+    ok.
+
+
+%% @doc Set ring-table related values.
+%% @private
 -spec(init_ring_tables(server_type()) ->
              ok).
 init_ring_tables(master) ->
-    application:set_env(?APP, ?PROP_CUR_RING_TBL,  {mnesia, ?CUR_RING_TABLE},  3000),
-    application:set_env(?APP, ?PROP_PREV_RING_TBL, {mnesia, ?PREV_RING_TABLE}, 3000),
+    ok = application:set_env(?APP, ?PROP_CUR_RING_TBL,  {mnesia, ?CUR_RING_TABLE},  3000),
+    ok = application:set_env(?APP, ?PROP_PREV_RING_TBL, {mnesia, ?PREV_RING_TABLE}, 3000),
     ok;
 init_ring_tables(slave) ->
-    application:set_env(?APP, ?PROP_CUR_RING_TBL,  {mnesia, ?CUR_RING_TABLE},  3000),
-    application:set_env(?APP, ?PROP_PREV_RING_TBL, {mnesia, ?PREV_RING_TABLE}, 3000),
+    ok = application:set_env(?APP, ?PROP_CUR_RING_TBL,  {mnesia, ?CUR_RING_TABLE},  3000),
+    ok = application:set_env(?APP, ?PROP_PREV_RING_TBL, {mnesia, ?PREV_RING_TABLE}, 3000),
     ok;
 init_ring_tables(_Other) ->
-    application:set_env(?APP, ?PROP_CUR_RING_TBL,  {ets, ?CUR_RING_TABLE},  3000),
-    application:set_env(?APP, ?PROP_PREV_RING_TBL, {ets, ?PREV_RING_TABLE}, 3000),
+    ok = application:set_env(?APP, ?PROP_CUR_RING_TBL,  {ets, ?CUR_RING_TABLE},  3000),
+    ok = application:set_env(?APP, ?PROP_PREV_RING_TBL, {ets, ?PREV_RING_TABLE}, 3000),
     ?CUR_RING_TABLE =
         ets:new(?CUR_RING_TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
     ?PREV_RING_TABLE =
@@ -612,19 +627,8 @@ init_ring_tables(_Other) ->
     ok.
 
 
-%% @doc set members to application-env.
-%%
--spec(set_members_to_env(list()) ->
-             ok).
-set_members_to_env(Members) ->
-    {ok, {CurRingHash, _PrevRingHash}} = checksum(?CHECKSUM_RING),
-    application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
-    application:set_env(?APP, ?PROP_MEMBERS,   Members,     3000),
-    ok.
-
-
-%% @doc start membership.
-%%
+%% @doc Launch the membership.
+%% @private
 -spec(start_membership(server_type(), string()) ->
              ok).
 start_membership(ServerType, Path) ->
@@ -633,7 +637,7 @@ start_membership(ServerType, Path) ->
 
 
 %% @doc Specify ETS's table.
-%%
+%% @private
 -spec(ring_table(method()) ->
              ring_table_info()).
 ring_table(default) -> table_info(?VER_CURRENT);

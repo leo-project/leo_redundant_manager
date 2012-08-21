@@ -25,7 +25,6 @@
 %%======================================================================
 -module(leo_membership_mq_client_tests).
 -author('yosuke hara').
--vsn('0.9.1').
 
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -88,7 +87,7 @@ pubsub_manager_0_({Mgr0, _Node0, Path}) ->
     ok = leo_membership_mq_client:publish(manager, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(2000),
 
-    History0 = meck:history(leo_redundant_manager_mnesia),
+    History0 = meck:history(leo_redundant_manager_table_member),
     ?assertEqual(true, erlang:length(History0) > 0),
 
     History1 = meck:history(leo_manager_api),
@@ -101,7 +100,7 @@ pubsub_manager_1_({Mgr0, _, Path}) ->
     ok = leo_membership_mq_client:publish(manager, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(250),
 
-    History0 = meck:history(leo_redundant_manager_mnesia),
+    History0 = meck:history(leo_redundant_manager_table_member),
     ?assertEqual(true, erlang:length(History0) > 0),
 
     History1 = meck:history(leo_manager_api),
@@ -121,7 +120,7 @@ pubsub_storage_({Mgr0, _, Path}) ->
     ok = leo_membership_mq_client:publish(storage, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(500),
 
-    History0 = meck:history(leo_redundant_manager_mnesia),
+    History0 = meck:history(leo_redundant_manager_table_member),
     ?assertEqual(true, erlang:length(History0) > 0),
 
     History1 = meck:history(leo_manager_api),
@@ -144,7 +143,7 @@ pubsub_gateway_0_({Mgr0, _, Path}) ->
     ok = leo_membership_mq_client:publish(gateway, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(500),
 
-    History0 = meck:history(leo_redundant_manager_mnesia),
+    History0 = meck:history(leo_redundant_manager_table_member),
     ?assertEqual(true, erlang:length(History0) > 0),
 
     History1 = meck:history(leo_manager_api),
@@ -167,7 +166,7 @@ pubsub_gateway_1_({Mgr0, _, Path}) ->
     ok = leo_membership_mq_client:publish(gateway, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(500),
 
-    History0 = meck:history(leo_redundant_manager_mnesia),
+    History0 = meck:history(leo_redundant_manager_table_member),
     ?assertEqual(true, erlang:length(History0) > 0),
 
     History1 = meck:history(leo_manager_api),
@@ -179,22 +178,29 @@ pubsub_gateway_1_({Mgr0, _, Path}) ->
 
 
 prepare() ->
-    meck:new(leo_redundant_manager_mnesia),
-    meck:expect(leo_redundant_manager_mnesia, get_member_by_node,
+    meck:new(leo_redundant_manager_table_member),
+    meck:expect(leo_redundant_manager_table_member, lookup,
                 fun(Node) ->
-                        {ok, [#member{node  = Node,
-                                      state = ?STATE_DOWNED}]}
+                        {ok, #member{node  = Node,
+                                     state = ?STATE_DOWNED}}
                 end),
-    meck:expect(leo_redundant_manager_mnesia, get_members,
+    meck:expect(leo_redundant_manager_table_member, find_all,
                 fun() ->
                         {ok, [#member{node  = ?NODEDOWN_NODE,
                                       state = ?STATE_DOWNED}]}
                 end),
-    meck:expect(leo_redundant_manager_mnesia, create_ring_current,
+    meck:expect(leo_redundant_manager_table_member, create_members,
+                fun() ->
+                        ok
+                end),
+
+
+    meck:new(leo_redundant_manager_table_ring),
+    meck:expect(leo_redundant_manager_table_ring, create_ring_current,
                 fun(_,_) ->
                         ok
                 end),
-    meck:expect(leo_redundant_manager_mnesia, create_ring_prev,
+    meck:expect(leo_redundant_manager_table_ring, create_ring_prev,
                 fun(_,_) ->
                         ok
                 end),

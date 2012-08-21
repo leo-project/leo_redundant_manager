@@ -26,7 +26,6 @@
 -module(leo_membership_mq_client).
 
 -author('Yosuke Hara').
--vsn('0.9.1').
 
 -include("leo_redundant_manager.hrl").
 -include_lib("leo_mq/include/leo_mq.hrl").
