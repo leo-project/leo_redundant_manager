@@ -399,16 +399,19 @@ get_redundancies_by_addr_id_1({ok, Members}, TblInfo, AddrId, Options) ->
 
     case leo_redundant_manager_chash:redundancies(TblInfo, AddrId, N, Members) of
         {ok, Redundancies} ->
-            case application:get_env(?APP, ?PROP_RING_HASH) of
-                {ok, RingHash} ->
-                    {ok, Redundancies#redundancies{n = N,
-                                                   r = R,
-                                                   w = W,
-                                                   d = D,
-                                                   ring_hash = RingHash}};
-                Error ->
-                    Error
-            end;
+            CurRingHash = case application:get_env(?APP, ?PROP_RING_HASH) of
+                              {ok, RingHash} ->
+                                  RingHash;
+                              undefined ->
+                                  {ok, {RingHash, _}} = checksum(?CHECKSUM_RING),
+                                  ok = application:set_env(?APP, ?PROP_RING_HASH, RingHash, 3000),
+                                  RingHash
+                          end,
+            {ok, Redundancies#redundancies{n = N,
+                                           r = R,
+                                           w = W,
+                                           d = D,
+                                           ring_hash = CurRingHash}};
         Error ->
             Error
     end;
