@@ -308,8 +308,8 @@ handle_call({adjust, CurRingTable, PrevRingTable, VNodeId}, _From, State) ->
 handle_call({dump, member}, _From, State) ->
     Reply = case leo_redundant_manager_table_member:find_all() of
                 {ok, Members} ->
-                    FileName = ?DUMP_FILE_MEMBERS ++ integer_to_list(leo_utils:now()),
-                    leo_utils:file_unconsult(FileName, Members);
+                    FileName = ?DUMP_FILE_MEMBERS ++ integer_to_list(leo_date:now()),
+                    leo_file:file_unconsult(FileName, Members);
                 not_found = Cause ->
                     {error, Cause};
                 Error ->
@@ -499,8 +499,8 @@ dump_ring_tabs() ->
     TblInfo0 = leo_redundant_manager_api:table_info(?VER_CURRENT),
     TblInfo1 = leo_redundant_manager_api:table_info(?VER_PREV),
 
-    File0 = ?DUMP_FILE_RING_CUR  ++ integer_to_list(leo_utils:now()),
-    File1 = ?DUMP_FILE_RING_PREV ++ integer_to_list(leo_utils:now()),
+    File0 = ?DUMP_FILE_RING_CUR  ++ integer_to_list(leo_date:now()),
+    File1 = ?DUMP_FILE_RING_PREV ++ integer_to_list(leo_date:now()),
 
     Res0 = leo_redundant_manager_chash:export(TblInfo0, File0),
     Res1 = leo_redundant_manager_chash:export(TblInfo1, File1),

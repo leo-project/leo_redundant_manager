@@ -60,7 +60,7 @@
 -define(DEF_MEMBERSHIP_INTERVAL, 1000).
 -define(DEF_TIMEOUT,             1000).
 -else.
--define(CURRENT_TIME,            leo_utils:now()).
+-define(CURRENT_TIME,            leo_date:now()).
 -define(DEF_MEMBERSHIP_INTERVAL, 10000).
 -define(DEF_TIMEOUT,             3000).
 -endif.
@@ -172,7 +172,7 @@ maybe_heartbeat(#state{type            = ServerType,
                        timestamp       = Timestamp,
                        enable          = true,
                        managers        = Managers} = State) ->
-    ThisTime = leo_utils:now() * 1000,
+    ThisTime = leo_date:now() * 1000,
     case ((ThisTime - Timestamp) < Interval) of
         true ->
             State;
@@ -227,7 +227,7 @@ exec(?SERVER_MANAGER = ServerType, Managers) ->
 exec(ServerType, Managers) ->
     {ok, Options} = leo_redundant_manager_api:get_options(),
     BitOfRing     = proplists:get_value('bit_of_ring', Options),
-    AddrId        = random:uniform(leo_utils:power(2, BitOfRing)),
+    AddrId        = random:uniform(leo_math:power(2, BitOfRing)),
 
     case leo_redundant_manager_api:get_redundancies_by_addr_id(AddrId) of
         {ok, #redundancies{nodes = Redundancies}} ->

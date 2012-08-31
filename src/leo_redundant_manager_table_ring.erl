@@ -103,7 +103,7 @@ lookup({ets, Table}, VNodeId) ->
 insert({mnesia, Table}, {VNodeId, Node}) ->
     Fun = fun() -> mnesia:write(Table, #ring{vnode_id = VNodeId,
                                              node     = Node}, write) end,
-    leo_mnesia_utils:write(Fun),
+    leo_mnesia:write(Fun),
     true;
 insert({ets, Table}, {VNodeId, Node}) ->
     ets:insert(Table, {VNodeId, Node}).
@@ -116,7 +116,7 @@ delete({mnesia, Table}, VNodeId) ->
                   mnesia:delete_object(Table, #ring{vnode_id = VNodeId,
                                                     node     = Node}, write)
           end,
-    leo_mnesia_utils:delete(Fun),
+    leo_mnesia:delete(Fun),
     true;
 delete({ets, Table}, VNodeId) ->
     ets:delete(Table, VNodeId).
