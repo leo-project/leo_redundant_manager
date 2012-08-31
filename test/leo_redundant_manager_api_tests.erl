@@ -303,7 +303,7 @@ inspect0(Hostname) ->
     ?assertEqual(512, leo_redundant_manager_table_ring:size({mnesia, ?CUR_RING_TABLE} )),
     ?assertEqual(512, leo_redundant_manager_table_ring:size({mnesia, ?PREV_RING_TABLE})),
 
-    Max = leo_utils:power(2, ?MD5),
+    Max = leo_math:power(2, ?MD5),
     lists:foreach(fun(Num) ->
                           {ok, #redundancies{id       = _Id0,
                                              vnode_id = _VNodeId0,
@@ -362,7 +362,7 @@ inspect0(Hostname) ->
 
 
 inspect1(Id, VNodes) ->
-    Max = leo_utils:power(2, 128),
+    Max = leo_math:power(2, 128),
     case length(VNodes) of
         1 ->
             [{From, To}] = VNodes,

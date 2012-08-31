@@ -252,7 +252,7 @@ export(Table, FileName) ->
             ok;
         _ ->
             List0 = leo_redundant_manager_table_ring:tab2list(Table),
-            leo_utils:file_unconsult(FileName, List0)
+            leo_file:file_unconsult(FileName, List0)
     end.
 
 
@@ -331,7 +331,7 @@ range_of_vnodes_1(Table, {ok, ToVNodeId}) ->
                               '$end_of_table' ->
                                   {error, no_entry};
                               VNodeId1 ->
-                                  {ok, [{VNodeId1 + 1, leo_utils:power(2, ?MD5)},
+                                  {ok, [{VNodeId1 + 1, leo_math:power(2, ?MD5)},
                                         {0, ToVNodeId}]}
                           end;
                       VNodeId1 ->
