@@ -174,7 +174,7 @@ get_options() ->
 -spec(attach(atom()) ->
              ok | {error, any()}).
 attach(Node) ->
-    attach(Node, leo_utils:clock()).
+    attach(Node, leo_date:clock()).
 attach(Node, Clock) ->
     attach(Node, Clock, ?DEF_NUMBER_OF_VNODES).
 attach(Node, Clock, NumOfVNodes) ->
@@ -191,7 +191,7 @@ attach(Node, Clock, NumOfVNodes) ->
 -spec(detach(atom()) ->
              ok | {error, any()}).
 detach(Node) ->
-    detach(Node, leo_utils:clock()).
+    detach(Node, leo_date:clock()).
 detach(Node, Clock) ->
     case leo_redundant_manager:detach(Node, Clock) of
         ok ->
@@ -206,7 +206,7 @@ detach(Node, Clock) ->
 -spec(suspend(atom()) ->
              ok | {error, any()}).
 suspend(Node) ->
-    suspend(Node, leo_utils:clock()).
+    suspend(Node, leo_date:clock()).
 suspend(Node, Clock) ->
     case leo_redundant_manager:suspend(Node, Clock) of
         ok ->

@@ -103,7 +103,7 @@ publish(TypeOfServer, Node, Error, Times) ->
     MessageBin = term_to_binary(#message{node = Node,
                                          error = Error,
                                          times = Times,
-                                         published_at = leo_utils:now()}),
+                                         published_at = leo_date:now()}),
     publish(TypeOfServer, {KeyBin, MessageBin}).
 
 publish(manager, {KeyBin, MessageBin}) ->
@@ -128,7 +128,7 @@ subscribe(Id, MessageBin) ->
     Message = binary_to_term(MessageBin),
     #message{node = Node, times = Times, error = Error} = Message,
 
-    case leo_utils:node_existence(Node) of
+    case leo_misc:node_existence(Node) of
         true ->
             void;
         false ->

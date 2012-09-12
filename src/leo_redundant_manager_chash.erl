@@ -237,8 +237,7 @@ vnode_id(Key) ->
     vnode_id(?MD5, Key).
 
 vnode_id(?MD5, Key) ->
-    leo_hex:hex_to_integer(
-      leo_hex:binary_to_hex(erlang:md5(Key)));
+    leo_hex:binary_to_integer(erlang:md5(Key));
 vnode_id(_, _) ->
     {error, badarg}.
 
@@ -253,7 +252,7 @@ export(Table, FileName) ->
             ok;
         _ ->
             List0 = leo_redundant_manager_table_ring:tab2list(Table),
-            leo_utils:file_unconsult(FileName, List0)
+            leo_file:file_unconsult(FileName, List0)
     end.
 
 
@@ -332,7 +331,7 @@ range_of_vnodes_1(Table, {ok, ToVNodeId}) ->
                               '$end_of_table' ->
                                   {error, no_entry};
                               VNodeId1 ->
-                                  {ok, [{VNodeId1 + 1, leo_utils:power(2, ?MD5)},
+                                  {ok, [{VNodeId1 + 1, leo_math:power(2, ?MD5)},
                                         {0, ToVNodeId}]}
                           end;
                       VNodeId1 ->

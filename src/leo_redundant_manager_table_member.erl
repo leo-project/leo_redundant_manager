@@ -114,7 +114,7 @@ find_all(mnesia) ->
                 Q2 = qlc:sort(Q1, [{order, descending}]),
                 qlc:e(Q2)
         end,
-    leo_mnesia_utils:read(F);
+    leo_mnesia:read(F);
 
 find_all(ets) ->
     case catch ets:foldl(fun({_, Member}, Acc) ->
@@ -136,7 +136,7 @@ insert({Node, Member}) ->
 
 insert(mnesia, {_, Member}) ->
     Fun = fun() -> mnesia:write(?TABLE, Member, write) end,
-    leo_mnesia_utils:write(Fun);
+    leo_mnesia:write(Fun);
 
 insert(ets, {Node, Member}) ->
     case catch ets:insert(?TABLE, {Node, Member}) of
@@ -158,7 +158,7 @@ delete(mnesia, Node) ->
             Fun = fun() ->
                           mnesia:delete_object(?TABLE, Member, write)
                   end,
-            leo_mnesia_utils:delete(Fun);
+            leo_mnesia:delete(Fun);
         Error ->
             Error
     end;
