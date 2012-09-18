@@ -355,7 +355,7 @@ get_redundancies_by_key(Key) ->
 get_redundancies_by_key(Method, Key) ->
     case application:get_env(?APP, ?PROP_OPTIONS) of
         {ok, Options} ->
-            BitOfRing = proplists:get_value('bit_of_ring', Options),
+            BitOfRing = leo_misc:get_value('bit_of_ring', Options),
             AddrId = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
 
             get_redundancies_by_addr_id(ring_table(Method), AddrId, Options);
@@ -392,10 +392,10 @@ get_redundancies_by_addr_id(_ServerType, TblInfo, AddrId, Options) ->
     get_redundancies_by_addr_id_1(Ret, TblInfo, AddrId, Options).
 
 get_redundancies_by_addr_id_1({ok, Members}, TblInfo, AddrId, Options) ->
-    N = proplists:get_value('n', Options),
-    R = proplists:get_value('r', Options),
-    W = proplists:get_value('w', Options),
-    D = proplists:get_value('d', Options),
+    N = leo_misc:get_value('n', Options),
+    R = leo_misc:get_value('r', Options),
+    W = leo_misc:get_value('w', Options),
+    D = leo_misc:get_value('d', Options),
 
     case leo_redundant_manager_chash:redundancies(TblInfo, AddrId, N, Members) of
         {ok, Redundancies} ->
@@ -438,7 +438,7 @@ range_of_vnodes(ToVNodeId) ->
 rebalance() ->
     case application:get_env(?APP, ?PROP_OPTIONS) of
         {ok, Options} ->
-            N = proplists:get_value('n', Options),
+            N = leo_misc:get_value('n', Options),
 
             ServerType = application:get_env(?APP, ?PROP_SERVER_TYPE),
             rebalance(ServerType, N);
