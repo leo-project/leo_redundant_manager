@@ -226,7 +226,7 @@ exec(?SERVER_MANAGER = ServerType, Managers) ->
 %% @private
 exec(ServerType, Managers) ->
     {ok, Options} = leo_redundant_manager_api:get_options(),
-    BitOfRing     = proplists:get_value('bit_of_ring', Options),
+    BitOfRing     = leo_misc:get_value('bit_of_ring', Options),
     AddrId        = random:uniform(leo_math:power(2, BitOfRing)),
 
     case leo_redundant_manager_api:get_redundancies_by_addr_id(AddrId) of
