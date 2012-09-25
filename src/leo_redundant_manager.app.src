@@ -22,7 +22,7 @@
 {application, leo_redundant_manager,
   [
     {description, "Leo Redundant Manaeger"},
-    {vsn, "0.9.5"},
+    {vsn, "0.9.6"},
     {id, "leo_redundant_manager"},
     {registered,   []},
     {applications, [kernel, stdlib]},
