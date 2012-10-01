@@ -27,11 +27,14 @@
 
 -author('Yosuke Hara').
 
+-behaviour(leo_mq_behaviour).
+
 -include("leo_redundant_manager.hrl").
 -include_lib("leo_mq/include/leo_mq.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([start/2, publish/3, subscribe/2]).
+-export([start/2, publish/3]).
+-export([init/0, handle_call/1]).
 
 -define(MQ_INSTANCE_ID_MANAGER, 'membership_manager').
 -define(MQ_INSTANCE_ID_GATEWAY, 'membership_gateway').
@@ -39,7 +42,6 @@
 -define(MQ_DB_PATH,             "membership").
 
 -type(type_of_server()   :: manager | gateway | storage).
--type(type_of_instance() :: ?MQ_INSTANCE_ID_GATEWAY | ?MQ_INSTANCE_ID_STORAGE | ?MQ_INSTANCE_ID_MANAGER).
 
 -record(message, {node             :: atom(),
                   error            :: string(),
@@ -82,7 +84,6 @@ start1(InstanceId, RootPath0) ->
                 end,
 
     leo_mq_api:new(InstanceId, [{?MQ_PROP_MOD,          ?MODULE},
-                                {?MQ_PROP_FUN,          ?MQ_SUBSCRIBE_FUN},
                                 {?MQ_PROP_DB_PROCS,     1},
                                 {?MQ_PROP_ROOT_PATH,    RootPath1 ++ ?MQ_DB_PATH},
                                 {?MQ_PROP_MAX_INTERVAL, ?DEF_MAX_INTERVAL},
@@ -120,11 +121,27 @@ publish(_,_) ->
     {error, badarg}.
 
 
-%% @doc mq's subscription function.
+%%--------------------------------------------------------------------
+%% Callbacks
+%%--------------------------------------------------------------------
+%% @doc Initializer
 %%
--spec(subscribe(type_of_instance(), binary()) ->
+-spec(init() ->
              ok | {error, any()}).
-subscribe(Id, MessageBin) ->
+init() ->
+    ok.
+
+
+%% @doc Publish callback function
+%%
+-spec(handle_call({publish | consume, any(), any()}) ->
+             ok | {error, any()}).
+handle_call({publish, _Id, _Reply}) ->
+    ok;
+
+%% @doc Subscribe callbach function
+%%
+handle_call({consume, Id, MessageBin}) ->
     Message = binary_to_term(MessageBin),
     #message{node = Node, times = Times, error = Error} = Message,
 
@@ -147,6 +164,7 @@ subscribe(Id, MessageBin) ->
                     end
             end
     end.
+
 
 %%--------------------------------------------------------------------
 %% INNTERNAL FUNCTIONS
