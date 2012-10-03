@@ -60,7 +60,7 @@
 -define(DEF_OPT_W, 1).
 -define(DEF_OPT_D, 1).
 -define(DEF_OPT_BIT_OF_RING, ?MD5).
--define(DEF_NUMBER_OF_VNODES, 64).
+-define(DEF_NUMBER_OF_VNODES, 128).
 
 
 %% Node State

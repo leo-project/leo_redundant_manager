@@ -623,10 +623,8 @@ init_ring_tables(slave) ->
 init_ring_tables(_Other) ->
     ok = application:set_env(?APP, ?PROP_CUR_RING_TBL,  {ets, ?CUR_RING_TABLE},  3000),
     ok = application:set_env(?APP, ?PROP_PREV_RING_TBL, {ets, ?PREV_RING_TABLE}, 3000),
-    ?CUR_RING_TABLE =
-        ets:new(?CUR_RING_TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
-    ?PREV_RING_TABLE =
-        ets:new(?PREV_RING_TABLE,[named_table, ordered_set, public, {read_concurrency, true}]),
+    catch ets:new(?CUR_RING_TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
+    catch ets:new(?PREV_RING_TABLE,[named_table, ordered_set, public, {read_concurrency, true}]),
     ok.
 
 
