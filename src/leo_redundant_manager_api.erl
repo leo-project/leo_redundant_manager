@@ -44,7 +44,8 @@
          range_of_vnodes/1, rebalance/0
         ]).
 
--export([has_member/1, get_members/0, get_members/1, get_member_by_node/1, get_members_count/0,
+-export([has_member/1, has_charge_of_node/1,
+         get_members/0, get_members/1, get_member_by_node/1, get_members_count/0,
          update_members/1, update_member_by_node/3,
          get_ring/1, is_alive/0, table_info/1
         ]).
@@ -465,12 +466,27 @@ rebalance_1(Error,_N) ->
 %%--------------------------------------------------------------------
 %% API-3  FUNCTIONS (leo_member_management_server)
 %%--------------------------------------------------------------------
-%% @doc hash a member ?
+%% @doc Has a member ?
 %%
 -spec(has_member(atom()) ->
-             true | false).
+             boolean()).
 has_member(Node) ->
     leo_redundant_manager:has_member(Node).
+
+
+%% @doc Has charge of node?
+%%
+-spec(has_charge_of_node(string()) ->
+             boolean()).
+has_charge_of_node(Key) ->
+    case get_redundancies_by_key(put, Key) of
+        {ok, #redundancies{nodes = Nodes}} ->
+            lists:foldl(fun({N, _}, false) -> N == erlang:node();
+                           ({_, _}, true ) -> true
+                        end, false, Nodes);
+        _ ->
+            false
+    end.
 
 
 %% @doc get members.
