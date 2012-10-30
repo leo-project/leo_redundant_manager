@@ -36,7 +36,7 @@
          insert/1, insert/2, delete/1, delete/2, replace/2, replace/3,
          size/0, size/1, tab2list/0, tab2list/1]).
 
--define(TABLE, members).
+-define(TABLE, 'leo_members').
 -define(table_type(), case application:get_env(?APP, ?PROP_SERVER_TYPE) of
                           {ok, Value} when Value == ?SERVER_MANAGER -> mnesia;
                           {ok, Value} when Value == ?SERVER_STORAGE -> ets;
@@ -62,7 +62,7 @@ create_members(Mode) ->
 -spec(create_members(mnesia_copies(), list()) -> ok).
 create_members(Mode, Nodes) ->
     mnesia:create_table(
-      members,
+      ?TABLE,
       [{Mode, Nodes},
        {type, set},
        {record_name, member},
@@ -110,7 +110,7 @@ find_all() ->
 
 find_all(mnesia) ->
     F = fun() ->
-                Q1 = qlc:q([X || X <- mnesia:table(members)]),
+                Q1 = qlc:q([X || X <- mnesia:table(?TABLE)]),
                 Q2 = qlc:sort(Q1, [{order, descending}]),
                 qlc:e(Q2)
         end,
@@ -119,7 +119,7 @@ find_all(mnesia) ->
 find_all(ets) ->
     case catch ets:foldl(fun({_, Member}, Acc) ->
                                  ordsets:add_element(Member, Acc)
-                         end, [], members) of
+                         end, [], ?TABLE) of
         {'EXIT', Cause} ->
             {error, Cause};
         [] ->
