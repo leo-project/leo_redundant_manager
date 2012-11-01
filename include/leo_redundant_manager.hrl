@@ -38,8 +38,8 @@
 %% Ring related
 -define(TYPE_RING_TABLE_ETS,    'ets').
 -define(TYPE_RING_TABLE_MNESIA, 'mnesia').
--define(CUR_RING_TABLE,         'ring_cur').
--define(PREV_RING_TABLE,        'ring_prv').
+-define(CUR_RING_TABLE,         'leo_ring_cur').
+-define(PREV_RING_TABLE,        'leo_ring_prv').
 
 -type(ring_table_type() :: ?TYPE_RING_TABLE_ETS | ?TYPE_RING_TABLE_MNESIA).
 -type(ring_table_info() :: {ring_table_type(), ?CUR_RING_TABLE} |
