@@ -109,9 +109,9 @@ inspect(Table) ->
     ?assertEqual(4, length(Ret8)),
 
     ok = leo_redundant_manager_table_member:replace(
-             Table,
-             [?MEMBER_1, ?MEMBER_2, ?MEMBER_3, ?MEMBER_4],
-             [?MEMBER_3, ?MEMBER_4]),
+           Table,
+           [?MEMBER_1, ?MEMBER_2, ?MEMBER_3, ?MEMBER_4],
+           [?MEMBER_3, ?MEMBER_4]),
 
     Ret9 = leo_redundant_manager_table_member:tab2list(Table),
     ?assertEqual(2, length(Ret9)),
@@ -126,6 +126,12 @@ inspect(Table) ->
     ?assertEqual(3, Res11),
     Ret12 = leo_redundant_manager_table_member:tab2list(Table),
     ?assertEqual(3, length(Ret12)),
+
+    {ok, Ret13} = leo_redundant_manager_table_member:find_by_status(Table, ?STATE_RUNNING),
+    ?assertEqual(2, length(Ret13)),
+
+    Ret14 = leo_redundant_manager_table_member:find_by_status(Table, undefined),
+    ?assertEqual(not_found, Ret14),
     ok.
 
 
