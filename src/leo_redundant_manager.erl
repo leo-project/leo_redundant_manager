@@ -35,7 +35,8 @@
 %% API
 -export([start_link/0, stop/0]).
 
--export([create/0, checksum/1, has_member/1, get_members/0, get_members/1, get_member_by_node/1,
+-export([create/0, checksum/1, has_member/1, get_members/0, get_members/1,
+         get_member_by_node/1, get_members_by_status/1,
          update_members/1, update_member_by_node/3, synchronize/3, adjust/3, dump/1]).
 
 -export([attach/3, detach/2, suspend/2]).
@@ -101,6 +102,14 @@ get_members(Mode) ->
              {ok, #member{}}).
 get_member_by_node(Node) ->
     gen_server:call(?MODULE, {get_member_by_node, Node}).
+
+
+%% @doc Retrieve members by status.
+%%
+-spec(get_members_by_status(atom()) ->
+             {ok, list(#member{})} | not_found).
+get_members_by_status(Status) ->
+    gen_server:call(?MODULE, {get_members_by_status, Status}).
 
 
 %% @doc Modify members.
@@ -227,6 +236,16 @@ handle_call({get_member_by_node, Node}, _From, State) ->
             end,
     {reply, Reply, State};
 
+handle_call({get_members_by_status, Status}, _From, State) ->
+    Reply = case leo_redundant_manager_table_member:find_by_status(Status) of
+                {ok, Member} ->
+                    {ok, Member};
+                not_found = Cause ->
+                    {error, Cause};
+                Error ->
+                    Error
+            end,
+    {reply, Reply, State};
 
 handle_call({update_member_by_node, Node, Clock, NodeState}, _From, State) ->
     Reply = case leo_redundant_manager_table_member:insert(

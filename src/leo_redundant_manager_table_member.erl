@@ -32,7 +32,8 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -export([create_members/0, create_members/1, create_members/2,
-         lookup/1, lookup/2, find_all/0, find_all/1,
+         lookup/1, lookup/2,
+         find_all/0, find_all/1, find_by_status/1, find_by_status/2,
          insert/1, insert/2, delete/1, delete/2, replace/2, replace/3,
          size/0, size/1, tab2list/0, tab2list/1]).
 
@@ -117,15 +118,45 @@ find_all(mnesia) ->
     leo_mnesia:read(F);
 
 find_all(ets) ->
-    case catch ets:foldl(fun({_, Member}, Acc) ->
-                                 ordsets:add_element(Member, Acc)
-                         end, [], ?TABLE) of
+    case catch ets:foldl(
+                 fun({_, Member}, Acc) ->
+                         ordsets:add_element(Member, Acc)
+                 end, [], ?TABLE) of
         {'EXIT', Cause} ->
             {error, Cause};
         [] ->
             not_found;
         Members ->
             {ok, Members}
+    end.
+
+
+%% @doc Retrieve members by status
+%%
+find_by_status(Status) ->
+    find_by_status(?table_type(), Status).
+
+find_by_status(mnesia, St0) ->
+    F = fun() ->
+                Q = qlc:q([X || X <- mnesia:table(?TABLE),
+                                X#member.state == St0]),
+                qlc:e(Q)
+        end,
+    leo_mnesia:read(F);
+
+find_by_status(ets, St0) ->
+    case catch ets:foldl(
+                 fun({_, #member{state = St1} = Member}, Acc) when St0 == St1 ->
+                         [Member|Acc];
+                    (_, Acc) ->
+                         Acc
+                 end, [], ?TABLE) of
+        {'EXIT', Cause} ->
+            {error, Cause};
+        [] ->
+            not_found;
+        Ret ->
+            {ok, Ret}
     end.
 
 
