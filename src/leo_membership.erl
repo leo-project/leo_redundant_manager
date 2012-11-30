@@ -77,7 +77,7 @@ start_link(ServerType, Managers) ->
                           [ServerType, Managers, ?DEF_MEMBERSHIP_INTERVAL], []).
 
 stop() ->
-    gen_server:call(?MODULE, stop).
+    gen_server:call(?MODULE, stop, 30000).
 
 
 -spec(start_heartbeat() -> ok | {error, any()}).
