@@ -89,8 +89,20 @@ start(ServerType0, Managers, MQStoragePath, Options) ->
             ChildSpec = {leo_membership, {leo_membership, start_link, Args},
                          permanent, 2000, worker, [leo_membership]},
 
-            _ = supervisor:start_child(leo_redundant_manager_sup, ChildSpec),
-            start_membership(ServerType1, MQStoragePath);
+            case supervisor:start_child(leo_redundant_manager_sup, ChildSpec) of
+                {ok, _Pid} ->
+                    start_membership(ServerType1, MQStoragePath);
+                Cause ->
+                    error_logger:error_msg("~p,~p,~p,~p~n",
+                                           [{module, ?MODULE_STRING}, {function, "start/4"},
+                                            {line, ?LINE}, {body, Cause}]),
+                    case leo_redundant_manager_sup:stop() of
+                        ok ->
+                            exit(invalid_launch);
+                        not_started ->
+                            exit(noproc)
+                    end
+            end;
         Error ->
             Error
     end.
@@ -613,8 +625,11 @@ start_app(ServerType) ->
             ok;
         {error, {already_started, Module}} ->
             ok;
-        Error ->
-            Error
+        {error, Cause} ->
+            error_logger:error_msg("~p,~p,~p,~p~n",
+                                   [{module, ?MODULE_STRING}, {function, "start_app/1"},
+                                    {line, ?LINE}, {body, Cause}]),
+            {exit, Cause}
     end.
 
 

@@ -49,6 +49,8 @@
 	       terminate/2,
          code_change/3]).
 
+-define(DEF_TIMEOUT, 30000).
+
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
@@ -58,7 +60,7 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 stop() ->
-    gen_server:call(?MODULE, stop).
+    gen_server:call(?MODULE, stop, ?DEF_TIMEOUT).
 
 
 %% @doc Create Rings.
@@ -66,7 +68,7 @@ stop() ->
 -spec(create() ->
              {ok, list()}).
 create() ->
-    gen_server:call(?MODULE, {create}).
+    gen_server:call(?MODULE, {create}, ?DEF_TIMEOUT).
 
 
 %% @doc Retrieve checksum (ring or member).
@@ -74,7 +76,7 @@ create() ->
 -spec(checksum(checksum_type()) ->
              {ok, integer() | tuple()}).
 checksum(Type) ->
-    gen_server:call(?MODULE, {checksum, Type}).
+    gen_server:call(?MODULE, {checksum, Type}, ?DEF_TIMEOUT).
 
 
 %% @doc Is exists member?
@@ -82,7 +84,7 @@ checksum(Type) ->
 -spec(has_member(atom()) ->
              boolean()).
 has_member(Node) ->
-    gen_server:call(?MODULE, {has_member, Node}).
+    gen_server:call(?MODULE, {has_member, Node}, ?DEF_TIMEOUT).
 
 
 %% @doc Retrieve all members.
@@ -90,10 +92,10 @@ has_member(Node) ->
 -spec(get_members() ->
              {ok, list()}).
 get_members() ->
-    gen_server:call(?MODULE, {get_members, ?VER_CURRENT}).
+    gen_server:call(?MODULE, {get_members, ?VER_CURRENT}, ?DEF_TIMEOUT).
 
 get_members(Mode) ->
-    gen_server:call(?MODULE, {get_members, Mode}).
+    gen_server:call(?MODULE, {get_members, Mode}, ?DEF_TIMEOUT).
 
 
 %% @doc Retrieve a member by node.
@@ -101,7 +103,7 @@ get_members(Mode) ->
 -spec(get_member_by_node(atom()) ->
              {ok, #member{}}).
 get_member_by_node(Node) ->
-    gen_server:call(?MODULE, {get_member_by_node, Node}).
+    gen_server:call(?MODULE, {get_member_by_node, Node}, ?DEF_TIMEOUT).
 
 
 %% @doc Retrieve members by status.
@@ -109,7 +111,7 @@ get_member_by_node(Node) ->
 -spec(get_members_by_status(atom()) ->
              {ok, list(#member{})} | not_found).
 get_members_by_status(Status) ->
-    gen_server:call(?MODULE, {get_members_by_status, Status}).
+    gen_server:call(?MODULE, {get_members_by_status, Status}, ?DEF_TIMEOUT).
 
 
 %% @doc Modify members.
@@ -117,7 +119,7 @@ get_members_by_status(Status) ->
 -spec(update_members(list()) ->
              ok | {error, any()}).
 update_members(Members) ->
-    gen_server:call(?MODULE, {update_members, Members}).
+    gen_server:call(?MODULE, {update_members, Members}, ?DEF_TIMEOUT).
 
 
 %% @doc Modify a member by node.
@@ -125,19 +127,19 @@ update_members(Members) ->
 -spec(update_member_by_node(atom, integer(), atom()) ->
              ok | {error, any()}).
 update_member_by_node(Node, Clock, NodeState) ->
-    gen_server:call(?MODULE, {update_member_by_node, Node, Clock, NodeState}).
+    gen_server:call(?MODULE, {update_member_by_node, Node, Clock, NodeState}, ?DEF_TIMEOUT).
 
 
 %% @doc Synchronize a ring.
 %%
 synchronize(TblInfo, Ring0, Ring1) ->
-    gen_server:call(?MODULE, {synchronize, TblInfo, Ring0, Ring1}).
+    gen_server:call(?MODULE, {synchronize, TblInfo, Ring0, Ring1}, ?DEF_TIMEOUT).
 
 
 %% @doc Adjust prev-ring's vnode-id.
 %%
 adjust(CurRingTable, PrevRingTable, VNodeId) ->
-    gen_server:call(?MODULE, {adjust, CurRingTable, PrevRingTable, VNodeId}).
+    gen_server:call(?MODULE, {adjust, CurRingTable, PrevRingTable, VNodeId}, ?DEF_TIMEOUT).
 
 
 %% @doc Dump files which are member and ring.
@@ -145,7 +147,7 @@ adjust(CurRingTable, PrevRingTable, VNodeId) ->
 -spec(dump(atom()) ->
              ok).
 dump(Type) ->
-    gen_server:call(?MODULE, {dump, Type}).
+    gen_server:call(?MODULE, {dump, Type}, ?DEF_TIMEOUT).
 
 
 %% @doc Change node status to 'attach'.
@@ -153,14 +155,14 @@ dump(Type) ->
 -spec(attach(atom(), integer(), integer()) ->
              ok | {error, any()}).
 attach(Node, Clock, NumOfVNodes) ->
-    gen_server:call(?MODULE, {attach, Node, Clock, NumOfVNodes}).
+    gen_server:call(?MODULE, {attach, Node, Clock, NumOfVNodes}, ?DEF_TIMEOUT).
 
 %% @doc Change node status to 'detach'.
 %%
 -spec(detach(atom(), integer()) ->
              ok | {error, any()}).
 detach(Node, Clock) ->
-    gen_server:call(?MODULE, {detach, Node, Clock}).
+    gen_server:call(?MODULE, {detach, Node, Clock}, ?DEF_TIMEOUT).
 
 
 %% @doc Change node status to 'suspend'.
@@ -168,7 +170,7 @@ detach(Node, Clock) ->
 -spec(suspend(atom(), integer()) ->
              ok | {error, any()}).
 suspend(Node, Clock) ->
-    gen_server:call(?MODULE, {suspend, Node, Clock}).
+    gen_server:call(?MODULE, {suspend, Node, Clock}, ?DEF_TIMEOUT).
 
 
 %%--------------------------------------------------------------------
