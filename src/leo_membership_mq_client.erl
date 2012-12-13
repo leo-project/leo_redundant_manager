@@ -56,7 +56,7 @@
 
 -else.
 -define(DEF_RETRY_TIMES, 3).
--define(DEF_TIMEOUT,     1000).
+-define(DEF_TIMEOUT,     30000).
 -define(DEF_MAX_INTERVAL,15000).
 -define(DEF_MIN_INTERVAL, 7500).
 -endif.
