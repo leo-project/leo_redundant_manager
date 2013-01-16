@@ -51,22 +51,22 @@
 
 membership_test_() ->
     {foreach, fun setup/0, fun teardown/1,
-     [{with, [T]} || T <- [fun suite_mnesia_/1,
-                           fun suite_ets_/1
+     [{with, [T]} || T <- [fun suite_ets_/1
                           ]]}.
 
 setup() ->
+    catch ets:delete_all_objects('leo_members'),
     ok.
 
 teardown(_) ->
     ok.
 
-suite_mnesia_(_) ->
-    _ =application:start(mnesia),
-    _ = leo_redundant_manager_table_member:create_members('ram_copies', [node()]),
-    ok = inspect(?MNESIA),
-    _ = application:stop(mnesia),
-    ok.
+%% suite_mnesia_(_) ->
+%%     _ =application:start(mnesia),
+%%     _ = leo_redundant_manager_table_member:create_members('ram_copies', [node()]),
+%%     ok = inspect(?MNESIA),
+%%     _ = application:stop(mnesia),
+%%     ok.
 
 suite_ets_(_) ->
     ok = leo_redundant_manager_table_member:create_members(),
@@ -133,8 +133,6 @@ inspect(Table) ->
     Ret14 = leo_redundant_manager_table_member:find_by_status(Table, undefined),
     ?assertEqual(not_found, Ret14),
     ok.
-
-
 
 -endif.
 

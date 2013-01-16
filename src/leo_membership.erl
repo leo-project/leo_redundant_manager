@@ -72,7 +72,7 @@
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 start_link(ServerType, Managers) ->
-    ok = application:set_env(?APP, ?PROP_MANAGERS, Managers, 3000),
+    ok = application:set_env(?APP, ?PROP_MANAGERS, Managers),
     gen_server:start_link({local, ?MODULE}, ?MODULE,
                           [ServerType, Managers, ?DEF_MEMBERSHIP_INTERVAL], []).
 

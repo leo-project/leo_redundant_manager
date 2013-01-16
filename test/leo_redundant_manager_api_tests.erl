@@ -55,18 +55,20 @@ setup() ->
     [] = os:cmd("epmd -daemon"),
     {ok, Hostname} = inet:gethostname(),
 
-    application:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
-    application:start(mnesia),
-    leo_redundant_manager_table_member:create_members(ram_copies),
-    mnesia:wait_for_tables([members], 30000),
+    catch ets:delete_all_objects('leo_members'),
+    catch ets:delete_all_objects(?CUR_RING_TABLE),
+    catch ets:delete_all_objects(?PREV_RING_TABLE),
+
+    leo_misc:init_env(),
+    leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
+    leo_redundant_manager_table_member:create_members(),
     {Hostname}.
 
 teardown(_) ->
-    application:stop(mnesia),
     application:stop(leo_mq),
     application:stop(leo_backend_db),
     application:stop(leo_redundant_manager),
-    %% meck:unload(),
+    timer:sleep(200),
 
     os:cmd("rm -rf queue"),
     os:cmd("rm ring_*"),
@@ -125,7 +127,6 @@ detach_({Hostname}) ->
 members_table_(_Arg) ->
     %% create -> get -> not-found.
     not_found = leo_redundant_manager_table_member:find_all(),
-
     ?assertEqual(0, leo_redundant_manager_table_member:size()),
     ?assertEqual(not_found, leo_redundant_manager_table_member:lookup('node_0@127.0.0.1')),
 
@@ -161,8 +162,8 @@ synchronize_0_(_Arg) ->
                {w ,2},
                {d, 2},
                {bit_of_ring, 128}],
-    leo_redundant_manager_table_ring:create_ring_current(ram_copies, [node()]),
-    leo_redundant_manager_table_ring:create_ring_prev(ram_copies, [node()]),
+    %% leo_redundant_manager_table_ring:create_ring_current(ram_copies, [node()]),
+    %% leo_redundant_manager_table_ring:create_ring_prev(ram_copies, [node()]),
 
     {ok, NewMember, Checksums} = leo_redundant_manager_api:synchronize(?SYNC_MODE_BOTH, ?TEST_MEMBERS, Options),
     {CurRing,PrevRing} = proplists:get_value(?CHECKSUM_RING,   Checksums),
@@ -293,14 +294,16 @@ inspect0(Hostname) ->
 
     {ok, {Chksum2, Chksum3}} = leo_redundant_manager_api:checksum(?CHECKSUM_RING),
     {ok, Chksum4} = leo_redundant_manager_api:checksum(member),
-    application:set_env(?APP, ?PROP_RING_HASH, Chksum2),
+    leo_misc:set_env(?APP, ?PROP_RING_HASH, Chksum2),
 
     ?assertEqual(true, (-1 =< Chksum2)),
     ?assertEqual(true, (-1 =< Chksum3)),
     ?assertEqual(true, (-1 =< Chksum4)),
 
-    ?assertEqual(1024, leo_redundant_manager_table_ring:size({mnesia, ?CUR_RING_TABLE} )),
-    ?assertEqual(1024, leo_redundant_manager_table_ring:size({mnesia, ?PREV_RING_TABLE})),
+    ?assertEqual(1024, leo_redundant_manager_table_ring:size({ets, ?CUR_RING_TABLE} )),
+    ?assertEqual(1024, leo_redundant_manager_table_ring:size({ets, ?PREV_RING_TABLE})),
+    %% ?assertEqual(1024, leo_redundant_manager_table_ring:size({mnesia, ?CUR_RING_TABLE} )),
+    %% ?assertEqual(1024, leo_redundant_manager_table_ring:size({mnesia, ?PREV_RING_TABLE})),
 
     Max = leo_math:power(2, ?MD5),
     lists:foreach(fun(Num) ->

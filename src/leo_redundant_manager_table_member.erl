@@ -38,14 +38,18 @@
          size/0, size/1, tab2list/0, tab2list/1]).
 
 -define(TABLE, 'leo_members').
--define(table_type(), case application:get_env(?APP, ?PROP_SERVER_TYPE) of
+
+-ifdef(TEST).
+-define(table_type(), ets).
+-else.
+-define(table_type(), case leo_misc:get_env(?APP, ?PROP_SERVER_TYPE) of
                           {ok, Value} when Value == ?SERVER_MANAGER -> mnesia;
                           {ok, Value} when Value == ?SERVER_STORAGE -> ets;
                           {ok, Value} when Value == ?SERVER_GATEWAY -> ets;
                           _Error ->
-                              ?debugVal({?APP, ?PROP_SERVER_TYPE, _Error}),
                               undefined
                       end).
+-endif.
 
 -type(mnesia_copies() :: disc_copies | ram_copies).
 

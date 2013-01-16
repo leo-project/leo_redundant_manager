@@ -78,7 +78,7 @@ start(ServerType0, Managers, MQStoragePath, Options) ->
     case start(ServerType0) of
         ok ->
             ServerType1 = server_type(ServerType0),
-            ok = application:set_env(?APP, ?PROP_SERVER_TYPE, ServerType1, 3000),
+            ok = leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ServerType1),
 
             case (Options == []) of
                 true  -> void;
@@ -139,7 +139,7 @@ create() ->
         {ok, Members} ->
             {ok, Chksums} = checksum(?CHECKSUM_RING),
             {CurRingHash, _PrevRingHash} = Chksums,
-            ok = application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
+            ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, CurRingHash),
 
             {ok, Chksum0} = checksum(?CHECKSUM_MEMBER),
             {ok, Members, [{?CHECKSUM_RING,   Chksums},
@@ -171,7 +171,7 @@ create([#member{node = Node, clock = Clock}|T], Options) ->
 -spec(set_options(list()) ->
              ok).
 set_options(Options) ->
-    ok = application:set_env(?APP, ?PROP_OPTIONS, Options, 3000),
+    ok = leo_misc:set_env(?APP, ?PROP_OPTIONS, Options),
     ok.
 
 
@@ -180,7 +180,7 @@ set_options(Options) ->
 -spec(get_options() ->
              {ok, list()}).
 get_options() ->
-    application:get_env(?APP, ?PROP_OPTIONS).
+    leo_misc:get_env(?APP, ?PROP_OPTIONS).
 
 
 %% @doc attach a node.
@@ -298,7 +298,7 @@ synchronize(?SYNC_MODE_CUR_RING = Ver, Ring0) ->
     case leo_redundant_manager:synchronize(TblInfo, Ring0, Ring1) of
         ok ->
             {ok, {CurRingHash, _PrevRingHash}} = checksum(?CHECKSUM_RING),
-            ok = application:set_env(?APP, ?PROP_RING_HASH, CurRingHash, 3000),
+            ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, CurRingHash),
             checksum(?CHECKSUM_RING);
         Error ->
             Error
@@ -367,7 +367,7 @@ get_redundancies_by_key(Key) ->
 -spec(get_redundancies_by_key(method(), string()) ->
              {ok, list(), integer(), integer(), list()} | {error, any()}).
 get_redundancies_by_key(Method, Key) ->
-    case application:get_env(?APP, ?PROP_OPTIONS) of
+    case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         {ok, Options} ->
             BitOfRing = leo_misc:get_value('bit_of_ring', Options),
             AddrId = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
@@ -386,7 +386,7 @@ get_redundancies_by_addr_id(AddrId) ->
 -spec(get_redundancies_by_addr_id(method(), integer()) ->
              {ok, list(), integer(), integer(), list()} | {error, any()}).
 get_redundancies_by_addr_id(Method, AddrId) ->
-    case application:get_env(?APP, ?PROP_OPTIONS) of
+    case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         {ok, Options} ->
             get_redundancies_by_addr_id(ring_table(Method), AddrId, Options);
         _ ->
@@ -394,7 +394,7 @@ get_redundancies_by_addr_id(Method, AddrId) ->
     end.
 
 get_redundancies_by_addr_id(TblInfo, AddrId, Options) ->
-    {ok, ServerType} = application:get_env(?APP, ?PROP_SERVER_TYPE),
+    {ok, ServerType} = leo_misc:get_env(?APP, ?PROP_SERVER_TYPE),
     get_redundancies_by_addr_id(ServerType, TblInfo, AddrId, Options).
 
 get_redundancies_by_addr_id(?SERVER_MANAGER, TblInfo, AddrId, Options) ->
@@ -413,12 +413,12 @@ get_redundancies_by_addr_id_1({ok, Members}, TblInfo, AddrId, Options) ->
 
     case leo_redundant_manager_chash:redundancies(TblInfo, AddrId, N, Members) of
         {ok, Redundancies} ->
-            CurRingHash = case application:get_env(?APP, ?PROP_RING_HASH) of
+            CurRingHash = case leo_misc:get_env(?APP, ?PROP_RING_HASH) of
                               {ok, RingHash} ->
                                   RingHash;
                               undefined ->
                                   {ok, {RingHash, _}} = checksum(?CHECKSUM_RING),
-                                  ok = application:set_env(?APP, ?PROP_RING_HASH, RingHash, 3000),
+                                  ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, RingHash),
                                   RingHash
                           end,
             {ok, Redundancies#redundancies{n = N,
@@ -450,11 +450,11 @@ range_of_vnodes(ToVNodeId) ->
 -spec(rebalance() ->
              {ok, list()} | {error, any()}).
 rebalance() ->
-    case application:get_env(?APP, ?PROP_OPTIONS) of
+    case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         {ok, Options} ->
             N = leo_misc:get_value('n', Options),
 
-            ServerType = application:get_env(?APP, ?PROP_SERVER_TYPE),
+            ServerType = leo_misc:get_env(?APP, ?PROP_SERVER_TYPE),
             rebalance(ServerType, N);
         Error ->
             Error
@@ -590,12 +590,28 @@ is_alive() ->
 %%
 -spec(table_info(?VER_CURRENT | ?VER_PREV) ->
              ring_table_info()).
+
+
+-ifdef(TEST).
+table_info(?VER_CURRENT) -> {ets, ?CUR_RING_TABLE };
+table_info(?VER_PREV   ) -> {ets, ?PREV_RING_TABLE}.
+-else.
 table_info(?VER_CURRENT) ->
-    {ok, TblInfo} = application:get_env(?APP, ?PROP_CUR_RING_TBL),
-    TblInfo;
+    case leo_misc:get_env(?APP, ?PROP_SERVER_TYPE) of
+        {ok, ?SERVER_MANAGER} ->
+            {mnesia, ?CUR_RING_TABLE};
+        _ ->
+            {ets, ?CUR_RING_TABLE}
+    end;
+
 table_info(?VER_PREV) ->
-    {ok, TblInfo} = application:get_env(?APP, ?PROP_PREV_RING_TBL),
-    TblInfo.
+    case leo_misc:get_env(?APP, ?PROP_SERVER_TYPE) of
+        {ok, ?SERVER_MANAGER} ->
+            {mnesia, ?PREV_RING_TABLE};
+        _ ->
+             {ets, ?PREV_RING_TABLE}
+    end.
+-endif.
 
 
 %%--------------------------------------------------------------------
@@ -617,11 +633,10 @@ start_app(ServerType) ->
 
     case application:start(Module) of
         ok ->
-            ?MODULE_SET_ENV_1(),
-            ?MODULE_SET_ENV_2(),
-
-            ok = init_members_table(ServerType),
-            ok = init_ring_tables(ServerType),
+            ok = leo_misc:init_env(),
+            _  = ?MODULE_SET_ENV_1(),
+            _  = ?MODULE_SET_ENV_2(),
+            ok = init_tables(ServerType),
             ok;
         {error, {already_started, Module}} ->
             ok;
@@ -635,37 +650,22 @@ start_app(ServerType) ->
 
 %% @doc Create members table.
 %% @private
--spec(init_members_table(server_type()) ->
-             ok).
-init_members_table(manager) ->
-    ok;
-init_members_table(master) ->
-    ok;
-init_members_table(slave) ->
-    ok;
-init_members_table(_Other) ->
-    ok = leo_redundant_manager_table_member:create_members(),
-    ok.
-
-
-%% @doc Set ring-table related values.
-%% @private
--spec(init_ring_tables(server_type()) ->
-             ok).
-init_ring_tables(master) ->
-    ok = application:set_env(?APP, ?PROP_CUR_RING_TBL,  {mnesia, ?CUR_RING_TABLE},  3000),
-    ok = application:set_env(?APP, ?PROP_PREV_RING_TBL, {mnesia, ?PREV_RING_TABLE}, 3000),
-    ok;
-init_ring_tables(slave) ->
-    ok = application:set_env(?APP, ?PROP_CUR_RING_TBL,  {mnesia, ?CUR_RING_TABLE},  3000),
-    ok = application:set_env(?APP, ?PROP_PREV_RING_TBL, {mnesia, ?PREV_RING_TABLE}, 3000),
-    ok;
-init_ring_tables(_Other) ->
-    ok = application:set_env(?APP, ?PROP_CUR_RING_TBL,  {ets, ?CUR_RING_TABLE},  3000),
-    ok = application:set_env(?APP, ?PROP_PREV_RING_TBL, {ets, ?PREV_RING_TABLE}, 3000),
+-ifdef(TEST).
+init_tables(_)  ->
+    catch leo_redundant_manager_table_member:create_members(),
     catch ets:new(?CUR_RING_TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
     catch ets:new(?PREV_RING_TABLE,[named_table, ordered_set, public, {read_concurrency, true}]),
     ok.
+-else.
+init_tables(manager) -> ok;
+init_tables(master)  -> ok;
+init_tables(slave)   -> ok;
+init_tables(_Other)  ->
+    catch leo_redundant_manager_table_member:create_members(),
+    catch ets:new(?CUR_RING_TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
+    catch ets:new(?PREV_RING_TABLE,[named_table, ordered_set, public, {read_concurrency, true}]),
+    ok.
+-endif.
 
 
 %% @doc Launch the membership.
