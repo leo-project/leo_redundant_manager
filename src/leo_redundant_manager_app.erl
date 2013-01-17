@@ -54,7 +54,7 @@ profile_output() ->
 
 -spec consider_profiling() -> profiling | not_profiling | {error, any()}.
 consider_profiling() ->
-    case application:get_env(profile) of
+    case application:get_env(leo_redundant_manager, profile) of
         {ok, true} ->
             {ok, _Pid} = eprof:start(),
             eprof:start_profiling([self()]);

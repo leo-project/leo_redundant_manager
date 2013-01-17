@@ -52,8 +52,10 @@ setup() ->
 
     Me = list_to_atom("test_0@" ++ Hostname),
     net_kernel:start([Me, shortnames]),
-    {ok, Node0} = slave:start_link(list_to_atom(Hostname), 'node_0'),
-    {ok, Mgr0}  = slave:start_link(list_to_atom(Hostname), 'manager_master'),
+
+    Args = " -pa ../deps/*/ebin ",
+    {ok, Node0} = slave:start_link(list_to_atom(Hostname), 'node_0', Args),
+    {ok, Mgr0}  = slave:start_link(list_to_atom(Hostname), 'manager_master', Args),
 
     true = rpc:call(Node0, code, add_path, ["../deps/meck/ebin"]),
     true = rpc:call(Mgr0,  code, add_path, ["../deps/meck/ebin"]),
@@ -118,7 +120,7 @@ pubsub_storage_({Mgr0, _, Path}) ->
 
     ok = leo_redundant_manager_api:start(storage, [Mgr0], Path),
     ok = leo_membership_mq_client:publish(storage, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
-    timer:sleep(500),
+    timer:sleep(1000),
 
     History0 = meck:history(leo_redundant_manager_table_member),
     ?assertEqual(true, erlang:length(History0) > 0),
@@ -141,7 +143,7 @@ pubsub_gateway_0_({Mgr0, _, Path}) ->
 
     ok = leo_redundant_manager_api:start(gateway, [Mgr0], Path),
     ok = leo_membership_mq_client:publish(gateway, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
-    timer:sleep(500),
+    timer:sleep(1000),
 
     History0 = meck:history(leo_redundant_manager_table_member),
     ?assertEqual(true, erlang:length(History0) > 0),
@@ -164,7 +166,7 @@ pubsub_gateway_1_({Mgr0, _, Path}) ->
 
     ok = leo_redundant_manager_api:start(gateway, [Mgr0], Path),
     ok = leo_membership_mq_client:publish(gateway, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
-    timer:sleep(500),
+    timer:sleep(1000),
 
     History0 = meck:history(leo_redundant_manager_table_member),
     ?assertEqual(true, erlang:length(History0) > 0),
