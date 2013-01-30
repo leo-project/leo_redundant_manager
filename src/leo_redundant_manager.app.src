@@ -22,10 +22,10 @@
 {application, leo_redundant_manager,
   [
     {description, "Leo Redundant Manaeger"},
-    {vsn, "0.12.5"},
+    {vsn, "0.12.6"},
     {id, "leo_redundant_manager"},
     {registered,   []},
-    {applications, [kernel, stdlib]},
+    {applications, [kernel, stdlib, crypto]},
     {mod, {leo_redundant_manager_app, []}},
     {env, [{profile, false},
            {notify_mf, [leo_manager_api, notify]},

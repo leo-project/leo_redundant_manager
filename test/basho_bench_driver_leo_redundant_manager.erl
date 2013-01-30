@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012
+%% Copyright (c) 2012 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -34,15 +34,9 @@
 -spec(new(any()) ->
              ok).
 new(_Id) ->
-    [] = os:cmd("epmd -daemon"),
-    {ok, Hostname} = inet:gethostname(),
-    Test0Node = list_to_atom("test_0@" ++ Hostname),
-    net_kernel:start([Test0Node, shortnames]),
-
-    application:start(mnesia),
-    leo_redundant_manager_table_member:create_table(ram_copies),
-
-    leo_redundant_manager_api:start(),
+    ServerType = 'gateway',
+    leo_redundant_manager_api:start(ServerType),
+    leo_misc:set_env(leo_redundant_manager, server_type, ServerType),
     leo_redundant_manager_api:set_options([{n, 3},
                                            {r, 1},
                                            {w ,2},
@@ -56,8 +50,7 @@ new(_Id) ->
     leo_redundant_manager_api:attach('node_5@127.0.0.1'),
     leo_redundant_manager_api:attach('node_6@127.0.0.1'),
     leo_redundant_manager_api:attach('node_7@127.0.0.1'),
-    _Res = leo_redundant_manager_api:create(),
-
+    leo_redundant_manager_api:create(),
     {ok, null}.
 
 

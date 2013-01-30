@@ -237,7 +237,7 @@ vnode_id(Key) ->
     vnode_id(?MD5, Key).
 
 vnode_id(?MD5, Key) ->
-    leo_hex:binary_to_integer(erlang:md5(Key));
+    leo_hex:binary_to_integer(crypto:md5(Key));
 vnode_id(_, _) ->
     {error, badarg}.
 
