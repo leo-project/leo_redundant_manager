@@ -29,7 +29,8 @@
 
 -behaviour(application).
 
-%% Application and Supervisor callbacks
+-include_lib("eunit/include/eunit.hrl").
+
 -export([start/2, stop/1, profile_output/0]).
 
 %%----------------------------------------------------------------------
@@ -37,7 +38,8 @@
 %%----------------------------------------------------------------------
 start(_Type, _Args) ->
     consider_profiling(),
-    leo_redundant_manager_sup:start_link().
+    Res = leo_redundant_manager_sup:start_link(),
+    after_proc(Res).
 
 stop(_State) ->
     ok.
@@ -61,4 +63,25 @@ consider_profiling() ->
         _ ->
             not_profiling
     end.
+
+
+after_proc({ok, RefSup}) ->
+    RefMqSup =
+        case whereis(leo_mq_sup) of
+            undefined ->
+                ChildSpec = {leo_mq_sup,
+                             {leo_mq_sup, start_link, []},
+                             permanent, 2000, supervisor, [leo_mq_sup]},
+                {ok, Pid} = supervisor:start_child(RefSup, ChildSpec),
+                Pid;
+            Pid ->
+                Pid
+        end,
+
+    ok = application:set_env(leo_redundant_manager, mq_sup_ref, RefMqSup),
+    {ok, RefSup};
+
+after_proc(Error) ->
+    Error.
+
 
