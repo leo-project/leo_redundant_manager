@@ -82,13 +82,14 @@ start1(InstanceId, RootPath0) ->
                     true  -> RootPath0;
                     false -> RootPath0 ++ "/"
                 end,
+    {ok, RefSup} = application:get_env(leo_redundant_manager, mq_sup_ref),
 
-    leo_mq_api:new(InstanceId, [{?MQ_PROP_MOD,          ?MODULE},
-                                {?MQ_PROP_DB_PROCS,     1},
-                                {?MQ_PROP_ROOT_PATH,    RootPath1 ++ ?MQ_DB_PATH},
-                                {?MQ_PROP_MAX_INTERVAL, ?DEF_MAX_INTERVAL},
-                                {?MQ_PROP_MIN_INTERVAL, ?DEF_MIN_INTERVAL}
-                               ]),
+    leo_mq_api:new(RefSup, InstanceId, [{?MQ_PROP_MOD,          ?MODULE},
+                                        {?MQ_PROP_DB_PROCS,     1},
+                                        {?MQ_PROP_ROOT_PATH,    RootPath1 ++ ?MQ_DB_PATH},
+                                        {?MQ_PROP_MAX_INTERVAL, ?DEF_MAX_INTERVAL},
+                                        {?MQ_PROP_MIN_INTERVAL, ?DEF_MIN_INTERVAL}
+                                       ]),
     ok.
 
 
