@@ -76,6 +76,8 @@ teardown({_, Mgr0, Mgr1, Node0, Node1, Node2}) ->
     application:stop(mnesia),
     application:stop(leo_mq),
     application:stop(leo_backend_db),
+
+    catch leo_redundant_manager:stop(),
     application:stop(leo_redundant_manager),
     meck:unload(),
 
@@ -114,7 +116,7 @@ membership_manager_({Hostname, _, _, Node0, Node1, Node2}) ->
                                         end]),
 
     Path = filename:absname("") ++ "db/queue",
-    ok = leo_redundant_manager_api:start(manager, ['test_manager@127.0.0.1'], Path),
+    leo_redundant_manager_sup:start_link(manager, ['test_manager@127.0.0.1'], Path),
     leo_redundant_manager_api:set_options([{n, 3},
                                            {r, 1},
                                            {w ,1},
@@ -162,7 +164,7 @@ membership_storage_({Hostname, Mgr0, Mgr1, Node0, Node1, Node2}) ->
                                        end]),
 
     Path = filename:absname("") ++ "db/queue",
-    ok = leo_redundant_manager_api:start(storage, [list_to_atom("manager_master@" ++ Hostname),
+    leo_redundant_manager_sup:start_link(storage, [list_to_atom("manager_master@" ++ Hostname),
                                                    list_to_atom("manager_slave@"  ++ Hostname)], Path),
     leo_redundant_manager_api:set_options([{n, 3},
                                            {r, 1},

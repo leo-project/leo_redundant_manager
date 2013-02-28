@@ -72,6 +72,8 @@ teardown({Mgr0, Node0, Path}) ->
     application:stop(mnesia),
     application:stop(leo_mq),
     application:stop(leo_backend_db),
+
+    catch leo_redundant_manager_sup:stop(),
     application:stop(leo_redundant_manager),
 
     net_kernel:stop(),
@@ -85,7 +87,8 @@ teardown({Mgr0, Node0, Path}) ->
 %%
 pubsub_manager_0_({Mgr0, _Node0, Path}) ->
     prepare(),
-    ok = leo_redundant_manager_api:start(manager, [Mgr0], Path),
+    leo_redundant_manager_sup:start_link(manager, [Mgr0], Path),
+
     ok = leo_membership_mq_client:publish(manager, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(2000),
 
@@ -98,7 +101,8 @@ pubsub_manager_0_({Mgr0, _Node0, Path}) ->
 
 pubsub_manager_1_({Mgr0, _, Path}) ->
     prepare(),
-    ok = leo_redundant_manager_api:start(manager, [Mgr0], Path),
+    leo_redundant_manager_sup:start_link(manager, [Mgr0], Path),
+
     ok = leo_membership_mq_client:publish(manager, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(250),
 
@@ -118,7 +122,7 @@ pubsub_storage_({Mgr0, _, Path}) ->
                                                ok
                                        end]),
 
-    ok = leo_redundant_manager_api:start(storage, [Mgr0], Path),
+    leo_redundant_manager_sup:start_link(storage, [Mgr0], Path),
     ok = leo_membership_mq_client:publish(storage, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(1000),
 
@@ -141,7 +145,7 @@ pubsub_gateway_0_({Mgr0, _, Path}) ->
                                                ok
                                        end]),
 
-    ok = leo_redundant_manager_api:start(gateway, [Mgr0], Path),
+    leo_redundant_manager_sup:start_link(gateway, [Mgr0], Path),
     ok = leo_membership_mq_client:publish(gateway, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(1000),
 
@@ -164,7 +168,7 @@ pubsub_gateway_1_({Mgr0, _, Path}) ->
                                                ok
                                        end]),
 
-    ok = leo_redundant_manager_api:start(gateway, [Mgr0], Path),
+    leo_redundant_manager_sup:start_link(gateway, [Mgr0], Path),
     ok = leo_membership_mq_client:publish(gateway, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(1000),
 

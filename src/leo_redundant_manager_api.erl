@@ -30,8 +30,7 @@
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([start/0, start/1, start/3, start/4, stop/0,
-         create/0, create/1, create/2,
+-export([create/0, create/1, create/2,
          set_options/1, get_options/0,
          attach/1, attach/2, detach/1, detach/2,
          suspend/1, suspend/2, append/3,
@@ -51,85 +50,11 @@
          get_ring/1, is_alive/0, table_info/1
         ]).
 
--type(method()      :: put | get | delete | head).
--type(server_type() :: master | slave | gateway | storage).
-
--ifdef(TEST).
--define(MNESIA_TYPE_COPIES, 'ram_copies').
--define(MODULE_SET_ENV_1(), application:set_env(?APP, 'notify_mf', [leo_manager_api, notify])).
--define(MODULE_SET_ENV_2(), application:set_env(?APP, 'sync_mf',   [leo_manager_api, synchronize])).
--else.
--define(MNESIA_TYPE_COPIES, 'disc_copies').
--define(MODULE_SET_ENV_1(), void).
--define(MODULE_SET_ENV_2(), void).
--endif.
+-type(method() :: put | get | delete | head).
 
 %%--------------------------------------------------------------------
 %% API-1  FUNCTIONS
 %%--------------------------------------------------------------------
-%% @doc Start this application.
-%%
--spec(start(server_type(), list(), string()) ->
-             ok | {error, any()}).
-start(ServerType0, Managers, MQStoragePath) ->
-    start(ServerType0, Managers, MQStoragePath, []).
-
-start(ServerType0, Managers, MQStoragePath, Options) ->
-    case start(ServerType0) of
-        ok ->
-            ServerType1 = server_type(ServerType0),
-            ok = leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ServerType1),
-
-            case (Options == []) of
-                true  -> void;
-                false -> ok = set_options(Options)
-            end,
-
-            Args = [ServerType1, Managers],
-            ChildSpec = {leo_membership, {leo_membership, start_link, Args},
-                         permanent, 2000, worker, [leo_membership]},
-
-            case supervisor:start_child(leo_redundant_manager_sup, ChildSpec) of
-                {ok, _Pid} ->
-                    start_membership(ServerType1, MQStoragePath);
-                Cause ->
-                    error_logger:error_msg("~p,~p,~p,~p~n",
-                                           [{module, ?MODULE_STRING}, {function, "start/4"},
-                                            {line, ?LINE}, {body, Cause}]),
-                    case leo_redundant_manager_sup:stop() of
-                        ok ->
-                            exit(invalid_launch);
-                        not_started ->
-                            exit(noproc)
-                    end
-            end;
-        Error ->
-            Error
-    end.
-
--spec(start() ->
-             ok | {error, any()}).
-start()  ->
-    start(master).
-
--spec(start(server_type()) ->
-             ok | {error, any()}).
-start(ServerType0)  ->
-    start_app(ServerType0).
-
-
-%% @doc Stop this application.
-%%
--spec(stop() ->
-             ok).
-stop() ->
-    application:stop(leo_mq),
-    application:stop(leo_backend_db),
-    application:stop(leo_redundant_manager),
-    halt(),
-    ok.
-
-
 %% @doc Create the RING
 %%
 -spec(create() ->
@@ -617,66 +542,6 @@ table_info(?VER_PREV) ->
 %%--------------------------------------------------------------------
 %% INNTERNAL FUNCTIONS
 %%--------------------------------------------------------------------
-%% @doc Retrieve a server-type.
-%% @private
-server_type(master) -> ?SERVER_MANAGER;
-server_type(slave)  -> ?SERVER_MANAGER;
-server_type(Type)   -> Type.
-
-
-%% @doc Launch the application.
-%% @private
--spec(start_app(server_type()) ->
-             ok | {error, any()}).
-start_app(ServerType) ->
-    Module = leo_redundant_manager,
-
-    case application:start(Module) of
-        ok ->
-            ok = leo_misc:init_env(),
-            _  = ?MODULE_SET_ENV_1(),
-            _  = ?MODULE_SET_ENV_2(),
-            ok = init_tables(ServerType),
-            ok;
-        {error, {already_started, Module}} ->
-            ok;
-        {error, Cause} ->
-            error_logger:error_msg("~p,~p,~p,~p~n",
-                                   [{module, ?MODULE_STRING}, {function, "start_app/1"},
-                                    {line, ?LINE}, {body, Cause}]),
-            {exit, Cause}
-    end.
-
-
-%% @doc Create members table.
-%% @private
--ifdef(TEST).
-init_tables(_)  ->
-    catch leo_redundant_manager_table_member:create_members(),
-    catch ets:new(?CUR_RING_TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
-    catch ets:new(?PREV_RING_TABLE,[named_table, ordered_set, public, {read_concurrency, true}]),
-    ok.
--else.
-init_tables(manager) -> ok;
-init_tables(master)  -> ok;
-init_tables(slave)   -> ok;
-init_tables(_Other)  ->
-    catch leo_redundant_manager_table_member:create_members(),
-    catch ets:new(?CUR_RING_TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
-    catch ets:new(?PREV_RING_TABLE,[named_table, ordered_set, public, {read_concurrency, true}]),
-    ok.
--endif.
-
-
-%% @doc Launch the membership.
-%% @private
--spec(start_membership(server_type(), string()) ->
-             ok).
-start_membership(ServerType, Path) ->
-    ok = leo_membership_mq_client:start(ServerType, Path),
-    ok = leo_membership:start_heartbeat().
-
-
 %% @doc Specify ETS's table.
 %% @private
 -spec(ring_table(method()) ->

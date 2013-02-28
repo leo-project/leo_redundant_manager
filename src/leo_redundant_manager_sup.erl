@@ -29,11 +29,23 @@
 
 -behaviour(supervisor).
 
+-include("leo_redundant_manager.hrl").
+
 %% External API
--export([start_link/0, stop/0]).
+-export([start_link/0, start_link/1, start_link/3, start_link/4, stop/0]).
 
 %% Callbacks
 -export([init/1]).
+
+-ifdef(TEST).
+%% -define(MNESIA_TYPE_COPIES, 'ram_copies').
+-define(MODULE_SET_ENV_1(), application:set_env(?APP, 'notify_mf', [leo_manager_api, notify])).
+-define(MODULE_SET_ENV_2(), application:set_env(?APP, 'sync_mf',   [leo_manager_api, synchronize])).
+-else.
+%% -define(MNESIA_TYPE_COPIES, 'disc_copies').
+-define(MODULE_SET_ENV_1(), void).
+-define(MODULE_SET_ENV_2(), void).
+-endif.
 
 %%-----------------------------------------------------------------------
 %% External API
@@ -44,6 +56,63 @@
 start_link() ->
     Res = supervisor:start_link({local, ?MODULE}, ?MODULE, []),
     after_proc(Res).
+
+start_link(ServerType) ->
+    start_link_sub(ServerType).
+
+start_link(ServerType, Managers, MQStoragePath) ->
+    start_link(ServerType, Managers, MQStoragePath, []).
+
+start_link(ServerType0, Managers, MQStoragePath, Options) ->
+    %% initialize
+    Res = start_link_sub(ServerType0),
+
+    ServerType1 = server_type(ServerType0),
+    ok = leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ServerType1),
+
+    case (Options == []) of
+        true  -> void;
+        false -> ok = leo_redundant_manager_api:set_options(Options)
+    end,
+
+    %% launch membership
+    Args = [ServerType1, Managers],
+    ChildSpec = {leo_membership, {leo_membership, start_link, Args},
+                 permanent, 2000, worker, [leo_membership]},
+
+    case supervisor:start_child(leo_redundant_manager_sup, ChildSpec) of
+        {ok, _Pid} ->
+            ok = leo_membership_mq_client:start(ServerType1, MQStoragePath),
+            ok = leo_membership:start_heartbeat(),
+            Res;
+        Cause ->
+            error_logger:error_msg("~p,~p,~p,~p~n",
+                                   [{module, ?MODULE_STRING}, {function, "start/4"},
+                                    {line, ?LINE}, {body, Cause}]),
+            case leo_redundant_manager_sup:stop() of
+                ok ->
+                    exit(invalid_launch);
+                not_started ->
+                    exit(noproc)
+            end
+    end.
+
+%% @private
+start_link_sub(ServerType) ->
+    %% launch sup
+    case supervisor:start_link({local, ?MODULE}, ?MODULE, []) of
+        {ok, _RefSup} = Res0 ->
+            Res1 = after_proc(Res0),
+
+            %% initialize
+            ok = leo_misc:init_env(),
+            _  = ?MODULE_SET_ENV_1(),
+            _  = ?MODULE_SET_ENV_2(),
+            ok = init_tables(ServerType),
+            Res1;
+        Error ->
+            Error
+    end.
 
 
 %% @spec () -> ok |
@@ -102,3 +171,30 @@ after_proc({ok, RefSup}) ->
 
 after_proc(Error) ->
     Error.
+
+
+%% @doc Retrieve a server-type.
+%% @private
+server_type(master) -> ?SERVER_MANAGER;
+server_type(slave)  -> ?SERVER_MANAGER;
+server_type(Type)   -> Type.
+
+
+%% @doc Create members table.
+%% @private
+-ifdef(TEST).
+init_tables(_)  ->
+    catch leo_redundant_manager_table_member:create_members(),
+    catch ets:new(?CUR_RING_TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
+    catch ets:new(?PREV_RING_TABLE,[named_table, ordered_set, public, {read_concurrency, true}]),
+    ok.
+-else.
+init_tables(manager) -> ok;
+init_tables(master)  -> ok;
+init_tables(slave)   -> ok;
+init_tables(_Other)  ->
+    catch leo_redundant_manager_table_member:create_members(),
+    catch ets:new(?CUR_RING_TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
+    catch ets:new(?PREV_RING_TABLE,[named_table, ordered_set, public, {read_concurrency, true}]),
+    ok.
+-endif.
