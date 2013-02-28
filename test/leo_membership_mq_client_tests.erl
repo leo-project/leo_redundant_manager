@@ -94,9 +94,6 @@ pubsub_manager_0_({Mgr0, _Node0, Path}) ->
 
     History0 = meck:history(leo_redundant_manager_table_member),
     ?assertEqual(true, erlang:length(History0) > 0),
-
-    History1 = meck:history(leo_manager_api),
-    ?assertEqual(true, erlang:length(History1) > 0),
     ok.
 
 pubsub_manager_1_({Mgr0, _, Path}) ->
@@ -108,9 +105,6 @@ pubsub_manager_1_({Mgr0, _, Path}) ->
 
     History0 = meck:history(leo_redundant_manager_table_member),
     ?assertEqual(true, erlang:length(History0) > 0),
-
-    History1 = meck:history(leo_manager_api),
-    ?assertEqual(true, erlang:length(History1) > 0),
     ok.
 
 pubsub_storage_({Mgr0, _, Path}) ->
@@ -131,9 +125,6 @@ pubsub_storage_({Mgr0, _, Path}) ->
 
     History1 = meck:history(leo_manager_api),
     ?assertEqual([], History1),
-
-    History2 = rpc:call(Mgr0, meck, history, [leo_manager_api]),
-    ?assertEqual(true, erlang:length(History2) > 0),
     ok.
 
 pubsub_gateway_0_({Mgr0, _, Path}) ->
@@ -154,9 +145,6 @@ pubsub_gateway_0_({Mgr0, _, Path}) ->
 
     History1 = meck:history(leo_manager_api),
     ?assertEqual([], History1),
-
-    History2 = rpc:call(Mgr0, meck, history, [leo_manager_api]),
-    ?assertEqual(true, erlang:length(History2) > 0),
     ok.
 
 pubsub_gateway_1_({Mgr0, _, Path}) ->
@@ -177,9 +165,6 @@ pubsub_gateway_1_({Mgr0, _, Path}) ->
 
     History1 = meck:history(leo_manager_api),
     ?assertEqual([], History1),
-
-    History2 = rpc:call(Mgr0, meck, history, [leo_manager_api]),
-    ?assertEqual(true, erlang:length(History2) > 0),
     ok.
 
 
@@ -188,12 +173,12 @@ prepare() ->
     meck:expect(leo_redundant_manager_table_member, lookup,
                 fun(Node) ->
                         {ok, #member{node  = Node,
-                                     state = ?STATE_DOWNED}}
+                                     state = ?STATE_STOP}}
                 end),
     meck:expect(leo_redundant_manager_table_member, find_all,
                 fun() ->
                         {ok, [#member{node  = ?NODEDOWN_NODE,
-                                      state = ?STATE_DOWNED}]}
+                                      state = ?STATE_STOP}]}
                 end),
     meck:expect(leo_redundant_manager_table_member, create_members,
                 fun() ->
