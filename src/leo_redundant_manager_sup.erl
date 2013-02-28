@@ -100,11 +100,18 @@ start_link(ServerType0, Managers, MQStoragePath, Options) ->
 %% @private
 start_link_sub(ServerType) ->
     %% launch sup
-    case supervisor:start_link({local, ?MODULE}, ?MODULE, []) of
-        {ok, _RefSup} = Res0 ->
-            Res1 = after_proc(Res0),
+    Ret = case supervisor:start_link({local, ?MODULE}, ?MODULE, []) of
+              {ok, _RefSup} = Res0 ->
+                  Res0;
+              {error, {already_started, ResSup}} ->
+                  {ok, ResSup};
+              Other ->
+                  Other
+          end,
 
-            %% initialize
+    case Ret of
+        {ok, _} ->
+            Res1 = after_proc(Ret),
             ok = leo_misc:init_env(),
             _  = ?MODULE_SET_ENV_1(),
             _  = ?MODULE_SET_ENV_2(),
