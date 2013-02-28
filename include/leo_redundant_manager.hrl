@@ -70,7 +70,6 @@
 -define(STATE_DETACHED,  'detached').
 -define(STATE_SUSPEND,   'suspend').
 -define(STATE_RUNNING,   'running').
--define(STATE_DOWNED,    'downed').
 -define(STATE_STOP,      'stop').
 -define(STATE_RESTARTED, 'restarted').
 
@@ -79,7 +78,6 @@
                       ?STATE_DETACHED |
                       ?STATE_SUSPEND  |
                       ?STATE_RUNNING  |
-                      ?STATE_DOWNED   |
                       ?STATE_STOP     |
                       ?STATE_RESTARTED).
 
