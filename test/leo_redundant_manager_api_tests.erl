@@ -67,6 +67,8 @@ setup() ->
 teardown(_) ->
     application:stop(leo_mq),
     application:stop(leo_backend_db),
+
+    catch leo_redundant_manager_sup:stop(),
     application:stop(leo_redundant_manager),
     timer:sleep(200),
 
@@ -156,7 +158,7 @@ members_table_(_Arg) ->
 
 
 synchronize_0_(_Arg) ->
-    ok = leo_redundant_manager_api:start(),
+    {ok, _RefSup} = leo_redundant_manager_sup:start_link(manager),
     Options = [{n, 3},
                {r, 1},
                {w ,2},
@@ -249,7 +251,7 @@ prepare(Hostname, ServerType) ->
             void
     end,
 
-    ok = leo_redundant_manager_api:start(ServerType),
+    {ok, _RefSup} = leo_redundant_manager_sup:start_link(ServerType),
     leo_redundant_manager_api:set_options([{n, 3},
                                            {r, 1},
                                            {w ,2},
