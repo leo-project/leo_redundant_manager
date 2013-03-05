@@ -140,53 +140,64 @@ init() ->
 handle_call({publish, _Id, _Reply}) ->
     ok;
 
-%% @doc Subscribe callbach function
+%% @doc Subscribe callback function
 %%
 handle_call({consume, Id, MessageBin}) ->
     Message = binary_to_term(MessageBin),
-    #message{node = Node, times = Times, error = Error} = Message,
+    #message{node  = RemoteNode,
+             times = Times,
+             error = Error} = Message,
 
-    case leo_misc:node_existence(Node) of
-        true ->
-            void;
-        false ->
-            case leo_redundant_manager_api:get_member_by_node(Node) of
-                {ok, #member{state = ?STATE_SUSPEND}}   -> void;
-                {ok, #member{state = ?STATE_DETACHED}}  -> void;
-                {ok, #member{state = ?STATE_RESTARTED}} -> void;
-                {ok, #member{state = ?STATE_STOP}}      -> void;
-                {ok, _Member} ->
-                    case (Times == ?DEF_RETRY_TIMES) of
-                        true ->
-                            notify_error_to_manager(Id, Node, Error);
-                        false ->
-                            NewMessage = Message#message{times = Times + 1},
-                            publish(Id, {term_to_binary(Node), term_to_binary(NewMessage)})
+    case leo_redundant_manager_api:get_member_by_node(RemoteNode) of
+        {ok, #member{state = State}} ->
+            case leo_misc:node_existence(RemoteNode, (10 * 1000)) of
+                true when State == ?STATE_STOP ->
+                    notify_error_to_manager(Id, RemoteNode, Error);
+                true ->
+                    void;
+                false ->
+                    case State of
+                        ?STATE_ATTACHED  -> void;
+                        ?STATE_SUSPEND   -> void;
+                        ?STATE_DETACHED  -> void;
+                        ?STATE_RESTARTED -> void;
+                        _ ->
+                            case (Times == ?DEF_RETRY_TIMES) of
+                                true ->
+                                    notify_error_to_manager(Id, RemoteNode, Error);
+                                false ->
+                                    NewMessage = Message#message{times = Times + 1},
+                                    publish(Id, {term_to_binary(RemoteNode), term_to_binary(NewMessage)})
+                            end
                     end
-            end
+            end;
+        {error, Cause} ->
+            {error, Cause}
     end.
 
 
 %%--------------------------------------------------------------------
 %% INNTERNAL FUNCTIONS
 %%--------------------------------------------------------------------
-notify_error_to_manager(Id, Node, Error) when Id == ?MQ_INSTANCE_ID_GATEWAY;
-                                              Id == ?MQ_INSTANCE_ID_STORAGE ->
+notify_error_to_manager(Id, RemoteNode, Error) when Id == ?MQ_INSTANCE_ID_GATEWAY;
+                                                    Id == ?MQ_INSTANCE_ID_STORAGE ->
     {ok, Managers}   = application:get_env(?APP, ?PROP_MANAGERS),
     {ok, [Mod, Fun]} = application:get_env(?APP, ?PROP_NOTIFY_MF),
 
-    lists:foldl(fun(_,    true ) -> void;
+    lists:foldl(fun(_,    true ) ->
+                        void;
                    (Dest, false) ->
-                        case rpc:call(Dest, Mod, Fun, [error, Node, Error], ?DEF_TIMEOUT) of
-                            ok          -> true;
+                        case rpc:call(Dest, Mod, Fun,
+                                      [error, RemoteNode, erlang:node(), Error], ?DEF_TIMEOUT) of
+                            {ok, _}     -> true;
                             {_, _Cause} -> false;
                             timeout     -> false
                         end
                 end, false, Managers),
     ok;
-notify_error_to_manager(?MQ_INSTANCE_ID_MANAGER, Node, Error) ->
+notify_error_to_manager(?MQ_INSTANCE_ID_MANAGER, RemoteNode, Error) ->
     {ok, [Mod, Fun]} = application:get_env(?APP, ?PROP_NOTIFY_MF),
-    catch erlang:apply(Mod, Fun, [error, Node, Error]);
+    catch erlang:apply(Mod, Fun, [error, RemoteNode, Error]);
 
 notify_error_to_manager(_,_,_) ->
     {error, badarg}.
