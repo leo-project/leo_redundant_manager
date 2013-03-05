@@ -112,7 +112,7 @@ pubsub_storage_({Mgr0, _, Path}) ->
 
     ok = rpc:call(Mgr0, meck, new,    [leo_manager_api, [no_link]]),
     ok = rpc:call(Mgr0, meck, expect, [leo_manager_api, notify,
-                                       fun(_Type, _Node, _Error) ->
+                                       fun(_Type, _Node1, _Node2, _Error) ->
                                                ok
                                        end]),
 
@@ -132,7 +132,7 @@ pubsub_gateway_0_({Mgr0, _, Path}) ->
 
     ok = rpc:call(Mgr0, meck, new,    [leo_manager_api, [no_link]]),
     ok = rpc:call(Mgr0, meck, expect, [leo_manager_api, notify,
-                                       fun(_Type, _Node, _Error) ->
+                                       fun(_Type, _Node1, _Node2, _Error) ->
                                                ok
                                        end]),
 
@@ -152,7 +152,7 @@ pubsub_gateway_1_({Mgr0, _, Path}) ->
 
     ok = rpc:call(Mgr0, meck, new,    [leo_manager_api, [no_link]]),
     ok = rpc:call(Mgr0, meck, expect, [leo_manager_api, notify,
-                                       fun(_Type, _Node, _Error) ->
+                                       fun(_Type, _Node1, _Node2, _Error) ->
                                                ok
                                        end]),
 
@@ -197,7 +197,7 @@ prepare() ->
                 end),
 
     meck:new(leo_manager_api),
-    meck:expect(leo_manager_api, notify, fun(_Type, _Node, _Error) ->
+    meck:expect(leo_manager_api, notify, fun(_Type, _Node1, _Notify2, _Error) ->
                                                  ok
                                          end),
     ok.

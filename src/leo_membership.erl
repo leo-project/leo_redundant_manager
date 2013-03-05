@@ -186,7 +186,6 @@ maybe_heartbeat(#state{type            = ServerType,
                     case leo_redundant_manager_api:get_member_by_node(erlang:node()) of
                         {ok, #member{state = ?STATE_SUSPEND}}   -> void;
                         {ok, #member{state = ?STATE_DETACHED}}  -> void;
-                        {ok, #member{state = ?STATE_STOP}}      -> void;
                         {ok, #member{state = ?STATE_RESTARTED}} -> void;
                         _ ->
                             catch exec(ServerType, Managers)
@@ -251,7 +250,6 @@ exec1(?SERVER_MANAGER = ServerType, Managers, [{_, Node, _NodeState}|T]) ->
     case leo_redundant_manager_api:get_member_by_node(Node) of
         {ok, #member{state = ?STATE_SUSPEND}}   -> void;
         {ok, #member{state = ?STATE_DETACHED}}  -> void;
-        {ok, #member{state = ?STATE_STOP}}      -> void;
         {ok, #member{state = ?STATE_RESTARTED}} -> void;
         _ ->
             ok = compare_manager_with_remote_chksum(Node, Managers)
@@ -260,13 +258,13 @@ exec1(?SERVER_MANAGER = ServerType, Managers, [{_, Node, _NodeState}|T]) ->
 
 %% @doc Execute for gateway-nodes and storage-nodes.
 %% @private
-exec1(ServerType, Managers, [{_, Node, true}|T]) ->
+exec1(ServerType, Managers, [{_, Node, State}|T]) ->
     case (erlang:node() == Node) of
         true ->
             void;
         false ->
             Ret = compare_with_remote_chksum(Node, ServerType),
-            _ = inspect_result(Ret, [ServerType, Managers, Node])
+            _ = inspect_result(Ret, [ServerType, Managers, Node, State])
     end,
     exec1(ServerType, Managers, T);
 
@@ -278,15 +276,21 @@ exec1(ServerType, Managers, [_|T]) ->
 %% @private
 -spec(inspect_result(ok | {error, any()}, list()) ->
              ok).
+inspect_result(ok, [ServerType, _, Node, false]) ->
+    leo_membership_mq_client:publish(ServerType, Node, ?ERR_TYPE_NODE_DOWN);
+
 inspect_result(ok, _) ->
     ok;
-inspect_result({error, {IncorrectType, ?ERR_TYPE_INCONSISTENT_HASH, Hashs}}, [_ServerType, Managers,_Node]) ->
-    _ = notify_error_to_manager(Managers, IncorrectType, Hashs);
-inspect_result({error, ?ERR_TYPE_NODE_DOWN}, [ServerType,_Managers, Node]) ->
-    _ = leo_membership_mq_client:publish(ServerType, Node, ?ERR_TYPE_NODE_DOWN);
+
+inspect_result({error, {HashType, ?ERR_TYPE_INCONSISTENT_HASH, Hashs}}, [_,Managers,_,_]) ->
+    notify_error_to_manager(Managers, HashType, Hashs);
+
+inspect_result({error, ?ERR_TYPE_NODE_DOWN}, [ServerType,_,Node,_]) ->
+    leo_membership_mq_client:publish(ServerType, Node, ?ERR_TYPE_NODE_DOWN);
+
 inspect_result(Error, _) ->
     error_logger:warning_msg("~p,~p,~p,~p~n",
-                             [{module, ?MODULE_STRING}, {function, "inspect_result/1"},
+                             [{module, ?MODULE_STRING}, {function, "inspect_result/2"},
                               {line, ?LINE}, {body, Error}]).
 
 
@@ -303,8 +307,13 @@ compare_manager_with_remote_chksum(_Node,_Managers, []) ->
 compare_manager_with_remote_chksum( Node, Managers, [HashType|T]) ->
     case  leo_redundant_manager_api:checksum(HashType) of
         {ok, LocalChksum} ->
+            State = case leo_redundant_manager_api:get_member_by_node(Node) of
+                        {ok, #member{state = ?STATE_STOP}} -> false;
+                        _ -> true
+                    end,
+
             Ret = compare_with_remote_chksum(Node, HashType, ?SERVER_MANAGER, LocalChksum),
-            _ = inspect_result(Ret, [?SERVER_MANAGER, Managers, Node]),
+            _ = inspect_result(Ret, [?SERVER_MANAGER, Managers, Node, State]),
             compare_manager_with_remote_chksum(Node, Managers, T);
         Error ->
             Error
@@ -343,7 +352,8 @@ compare_with_remote_chksum(Node, HashType, LocalServerType, LocalChksum) ->
                                                          RingHash0 == RingHash1 ->
             {LocalChksum0, _} = LocalChksum,
             case (RingHash0 == LocalChksum0) of
-                true  -> ok;
+                true  ->
+                    ok;
                 false ->
                     {error, {HashType, ?ERR_TYPE_INCONSISTENT_HASH, [{node(), LocalChksum},
                                                                      {Node,   RemoteChksum}]}}

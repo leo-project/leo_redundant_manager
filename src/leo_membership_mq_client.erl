@@ -144,26 +144,35 @@ handle_call({publish, _Id, _Reply}) ->
 %%
 handle_call({consume, Id, MessageBin}) ->
     Message = binary_to_term(MessageBin),
-    #message{node = RemoteNode, times = Times, error = Error} = Message,
+    #message{node  = RemoteNode,
+             times = Times,
+             error = Error} = Message,
 
-    case leo_misc:node_existence(RemoteNode, (10 * 1000)) of
-        true ->
-            void;
-        false ->
-            case leo_redundant_manager_api:get_member_by_node(RemoteNode) of
-                {ok, #member{state = ?STATE_ATTACHED}}  -> void;
-                {ok, #member{state = ?STATE_SUSPEND}}   -> void;
-                {ok, #member{state = ?STATE_DETACHED}}  -> void;
-                {ok, #member{state = ?STATE_RESTARTED}} -> void;
-                {ok, _Member} ->
-                    case (Times == ?DEF_RETRY_TIMES) of
-                        true ->
-                            notify_error_to_manager(Id, RemoteNode, Error);
-                        false ->
-                            NewMessage = Message#message{times = Times + 1},
-                            publish(Id, {term_to_binary(RemoteNode), term_to_binary(NewMessage)})
+    case leo_redundant_manager_api:get_member_by_node(RemoteNode) of
+        {ok, #member{state = State}} ->
+            case leo_misc:node_existence(RemoteNode, (10 * 1000)) of
+                true when State == ?STATE_STOP ->
+                    notify_error_to_manager(Id, RemoteNode, Error);
+                true ->
+                    void;
+                false ->
+                    case State of
+                        ?STATE_ATTACHED  -> void;
+                        ?STATE_SUSPEND   -> void;
+                        ?STATE_DETACHED  -> void;
+                        ?STATE_RESTARTED -> void;
+                        _ ->
+                            case (Times == ?DEF_RETRY_TIMES) of
+                                true ->
+                                    notify_error_to_manager(Id, RemoteNode, Error);
+                                false ->
+                                    NewMessage = Message#message{times = Times + 1},
+                                    publish(Id, {term_to_binary(RemoteNode), term_to_binary(NewMessage)})
+                            end
                     end
-            end
+            end;
+        {error, Cause} ->
+            {error, Cause}
     end.
 
 
