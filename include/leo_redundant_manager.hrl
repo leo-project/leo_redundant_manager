@@ -47,8 +47,8 @@
 
 
 %% Checksum
--define(CHECKSUM_RING,          'ring').
--define(CHECKSUM_MEMBER,        'member').
+-define(CHECKSUM_RING,   'ring').
+-define(CHECKSUM_MEMBER, 'member').
 
 -type(checksum_type()   :: ?CHECKSUM_RING  | ?CHECKSUM_MEMBER).
 
@@ -160,6 +160,4 @@
          state = null          :: atom(),
          num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer()
         }).
-
-
 
