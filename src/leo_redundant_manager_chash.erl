@@ -284,11 +284,10 @@ import(Table, FileName) ->
 %% @private
 get_member([],_Node1) ->
     {null, false};
+
 get_member([#member{node = Node0, state = State}|_], Node1) when Node0 == Node1  ->
-    {Node0, (State /= ?STATE_SUSPEND  andalso
-             State /= ?STATE_DETACHED andalso
-             State /= ?STATE_STOP     andalso
-             State /= ?STATE_RESTARTED)};
+    {Node0, (State == ?STATE_RUNNING)};
+
 get_member([#member{node = Node0}|T], Node1) when Node0 /= Node1 ->
     get_member(T, Node1).
 
