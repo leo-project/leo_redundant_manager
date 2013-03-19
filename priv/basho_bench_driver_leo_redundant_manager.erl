@@ -35,7 +35,12 @@
              ok).
 new(_Id) ->
     ServerType = 'gateway',
-    leo_redundant_manager_api:start(ServerType),
+
+    leo_misc:init_env(),
+    leo_misc:set_env('leo_redundant_manager','server_type',ServerType),
+    leo_redundant_manager_table_member:create_members(),
+
+    leo_redundant_manager_sup:start_link(ServerType),
     leo_misc:set_env(leo_redundant_manager, server_type, ServerType),
     leo_redundant_manager_api:set_options([{n, 3},
                                            {r, 1},

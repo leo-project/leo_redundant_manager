@@ -37,8 +37,8 @@
          stop/0]).
 -export([start_heartbeat/0,
          stop_heartbeat/0,
-         heartbeat/0]).
-
+         heartbeat/0,
+         set_proc_auditor/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -53,7 +53,9 @@
                 timestamp        :: integer(),
                 enable   = false :: boolean(),
                 managers = []    :: list(),
-                partner_manager  :: list()}).
+                partner_manager  :: list(),
+                proc_auditor     :: atom()
+               }).
 
 -ifdef(TEST).
 -define(CURRENT_TIME,            65432100000).
@@ -94,6 +96,10 @@ stop_heartbeat() ->
 heartbeat() ->
     gen_server:cast(?MODULE, {start_heartbeat}).
 
+-spec(set_proc_auditor(atom()) -> ok | {error, any()}).
+set_proc_auditor(ProcAuditor) ->
+    gen_server:cast(?MODULE, {set_proc_auditor, ProcAuditor}).
+
 
 %%--------------------------------------------------------------------
 %% GEN_SERVER CALLBACKS
@@ -103,12 +109,13 @@ heartbeat() ->
 %%                         ignore               |
 %%                         {stop, Reason}
 %% Description: Initiates the server
-init([?SERVER_MANAGER = ServerType, [Partner|_], Interval]) ->
+init([?SERVER_MANAGER = ServerType, [Partner|_] = Managers, Interval]) ->
     defer_heartbeat(Interval),
     {ok, #state{type      = ServerType,
                 interval  = Interval,
                 timestamp = 0,
-                partner_manager = Partner}};
+                partner_manager = Partner,
+                managers  = Managers}};
 
 init([ServerType, Managers, Interval]) ->
     defer_heartbeat(Interval),
@@ -133,6 +140,9 @@ handle_cast({start_heartbeat}, State) ->
         NewState ->
             {noreply, NewState}
     end;
+
+handle_cast({set_proc_auditor, ProcAuditor}, State) ->
+    {noreply, State#state{proc_auditor = ProcAuditor}};
 
 handle_cast({stop_heartbeat}, State) ->
     State#state{enable=false}.
@@ -171,7 +181,8 @@ maybe_heartbeat(#state{type            = ServerType,
                        interval        = Interval,
                        timestamp       = Timestamp,
                        enable          = true,
-                       managers        = Managers} = State) ->
+                       managers        = Managers,
+                       proc_auditor    = ProcAuditor} = State) ->
     ThisTime = leo_date:now() * 1000,
     case ((ThisTime - Timestamp) < Interval) of
         true ->
@@ -179,6 +190,7 @@ maybe_heartbeat(#state{type            = ServerType,
         false ->
             case ServerType of
                 ?SERVER_GATEWAY ->
+                    catch ProcAuditor:register_in_monitor(again),
                     catch exec(ServerType, Managers);
                 ?SERVER_MANAGER ->
                     catch exec(ServerType, Managers);
@@ -282,8 +294,8 @@ inspect_result(ok, [ServerType, _, Node, false]) ->
 inspect_result(ok, _) ->
     ok;
 
-inspect_result({error, {HashType, ?ERR_TYPE_INCONSISTENT_HASH, Hashs}}, [_,Managers,_,_]) ->
-    notify_error_to_manager(Managers, HashType, Hashs);
+inspect_result({error, {HashType, ?ERR_TYPE_INCONSISTENT_HASH, Hashes}}, [_, Managers, _, _]) ->
+    notify_error_to_manager(Managers, HashType, Hashes);
 
 inspect_result({error, ?ERR_TYPE_NODE_DOWN}, [ServerType,_,Node,_]) ->
     leo_membership_mq_client:publish(ServerType, Node, ?ERR_TYPE_NODE_DOWN);
@@ -379,7 +391,7 @@ compare_with_remote_chksum(Node, HashType, LocalServerType, LocalChksum) ->
 %% @private
 -spec(notify_error_to_manager(list(), ?CHECKSUM_RING | ?CHECKSUM_MEMBER, list()) ->
              ok).
-notify_error_to_manager(Managers, HashType, Hashs) ->
+notify_error_to_manager(Managers, HashType, Hashes) ->
     {ok, [Mod, Fun]} = application:get_env(?APP, ?PROP_SYNC_MF),
 
     lists:foldl(
@@ -388,8 +400,7 @@ notify_error_to_manager(Managers, HashType, Hashs) ->
                           true  -> Node0;
                           false -> list_to_atom(Node0)
                       end,
-
-              case rpc:call(Node1, Mod, Fun, [HashType, Hashs], ?DEF_TIMEOUT) of
+              case rpc:call(Node1, Mod, Fun, [HashType, Hashes], ?DEF_TIMEOUT) of
                   ok ->
                       true;
                   Error ->

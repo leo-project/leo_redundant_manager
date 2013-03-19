@@ -197,7 +197,7 @@ notify_error_to_manager(Id, RemoteNode, Error) when Id == ?MQ_INSTANCE_ID_GATEWA
     ok;
 notify_error_to_manager(?MQ_INSTANCE_ID_MANAGER, RemoteNode, Error) ->
     {ok, [Mod, Fun]} = application:get_env(?APP, ?PROP_NOTIFY_MF),
-    catch erlang:apply(Mod, Fun, [error, RemoteNode, Error]);
+    catch erlang:apply(Mod, Fun, [error, RemoteNode, node(), Error]);
 
 notify_error_to_manager(_,_,_) ->
     {error, badarg}.
