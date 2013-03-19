@@ -37,8 +37,8 @@
          stop/0]).
 -export([start_heartbeat/0,
          stop_heartbeat/0,
-         heartbeat/0]).
-
+         heartbeat/0,
+         set_proc_auditor/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -53,7 +53,9 @@
                 timestamp        :: integer(),
                 enable   = false :: boolean(),
                 managers = []    :: list(),
-                partner_manager  :: list()}).
+                partner_manager  :: list(),
+                proc_auditor     :: atom()
+               }).
 
 -ifdef(TEST).
 -define(CURRENT_TIME,            65432100000).
@@ -93,6 +95,10 @@ stop_heartbeat() ->
 -spec(heartbeat() -> ok | {error, any()}).
 heartbeat() ->
     gen_server:cast(?MODULE, {start_heartbeat}).
+
+-spec(set_proc_auditor(atom()) -> ok | {error, any()}).
+set_proc_auditor(ProcAuditor) ->
+    gen_server:cast(?MODULE, {set_proc_auditor, ProcAuditor}).
 
 
 %%--------------------------------------------------------------------
@@ -135,6 +141,9 @@ handle_cast({start_heartbeat}, State) ->
             {noreply, NewState}
     end;
 
+handle_cast({set_proc_auditor, ProcAuditor}, State) ->
+    {noreply, State#state{proc_auditor = ProcAuditor}};
+
 handle_cast({stop_heartbeat}, State) ->
     State#state{enable=false}.
 
@@ -172,7 +181,8 @@ maybe_heartbeat(#state{type            = ServerType,
                        interval        = Interval,
                        timestamp       = Timestamp,
                        enable          = true,
-                       managers        = Managers} = State) ->
+                       managers        = Managers,
+                       proc_auditor    = ProcAuditor} = State) ->
     ThisTime = leo_date:now() * 1000,
     case ((ThisTime - Timestamp) < Interval) of
         true ->
@@ -180,6 +190,7 @@ maybe_heartbeat(#state{type            = ServerType,
         false ->
             case ServerType of
                 ?SERVER_GATEWAY ->
+                    catch ProcAuditor:register_in_monitor(again),
                     catch exec(ServerType, Managers);
                 ?SERVER_MANAGER ->
                     catch exec(ServerType, Managers);
