@@ -160,6 +160,7 @@
 
 -record(member,
         {node                  :: atom(),
+         alias                 :: atom(),
          clock = 0             :: pos_integer(),
          state = null          :: atom(),
          num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(),

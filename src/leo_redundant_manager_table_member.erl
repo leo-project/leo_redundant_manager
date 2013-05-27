@@ -75,6 +75,7 @@ create_members(Mode, Nodes) ->
        {attributes, record_info(fields, member)},
        {user_properties,
         [{node,          {varchar,   undefined},  false, primary,   undefined, identity,  atom   },
+         {alias,         {varchar,   undefined},  false, primary,   undefined, identity,  atom   },
          {clock,         {integer,   undefined},  false, undefined, undefined, undefined, integer},
          {num_of_vnodes, {integer,   undefined},  false, undefined, undefined, undefined, integer},
          {state,         {varchar,   undefined},  false, undefined, undefined, undefined, atom   },
