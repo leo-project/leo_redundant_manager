@@ -60,7 +60,11 @@
 -define(DEF_OPT_W, 1).
 -define(DEF_OPT_D, 1).
 -define(DEF_OPT_BIT_OF_RING, ?MD5).
+-ifdef(TEST).
 -define(DEF_NUMBER_OF_VNODES, 128).
+-else.
+-define(DEF_NUMBER_OF_VNODES, 168).
+-endif.
 
 
 %% Node State
@@ -133,31 +137,33 @@
           state                :: atom(),
           ring_hash_new = "-1" :: string(),
           ring_hash_old = "-1" :: string(),
-          when_is   = 0        :: integer(),
-          error     = 0        :: integer()
+          when_is   = 0        :: pos_integer(),
+          error     = 0        :: pos_integer()
          }).
 
 -record(redundancies,
-        {id = -1               :: integer(),
-         vnode_id = -1         :: integer(), %% virtual-node-id
-         temp_nodes  = []      :: list(),    %% tempolary objects of redundant-nodes
-         nodes       = []      :: list(),    %% objects of redundant-nodes
-         n = 0                 :: integer(), %% # of replicas
-         r = 0                 :: integer(), %% # of successes of READ
-         w = 0                 :: integer(), %% # of successes of WRITE
-         d = 0                 :: integer(), %% # of successes of DELETE
-         ring_hash             :: integer()  %% ring-hash when writing an object
+        {id = -1               :: pos_integer(),
+         vnode_id = -1         :: pos_integer(), %% virtual-node-id
+         temp_nodes  = []      :: list(),        %% tempolary objects of redundant-nodes
+         nodes       = []      :: list(),        %% objects of redundant-nodes
+         n = 0                 :: pos_integer(), %% # of replicas
+         r = 0                 :: pos_integer(), %% # of successes of READ
+         w = 0                 :: pos_integer(), %% # of successes of WRITE
+         d = 0                 :: pos_integer(), %% # of successes of DELETE
+         ring_hash             :: pos_integer()  %% ring-hash when writing an object
         }).
 
 -record(ring,
-        {vnode_id = -1         :: integer(),
+        {vnode_id = -1         :: pos_integer(),
          node                  :: atom()
         }).
 
 -record(member,
         {node                  :: atom(),
-         clock = 0             :: integer(),
+         clock = 0             :: pos_integer(),
          state = null          :: atom(),
-         num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer()
+         num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(),
+         level_1               :: atom(),
+         level_2               :: atom()
         }).
 
