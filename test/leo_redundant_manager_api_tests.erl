@@ -236,7 +236,7 @@ suspend_({Hostname}) ->
     ok = leo_redundant_manager_api:suspend(Node),
     {ok, Members} = leo_redundant_manager_api:get_members(),
 
-    {member,_,_,_,suspend,_,_,_} = lists:keyfind(Node, 2, Members),
+    {member,_,_,_,_,_,_,suspend,_,_,_} = lists:keyfind(Node, 2, Members),
     ok.
 
 %% -------------------------------------------------------------------
