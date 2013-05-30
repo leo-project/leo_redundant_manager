@@ -257,6 +257,7 @@ prepare(Hostname, ServerType) ->
                                            {w ,2},
                                            {d, 2},
                                            {bit_of_ring, 128}]),
+    ?debugVal(leo_redundant_manager_table_member:size()),
     leo_redundant_manager_api:attach(list_to_atom("node_0@" ++ Hostname)),
     leo_redundant_manager_api:attach(list_to_atom("node_1@" ++ Hostname)),
     leo_redundant_manager_api:attach(list_to_atom("node_2@" ++ Hostname)),

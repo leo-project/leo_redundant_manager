@@ -53,8 +53,9 @@ add(Table, Member) ->
 
 add(N,_Table, #member{num_of_vnodes = NumOfVNodes}) when NumOfVNodes == N ->
     ok;
-add(N, Table, #member{node = Node} = Member) ->
-    VNodeId = vnode_id([atom_to_list(Node) ++ integer_to_list(N)]),
+add(N, Table, #member{alias = Alias,
+                      node  = Node} = Member) ->
+    VNodeId = vnode_id(lists:append([Alias, "_", integer_to_list(N)])),
     true = leo_redundant_manager_table_ring:insert(Table, {VNodeId, Node}),
     add(N + 1, Table, Member).
 
@@ -91,8 +92,8 @@ remove(Table, Member) ->
 
 remove(N,_Table, #member{num_of_vnodes = NumOfVNodes}) when NumOfVNodes == N ->
     ok;
-remove(N, Table, #member{node = Node} = Member) ->
-    VNodeId = vnode_id([atom_to_list(Node) ++ integer_to_list(N)]),
+remove(N, Table, #member{alias = Alias} = Member) ->
+    VNodeId = vnode_id(lists:append([Alias, "_", integer_to_list(N)])),
     true = leo_redundant_manager_table_ring:delete(Table, VNodeId),
     remove(N + 1, Table, Member).
 

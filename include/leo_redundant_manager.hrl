@@ -40,6 +40,7 @@
 -define(TYPE_RING_TABLE_MNESIA, 'mnesia').
 -define(CUR_RING_TABLE,         'leo_ring_cur').
 -define(PREV_RING_TABLE,        'leo_ring_prv').
+-define(NODE_ALIAS_PREFIX,      "node_").
 
 -type(ring_table_type() :: ?TYPE_RING_TABLE_ETS | ?TYPE_RING_TABLE_MNESIA).
 -type(ring_table_info() :: {ring_table_type(), ?CUR_RING_TABLE} |
@@ -160,7 +161,7 @@
 
 -record(member,
         {node                  :: atom(),
-         alias                 :: atom(),
+         alias = []            :: string(),
          ip = "0.0.0.0"        :: string(),
          port  = 13075         :: pos_integer(),
          inet  = 'ipv4'        :: 'ipv4'|'ipv6',

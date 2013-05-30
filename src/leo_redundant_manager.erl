@@ -348,12 +348,26 @@ handle_call({_, routing_table,_Filename}, _From, State) ->
 
 handle_call({attach, Node, Clock, NumOfVNodes}, _From, State) ->
     TblInfo = leo_redundant_manager_api:table_info(?VER_CURRENT),
-    Member  = #member{node  = Node,
-                      clock = Clock,
-                      state = ?STATE_ATTACHED,
-                      num_of_vnodes = NumOfVNodes},
+    NodeStr = atom_to_list(Node),
+    IP = case (string:chr(atom_to_list(Node), $@) > 0) of
+             true ->
+                 lists:nth(2,string:tokens(NodeStr,"@"));
+             false ->
+                 []
+         end,
 
-    Reply = attach_fun(TblInfo, Member),
+    Reply = case alias(Node) of
+                {ok, Alias} ->
+                    Member  = #member{node  = Node,
+                                      alias = Alias,
+                                      ip    = IP,
+                                      clock = Clock,
+                                      state = ?STATE_ATTACHED,
+                                      num_of_vnodes = NumOfVNodes},
+                    attach_fun(TblInfo, Member);
+                {error, Cause} ->
+                    {error, Cause}
+            end,
     {reply, Reply, State};
 
 
@@ -443,6 +457,24 @@ add_members(Members) ->
 
     dump_ring_tabs(),
     {ok, NewMembers}.
+
+
+alias(Node) ->
+    case leo_redundant_manager_table_member:find_by_status(?STATE_DETACHED) of
+        not_found ->
+            Id = leo_redundant_manager_table_member:size() + 1,
+            HV = string:substr(
+                   leo_hex:binary_to_hex(
+                     erlang:md5(lists:append([atom_to_list(Node),
+                                              integer_to_list(leo_date:clock())]))),1,8),
+            {ok, lists:append([?NODE_ALIAS_PREFIX,
+                               lists:flatten(io_lib:format("~4..0w_",[Id])),
+                               HV])};
+        {ok, [M|_]} ->
+            {ok, M#member.alias};
+        {error, Cause} ->
+            {error, Cause}
+    end.
 
 
 attach_fun({_, ?CUR_RING_TABLE} = TblInfo, #member{node = Node} = Member) ->
