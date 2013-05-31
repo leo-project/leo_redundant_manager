@@ -82,8 +82,8 @@ create_members(Mode, Nodes) ->
          {clock,         {integer,   undefined},  false, undefined, undefined, undefined, integer},
          {num_of_vnodes, {integer,   undefined},  false, undefined, undefined, undefined, integer},
          {state,         {varchar,   undefined},  false, undefined, undefined, undefined, atom   },
-         {level_1,       {varchar,   undefined},  false, undefined, undefined, undefined, atom   },
-         {level_2,       {varchar,   undefined},  false, undefined, undefined, undefined, atom   }
+         {grp_level_1,   {varchar,   undefined},  false, undefined, undefined, undefined, varchar},
+         {grp_level_2,   {varchar,   undefined},  false, undefined, undefined, undefined, varchar}
         ]}
       ]),
     ok.
@@ -195,17 +195,17 @@ find_by_level1(L1, L2) ->
 find_by_level1(mnesia, L1, L2) ->
     F = fun() ->
                 Q = qlc:q([X || X <- mnesia:table(?TABLE),
-                                X#member.level_1 == L1,
-                                X#member.level_2 == L2]),
+                                X#member.grp_level_1 == L1,
+                                X#member.grp_level_2 == L2]),
                 qlc:e(Q)
         end,
     leo_mnesia:read(F);
 
 find_by_level1(ets, L1, L2) ->
     case catch ets:foldl(
-                 fun({_, #member{level_1 = L1_1,
-                                 level_2 = L2_1} = Member}, Acc) when L1 == L1_1,
-                                                                      L2 == L2_1 ->
+                 fun({_, #member{grp_level_1 = L1_1,
+                                 grp_level_2 = L2_1} = Member}, Acc) when L1 == L1_1,
+                                                                          L2 == L2_1 ->
                          [Member|Acc];
                     (_, Acc) ->
                          Acc
@@ -231,14 +231,14 @@ find_by_level2(L2) ->
 find_by_level2(mnesia, L2) ->
     F = fun() ->
                 Q = qlc:q([X || X <- mnesia:table(?TABLE),
-                                X#member.level_2 == L2]),
+                                X#member.grp_level_2 == L2]),
                 qlc:e(Q)
         end,
     leo_mnesia:read(F);
 
 find_by_level2(ets, L2) ->
     case catch ets:foldl(
-                 fun({_, #member{level_2 = L2_1} = Member}, Acc) when L2 == L2_1 ->
+                 fun({_, #member{grp_level_2 = L2_1} = Member}, Acc) when L2 == L2_1 ->
                          [Member|Acc];
                     (_, Acc) ->
                          Acc

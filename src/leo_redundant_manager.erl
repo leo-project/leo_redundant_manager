@@ -39,7 +39,7 @@
          get_member_by_node/1, get_members_by_status/1,
          update_members/1, update_member_by_node/3, synchronize/3, adjust/3, dump/1]).
 
--export([attach/3, detach/2, suspend/2]).
+-export([attach/4, detach/2, suspend/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -152,10 +152,10 @@ dump(Type) ->
 
 %% @doc Change node status to 'attach'.
 %%
--spec(attach(atom(), integer(), integer()) ->
+-spec(attach(atom(), string(), integer(), integer()) ->
              ok | {error, any()}).
-attach(Node, Clock, NumOfVNodes) ->
-    gen_server:call(?MODULE, {attach, Node, Clock, NumOfVNodes}, ?DEF_TIMEOUT).
+attach(Node, Rack, Clock, NumOfVNodes) ->
+    gen_server:call(?MODULE, {attach, Node, Rack, Clock, NumOfVNodes}, ?DEF_TIMEOUT).
 
 %% @doc Change node status to 'detach'.
 %%
@@ -346,7 +346,7 @@ handle_call({_, routing_table,_Filename}, _From, State) ->
     {reply, {error, badarg}, State};
 
 
-handle_call({attach, Node, Clock, NumOfVNodes}, _From, State) ->
+handle_call({attach, Node, Rack, Clock, NumOfVNodes}, _From, State) ->
     TblInfo = leo_redundant_manager_api:table_info(?VER_CURRENT),
     NodeStr = atom_to_list(Node),
     IP = case (string:chr(atom_to_list(Node), $@) > 0) of
@@ -363,7 +363,8 @@ handle_call({attach, Node, Clock, NumOfVNodes}, _From, State) ->
                                       ip    = IP,
                                       clock = Clock,
                                       state = ?STATE_ATTACHED,
-                                      num_of_vnodes = NumOfVNodes},
+                                      num_of_vnodes = NumOfVNodes,
+                                      grp_level_2   = Rack},
                     attach_fun(TblInfo, Member);
                 {error, Cause} ->
                     {error, Cause}
@@ -432,11 +433,25 @@ add_members(Members) ->
     State = ?STATE_RUNNING,
     NewMembers = lists:map(
                    fun(#member{node  = Node,
-                               clock = Clock} = Member) ->
+                               alias = Alias,
+                               ip    = Ip,
+                               port  = Port,
+                               inet  = Inet,
+                               clock = Clock,
+                               num_of_vnodes = NumOfVClock,
+                               grp_level_1   = GrpLevel1,
+                               grp_level_2   = GrpLevel2} = Member) ->
                            _ = leo_redundant_manager_table_member:insert(
                                  {Node, #member{node = Node,
+                                                alias = Alias,
+                                                ip    = Ip,
+                                                port  = Port,
+                                                inet  = Inet,
                                                 clock = Clock,
-                                                state = State}}),
+                                                state = State,
+                                                num_of_vnodes = NumOfVClock,
+                                                grp_level_1   = GrpLevel1,
+                                                grp_level_2   = GrpLevel2}}),
                            Member#member{state = State}
                    end, Members),
 
