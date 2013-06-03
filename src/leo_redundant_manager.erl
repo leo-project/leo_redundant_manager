@@ -39,7 +39,7 @@
          get_member_by_node/1, get_members_by_status/1,
          update_members/1, update_member_by_node/3, synchronize/3, adjust/3, dump/1]).
 
--export([attach/3, detach/2, suspend/2]).
+-export([attach/4, detach/2, suspend/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -152,10 +152,10 @@ dump(Type) ->
 
 %% @doc Change node status to 'attach'.
 %%
--spec(attach(atom(), integer(), integer()) ->
+-spec(attach(atom(), string(), integer(), integer()) ->
              ok | {error, any()}).
-attach(Node, Clock, NumOfVNodes) ->
-    gen_server:call(?MODULE, {attach, Node, Clock, NumOfVNodes}, ?DEF_TIMEOUT).
+attach(Node, Rack, Clock, NumOfVNodes) ->
+    gen_server:call(?MODULE, {attach, Node, Rack, Clock, NumOfVNodes}, ?DEF_TIMEOUT).
 
 %% @doc Change node status to 'detach'.
 %%
@@ -250,12 +250,18 @@ handle_call({get_members_by_status, Status}, _From, State) ->
     {reply, Reply, State};
 
 handle_call({update_member_by_node, Node, Clock, NodeState}, _From, State) ->
-    Reply = case leo_redundant_manager_table_member:insert(
-                   {Node, #member{node = Node,
-                                  clock = Clock,
-                                  state = NodeState}}) of
-                ok ->
-                    ok;
+    Reply = case leo_redundant_manager_table_member:lookup(Node) of
+                {ok, Member} ->
+                    case leo_redundant_manager_table_member:insert(
+                           {Node, Member#member{clock = Clock,
+                                                state = NodeState}}) of
+                        ok ->
+                            ok;
+                        Error ->
+                            Error
+                    end;
+                not_found = Cause ->
+                    {error, Cause};
                 Error ->
                     Error
             end,
@@ -346,14 +352,29 @@ handle_call({_, routing_table,_Filename}, _From, State) ->
     {reply, {error, badarg}, State};
 
 
-handle_call({attach, Node, Clock, NumOfVNodes}, _From, State) ->
+handle_call({attach, Node, Rack, Clock, NumOfVNodes}, _From, State) ->
     TblInfo = leo_redundant_manager_api:table_info(?VER_CURRENT),
-    Member  = #member{node  = Node,
-                      clock = Clock,
-                      state = ?STATE_ATTACHED,
-                      num_of_vnodes = NumOfVNodes},
+    NodeStr = atom_to_list(Node),
+    IP = case (string:chr(atom_to_list(Node), $@) > 0) of
+             true ->
+                 lists:nth(2,string:tokens(NodeStr,"@"));
+             false ->
+                 []
+         end,
 
-    Reply = attach_fun(TblInfo, Member),
+    Reply = case alias(Node) of
+                {ok, Alias} ->
+                    Member = #member{node  = Node,
+                                     alias = Alias,
+                                     ip    = IP,
+                                     clock = Clock,
+                                     state = ?STATE_ATTACHED,
+                                     num_of_vnodes = NumOfVNodes,
+                                     grp_level_2   = Rack},
+                    attach_fun(TblInfo, Member);
+                {error, Cause} ->
+                    {error, Cause}
+            end,
     {reply, Reply, State};
 
 
@@ -369,12 +390,18 @@ handle_call({detach, Node, Clock}, _From, State) ->
 
 
 handle_call({suspend, Node, Clock}, _From, State) ->
-    Reply = case leo_redundant_manager_table_member:insert(
-                   {Node, #member{node = Node,
-                                  clock = Clock,
-                                  state = ?STATE_SUSPEND}}) of
-                ok ->
-                    ok;
+    Reply = case leo_redundant_manager_table_member:lookup(Node) of
+                {ok, Member} ->
+                    case leo_redundant_manager_table_member:insert(
+                           {Node, Member#member{clock = Clock,
+                                                state = ?STATE_SUSPEND}}) of
+                        ok ->
+                            ok;
+                        Error ->
+                            Error
+                    end;
+                not_found = Cause ->
+                    {error, Cause};
                 Error ->
                     Error
             end,
@@ -417,12 +444,9 @@ code_change(_OldVsn, State, _Extra) ->
 add_members(Members) ->
     State = ?STATE_RUNNING,
     NewMembers = lists:map(
-                   fun(#member{node  = Node,
-                               clock = Clock} = Member) ->
+                   fun(#member{node = Node} = Member) ->
                            _ = leo_redundant_manager_table_member:insert(
-                                 {Node, #member{node = Node,
-                                                clock = Clock,
-                                                state = State}}),
+                                 {Node, Member#member{state = State}}),
                            Member#member{state = State}
                    end, Members),
 
@@ -443,6 +467,24 @@ add_members(Members) ->
 
     dump_ring_tabs(),
     {ok, NewMembers}.
+
+
+alias(Node) ->
+    case leo_redundant_manager_table_member:find_by_status(?STATE_DETACHED) of
+        not_found ->
+            Id = leo_redundant_manager_table_member:size() + 1,
+            HV = string:substr(
+                   leo_hex:binary_to_hex(
+                     erlang:md5(lists:append([atom_to_list(Node),
+                                              integer_to_list(leo_date:clock())]))),1,8),
+            {ok, lists:append([?NODE_ALIAS_PREFIX,
+                               lists:flatten(io_lib:format("~4..0w_",[Id])),
+                               HV])};
+        {ok, [M|_]} ->
+            {ok, M#member.alias};
+        {error, Cause} ->
+            {error, Cause}
+    end.
 
 
 attach_fun({_, ?CUR_RING_TABLE} = TblInfo, #member{node = Node} = Member) ->
@@ -468,9 +510,9 @@ attach_fun1(TblInfo, Member) ->
 detach_fun({_, ?CUR_RING_TABLE} = TblInfo, Member) ->
     Node = Member#member.node,
     case leo_redundant_manager_table_member:insert(
-           {Node, #member{node = Node,
-                          clock = Member#member.clock,
-                          state = ?STATE_DETACHED}}) of
+           {Node, Member#member{node = Node,
+                                clock = Member#member.clock,
+                                state = ?STATE_DETACHED}}) of
         ok ->
             detach_fun1(TblInfo, Member);
         Error ->

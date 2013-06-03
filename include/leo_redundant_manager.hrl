@@ -35,11 +35,23 @@
 -define(ERR_TYPE_INCONSISTENT_HASH,   inconsistent_hash).
 -define(ERR_TYPE_NODE_DOWN,           nodedown).
 
+
+%% Property name
+-define(PROP_N, 'n').
+-define(PROP_W, 'w').
+-define(PROP_R, 'r').
+-define(PROP_D, 'd').
+-define(PROP_L1, 'level_1').
+-define(PROP_L2, 'level_2').
+-define(PROP_RING_BIT, 'bit_of_ring').
+
+
 %% Ring related
 -define(TYPE_RING_TABLE_ETS,    'ets').
 -define(TYPE_RING_TABLE_MNESIA, 'mnesia').
 -define(CUR_RING_TABLE,         'leo_ring_cur').
 -define(PREV_RING_TABLE,        'leo_ring_prv').
+-define(NODE_ALIAS_PREFIX,      "node_").
 
 -type(ring_table_type() :: ?TYPE_RING_TABLE_ETS | ?TYPE_RING_TABLE_MNESIA).
 -type(ring_table_info() :: {ring_table_type(), ?CUR_RING_TABLE} |
@@ -60,7 +72,11 @@
 -define(DEF_OPT_W, 1).
 -define(DEF_OPT_D, 1).
 -define(DEF_OPT_BIT_OF_RING, ?MD5).
+-ifdef(TEST).
 -define(DEF_NUMBER_OF_VNODES, 128).
+-else.
+-define(DEF_NUMBER_OF_VNODES, 168).
+-endif.
 
 
 %% Node State
@@ -129,35 +145,44 @@
 %% Record
 %%
 -record(node_state, {
-          node                 :: atom(),
-          state                :: atom(),
-          ring_hash_new = "-1" :: string(),
-          ring_hash_old = "-1" :: string(),
-          when_is   = 0        :: integer(),
-          error     = 0        :: integer()
+          node                 :: atom(),        %% actual node-name
+          state                :: atom(),        %% current-status
+          ring_hash_new = "-1" :: string(),      %% current ring-hash
+          ring_hash_old = "-1" :: string(),      %% prev ring-hash
+          when_is   = 0        :: pos_integer(), %% joined at
+          error     = 0        :: pos_integer()  %% # of errors
          }).
 
 -record(redundancies,
-        {id = -1               :: integer(),
-         vnode_id = -1         :: integer(), %% virtual-node-id
-         temp_nodes  = []      :: list(),    %% tempolary objects of redundant-nodes
-         nodes       = []      :: list(),    %% objects of redundant-nodes
-         n = 0                 :: integer(), %% # of replicas
-         r = 0                 :: integer(), %% # of successes of READ
-         w = 0                 :: integer(), %% # of successes of WRITE
-         d = 0                 :: integer(), %% # of successes of DELETE
-         ring_hash             :: integer()  %% ring-hash when writing an object
+        {id = -1               :: pos_integer(),
+         vnode_id = -1         :: pos_integer(), %% virtual-node-id
+         temp_nodes   = []     :: list(),        %% tempolary objects of redundant-nodes
+         temp_level_2          :: set(),         %% tempolary list of level-2's node
+         nodes        = []     :: list(),        %% objects of redundant-nodes
+         n = 0                 :: pos_integer(), %% # of replicas
+         r = 0                 :: pos_integer(), %% # of successes of READ
+         w = 0                 :: pos_integer(), %% # of successes of WRITE
+         d = 0                 :: pos_integer(), %% # of successes of DELETE
+         level_1 = 0           :: pos_integer(), %% # of dc-awareness's replicas
+         level_2 = 0           :: pos_integer(), %% # of rack-awareness's replicas
+         ring_hash             :: pos_integer()  %% ring-hash when writing an object
         }).
 
 -record(ring,
-        {vnode_id = -1         :: integer(),
+        {vnode_id = -1         :: pos_integer(),
          node                  :: atom()
         }).
 
 -record(member,
-        {node                  :: atom(),
-         clock = 0             :: integer(),
-         state = null          :: atom(),
-         num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer()
+        {node                  :: atom(),        %% actual node-name
+         alias = []            :: string(),      %% node-alias
+         ip = "0.0.0.0"        :: string(),      %% ip-address
+         port  = 13075         :: pos_integer(), %% port-number
+         inet  = 'ipv4'        :: 'ipv4'|'ipv6', %% type of ip
+         clock = 0             :: pos_integer(), %% joined at
+         state = null          :: atom(),        %% current-status
+         num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
+         grp_level_1           :: atom(),        %% Group of level_1
+         grp_level_2           :: atom()         %% Group of level_2
         }).
 

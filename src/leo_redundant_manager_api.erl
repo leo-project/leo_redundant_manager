@@ -32,7 +32,8 @@
 
 -export([create/0, create/1, create/2,
          set_options/1, get_options/0,
-         attach/1, attach/2, detach/1, detach/2,
+         attach/1, attach/2, attach/3,
+         detach/1, detach/2,
          suspend/1, suspend/2, append/3,
          checksum/1, synchronize/2, synchronize/3, adjust/1,
          get_ring/0, dump/1
@@ -113,11 +114,13 @@ get_options() ->
 -spec(attach(atom()) ->
              ok | {error, any()}).
 attach(Node) ->
-    attach(Node, leo_date:clock()).
-attach(Node, Clock) ->
-    attach(Node, Clock, ?DEF_NUMBER_OF_VNODES).
-attach(Node, Clock, NumOfVNodes) ->
-    case leo_redundant_manager:attach(Node, Clock, NumOfVNodes) of
+    attach(Node, [], leo_date:clock()).
+attach(Node, Rack) ->
+    attach(Node, Rack, leo_date:clock()).
+attach(Node, Rack, Clock) ->
+    attach(Node, Rack, Clock, ?DEF_NUMBER_OF_VNODES).
+attach(Node, Rack, Clock, NumOfVNodes) ->
+    case leo_redundant_manager:attach(Node, Rack, Clock, NumOfVNodes) of
         ok ->
             ok;
         Error ->
@@ -294,7 +297,7 @@ get_redundancies_by_key(Key) ->
 get_redundancies_by_key(Method, Key) ->
     case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         {ok, Options} ->
-            BitOfRing = leo_misc:get_value('bit_of_ring', Options),
+            BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
             AddrId = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
 
             get_redundancies_by_addr_id(ring_table(Method), AddrId, Options);
@@ -331,12 +334,15 @@ get_redundancies_by_addr_id(_ServerType, TblInfo, AddrId, Options) ->
     get_redundancies_by_addr_id_1(Ret, TblInfo, AddrId, Options).
 
 get_redundancies_by_addr_id_1({ok, Members}, TblInfo, AddrId, Options) ->
-    N = leo_misc:get_value('n', Options),
-    R = leo_misc:get_value('r', Options),
-    W = leo_misc:get_value('w', Options),
-    D = leo_misc:get_value('d', Options),
+    N = leo_misc:get_value(?PROP_N, Options),
+    R = leo_misc:get_value(?PROP_R, Options),
+    W = leo_misc:get_value(?PROP_W, Options),
+    D = leo_misc:get_value(?PROP_D, Options),
 
-    case leo_redundant_manager_chash:redundancies(TblInfo, AddrId, N, Members) of
+    %% for rack-awareness replica placement
+    L2 = leo_misc:get_value(?PROP_L2, Options, 0),
+
+    case leo_redundant_manager_chash:redundancies(TblInfo, AddrId, N, L2, Members) of
         {ok, Redundancies} ->
             CurRingHash = case leo_misc:get_env(?APP, ?PROP_RING_HASH) of
                               {ok, RingHash} ->
@@ -377,27 +383,28 @@ range_of_vnodes(ToVNodeId) ->
 rebalance() ->
     case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         {ok, Options} ->
-            N = leo_misc:get_value('n', Options),
+            N  = leo_misc:get_value(?PROP_N,  Options),
+            L2 = leo_misc:get_value(?PROP_L2, Options),
 
             ServerType = leo_misc:get_env(?APP, ?PROP_SERVER_TYPE),
-            rebalance(ServerType, N);
+            rebalance(ServerType, N, L2);
         Error ->
             Error
     end.
 
-rebalance(?SERVER_MANAGER, N) ->
+rebalance(?SERVER_MANAGER, N, L2) ->
     Ret = leo_redundant_manager_table_member:find_all(),
-    rebalance_1(Ret, N);
-rebalance(_, N) ->
+    rebalance_1(Ret, N, L2);
+rebalance(_, N, L2) ->
     Ret = leo_redundant_manager_table_member:find_all(),
-    rebalance_1(Ret, N).
+    rebalance_1(Ret, N, L2).
 
-rebalance_1({ok, Members}, N) ->
+rebalance_1({ok, Members}, N, L2) ->
     TblInfo0 = table_info(?VER_CURRENT),
     TblInfo1 = table_info(?VER_PREV),
 
-    leo_redundant_manager_chash:rebalance({TblInfo0, TblInfo1}, N, Members);
-rebalance_1(Error,_N) ->
+    leo_redundant_manager_chash:rebalance({TblInfo0, TblInfo1}, N, L2, Members);
+rebalance_1(Error,_N,_L2) ->
     Error.
 
 

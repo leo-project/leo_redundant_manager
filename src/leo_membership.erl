@@ -38,6 +38,7 @@
 -export([start_heartbeat/0,
          stop_heartbeat/0,
          heartbeat/0,
+         update_manager_nodes/1,
          set_proc_auditor/1]).
 
 %% gen_server callbacks
@@ -100,6 +101,9 @@ heartbeat() ->
 set_proc_auditor(ProcAuditor) ->
     gen_server:cast(?MODULE, {set_proc_auditor, ProcAuditor}).
 
+-spec(update_manager_nodes(list()) -> ok | {error, any()}).
+update_manager_nodes(Managers) ->
+    gen_server:cast(?MODULE, {update_manager_nodes, Managers}).
 
 %%--------------------------------------------------------------------
 %% GEN_SERVER CALLBACKS
@@ -143,6 +147,10 @@ handle_cast({start_heartbeat}, State) ->
 
 handle_cast({set_proc_auditor, ProcAuditor}, State) ->
     {noreply, State#state{proc_auditor = ProcAuditor}};
+
+handle_cast({update_manager_nodes, Managers}, State) ->
+    ok = application:set_env(?APP, ?PROP_MANAGERS, Managers),
+    {noreply, State#state{managers  = Managers}};
 
 handle_cast({stop_heartbeat}, State) ->
     State#state{enable=false}.
