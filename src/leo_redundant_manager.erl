@@ -432,26 +432,9 @@ code_change(_OldVsn, State, _Extra) ->
 add_members(Members) ->
     State = ?STATE_RUNNING,
     NewMembers = lists:map(
-                   fun(#member{node  = Node,
-                               alias = Alias,
-                               ip    = Ip,
-                               port  = Port,
-                               inet  = Inet,
-                               clock = Clock,
-                               num_of_vnodes = NumOfVClock,
-                               grp_level_1   = GrpLevel1,
-                               grp_level_2   = GrpLevel2} = Member) ->
+                   fun(#member{node = Node} = Member) ->
                            _ = leo_redundant_manager_table_member:insert(
-                                 {Node, #member{node = Node,
-                                                alias = Alias,
-                                                ip    = Ip,
-                                                port  = Port,
-                                                inet  = Inet,
-                                                clock = Clock,
-                                                state = State,
-                                                num_of_vnodes = NumOfVClock,
-                                                grp_level_1   = GrpLevel1,
-                                                grp_level_2   = GrpLevel2}}),
+                                 {Node, Member#member{state = State}}),
                            Member#member{state = State}
                    end, Members),
 
