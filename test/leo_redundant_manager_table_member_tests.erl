@@ -43,11 +43,14 @@
 -define(NODE_3, "node_3").
 -define(NODE_4, "node_4").
 
--define(MEMBER_0, #member{node = ?NODE_0, state = ?STATE_RUNNING}).
--define(MEMBER_1, #member{node = ?NODE_1, state = ?STATE_SUSPEND}).
--define(MEMBER_2, #member{node = ?NODE_2, state = ?STATE_RUNNING}).
--define(MEMBER_3, #member{node = ?NODE_3, state = ?STATE_RUNNING}).
--define(MEMBER_4, #member{node = ?NODE_4, state = ?STATE_STOP   }).
+-define(RACK_1, "rack_1").
+-define(RACK_2, "rack_2").
+
+-define(MEMBER_0, #member{node = ?NODE_0, alias="node_0_a", state = ?STATE_RUNNING, grp_level_2 = ?RACK_1}).
+-define(MEMBER_1, #member{node = ?NODE_1, alias="node_1_b", state = ?STATE_SUSPEND, grp_level_2 = ?RACK_1}).
+-define(MEMBER_2, #member{node = ?NODE_2, alias="node_2_c", state = ?STATE_RUNNING, grp_level_2 = ?RACK_1}).
+-define(MEMBER_3, #member{node = ?NODE_3, alias="node_3_d", state = ?STATE_RUNNING, grp_level_2 = ?RACK_2}).
+-define(MEMBER_4, #member{node = ?NODE_4, alias="node_4_e", state = ?STATE_STOP,    grp_level_2 = ?RACK_2}).
 
 membership_test_() ->
     {foreach, fun setup/0, fun teardown/1,
@@ -83,6 +86,11 @@ inspect(Table) ->
     ok = leo_redundant_manager_table_member:insert(Table, {?NODE_3, ?MEMBER_3}),
     ok = leo_redundant_manager_table_member:insert(Table, {?NODE_4, ?MEMBER_4}),
 
+    {ok, Rack1} = leo_redundant_manager_table_member:find_by_level2(?RACK_1),
+    {ok, Rack2} = leo_redundant_manager_table_member:find_by_level2(?RACK_2),
+    ?assertEqual(3, length(Rack1)),
+    ?assertEqual(2, length(Rack2)),
+
     Res0 = leo_redundant_manager_table_member:size(Table),
     ?assertEqual(5, Res0),
 
@@ -108,6 +116,7 @@ inspect(Table) ->
     Ret8 = leo_redundant_manager_table_member:tab2list(Table),
     ?assertEqual(4, length(Ret8)),
 
+
     ok = leo_redundant_manager_table_member:replace(
            Table,
            [?MEMBER_1, ?MEMBER_2, ?MEMBER_3, ?MEMBER_4],
@@ -132,6 +141,17 @@ inspect(Table) ->
 
     Ret14 = leo_redundant_manager_table_member:find_by_status(Table, undefined),
     ?assertEqual(not_found, Ret14),
+
+
+    {ok, Ret15_2} = leo_redundant_manager_table_member:find_all(),
+    lists:foreach(fun(#member{alias = Alias,
+                              grp_level_2 = L2
+                             }) ->
+                          ?assertEqual(false, [] == Alias),
+                          ?assertEqual(false, undefined == Alias),
+                          ?assertEqual(false, [] == L2),
+                          ?assertEqual(false, undefined == L2)
+                  end, Ret15_2),
     ok.
 
 -endif.

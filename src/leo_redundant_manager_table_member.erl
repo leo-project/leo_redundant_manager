@@ -318,10 +318,7 @@ replace(Table, OldMembers, NewMembers) ->
                   end, OldMembers),
     lists:foreach(
       fun(Item) ->
-              insert(Table, {Item#member.node, #member{node          = Item#member.node,
-                                                       clock         = Item#member.clock,
-                                                       num_of_vnodes = Item#member.num_of_vnodes,
-                                                       state         = Item#member.state}})
+              insert(Table, {Item#member.node, Item})
       end, NewMembers),
     ok.
 
@@ -353,7 +350,9 @@ tab2list(mnesia) ->
         [] ->
             [];
         List when is_list(List) ->
-            lists:map(fun(#member{node = Node, state = State, num_of_vnodes = NumOfVNodes}) ->
+            lists:map(fun(#member{node  = Node,
+                                  state = State,
+                                  num_of_vnodes = NumOfVNodes}) ->
                               {Node, State, NumOfVNodes}
                       end, List);
         Error ->

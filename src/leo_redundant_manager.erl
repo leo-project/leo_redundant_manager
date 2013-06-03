@@ -250,12 +250,18 @@ handle_call({get_members_by_status, Status}, _From, State) ->
     {reply, Reply, State};
 
 handle_call({update_member_by_node, Node, Clock, NodeState}, _From, State) ->
-    Reply = case leo_redundant_manager_table_member:insert(
-                   {Node, #member{node = Node,
-                                  clock = Clock,
-                                  state = NodeState}}) of
-                ok ->
-                    ok;
+    Reply = case leo_redundant_manager_table_member:lookup(Node) of
+                {ok, Member} ->
+                    case leo_redundant_manager_table_member:insert(
+                           {Node, Member#member{clock = Clock,
+                                                state = NodeState}}) of
+                        ok ->
+                            ok;
+                        Error ->
+                            Error
+                    end;
+                not_found = Cause ->
+                    {error, Cause};
                 Error ->
                     Error
             end,
@@ -358,13 +364,13 @@ handle_call({attach, Node, Rack, Clock, NumOfVNodes}, _From, State) ->
 
     Reply = case alias(Node) of
                 {ok, Alias} ->
-                    Member  = #member{node  = Node,
-                                      alias = Alias,
-                                      ip    = IP,
-                                      clock = Clock,
-                                      state = ?STATE_ATTACHED,
-                                      num_of_vnodes = NumOfVNodes,
-                                      grp_level_2   = Rack},
+                    Member = #member{node  = Node,
+                                     alias = Alias,
+                                     ip    = IP,
+                                     clock = Clock,
+                                     state = ?STATE_ATTACHED,
+                                     num_of_vnodes = NumOfVNodes,
+                                     grp_level_2   = Rack},
                     attach_fun(TblInfo, Member);
                 {error, Cause} ->
                     {error, Cause}
@@ -384,12 +390,18 @@ handle_call({detach, Node, Clock}, _From, State) ->
 
 
 handle_call({suspend, Node, Clock}, _From, State) ->
-    Reply = case leo_redundant_manager_table_member:insert(
-                   {Node, #member{node = Node,
-                                  clock = Clock,
-                                  state = ?STATE_SUSPEND}}) of
-                ok ->
-                    ok;
+    Reply = case leo_redundant_manager_table_member:lookup(Node) of
+                {ok, Member} ->
+                    case leo_redundant_manager_table_member:insert(
+                           {Node, Member#member{clock = Clock,
+                                                state = ?STATE_SUSPEND}}) of
+                        ok ->
+                            ok;
+                        Error ->
+                            Error
+                    end;
+                not_found = Cause ->
+                    {error, Cause};
                 Error ->
                     Error
             end,
@@ -498,9 +510,9 @@ attach_fun1(TblInfo, Member) ->
 detach_fun({_, ?CUR_RING_TABLE} = TblInfo, Member) ->
     Node = Member#member.node,
     case leo_redundant_manager_table_member:insert(
-           {Node, #member{node = Node,
-                          clock = Member#member.clock,
-                          state = ?STATE_DETACHED}}) of
+           {Node, Member#member{node = Node,
+                                clock = Member#member.clock,
+                                state = ?STATE_DETACHED}}) of
         ok ->
             detach_fun1(TblInfo, Member);
         Error ->

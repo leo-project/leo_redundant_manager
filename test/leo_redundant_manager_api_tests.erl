@@ -110,7 +110,7 @@ detach_({Hostname}) ->
     ok = prepare(Hostname, gateway),
     {ok, _, _} = leo_redundant_manager_api:create(),
 
-    %% rebalance.detach
+    %% 1. rebalance.detach
     DetachNode = list_to_atom("node_0@" ++ Hostname),
     ok = leo_redundant_manager_api:detach(DetachNode),
     leo_redundant_manager_api:dump(?CHECKSUM_RING),
@@ -122,6 +122,14 @@ detach_({Hostname}) ->
                           ?assertEqual(true, Src  =/= DetachNode),
                           ?assertEqual(true, Dest =/= DetachNode)
                   end, Res),
+
+    %% 2. attach a node
+    AttachNode = list_to_atom("node_8@" ++ Hostname),
+    ok = leo_redundant_manager_api:attach(AttachNode),
+
+    {ok, M1} = leo_redundant_manager_table_member:lookup(DetachNode),
+    {ok, M2} = leo_redundant_manager_table_member:lookup(AttachNode),
+    ?assertEqual(true, M1#member.alias == M2#member.alias),
     ok.
 
 
@@ -236,6 +244,10 @@ suspend_({Hostname}) ->
     {ok, Members} = leo_redundant_manager_api:get_members(),
 
     {member,_,_,_,_,_,_,suspend,_,_,_} = lists:keyfind(Node, 2, Members),
+
+    {ok, M1} = leo_redundant_manager_table_member:lookup(Node),
+    ?assertEqual(true, [] /= M1#member.alias),
+    ?assertEqual(true, undefined /= M1#member.alias),
     ok.
 
 rack_aware_({Hostname}) ->
@@ -287,7 +299,6 @@ rack_aware_({Hostname}) ->
     leo_redundant_manager_api:attach(Node14, "R2"),
     leo_redundant_manager_api:attach(Node15, "R2"),
 
-    ?debugVal(leo_redundant_manager_table_member:size()),
     {ok, _, _} =leo_redundant_manager_api:create(),
     lists:foreach(
       fun(N) ->
@@ -322,13 +333,14 @@ rack_aware_({Hostname}) ->
                             true  -> SumR2_2 + 1;
                             false -> SumR2_2
                         end,
-              case (SumR1_3 == 0 orelse SumR2_3 == 0) of
-                  true ->
-                      ?debugVal({N1,N2,N3,SumR1_3,SumR2_3});
-                  false ->
-                      void
-              end
-      end, lists:seq(1, 1000)),
+              ?assertEqual(false, (SumR1_3 == 0 orelse SumR2_3 == 0))
+              %% case (SumR1_3 == 0 orelse SumR2_3 == 0) of
+              %%     true ->
+              %%         ?debugVal({N1,N2,N3,SumR1_3,SumR2_3});
+              %%     false ->
+              %%         void
+              %% end
+      end, lists:seq(1, 3000)),
     ok.
 
 
