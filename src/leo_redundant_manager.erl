@@ -39,7 +39,7 @@
          get_member_by_node/1, get_members_by_status/1,
          update_members/1, update_member_by_node/3, synchronize/3, adjust/3, dump/1]).
 
--export([attach/4, reserve/4, detach/2, suspend/2]).
+-export([attach/4, reserve/5, detach/2, suspend/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -159,10 +159,11 @@ attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
 
 %% @doc Change node status to 'reserve'.
 %%
--spec(reserve(atom(), string(), integer(), integer()) ->
+-spec(reserve(atom(), atom(), string(), integer(), integer()) ->
              ok | {error, any()}).
-reserve(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
-    gen_server:call(?MODULE, {reserve, Node, NumOfAwarenessL2, Clock, NumOfVNodes}, ?DEF_TIMEOUT).
+reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes) ->
+    gen_server:call(?MODULE, {reserve, Node, CurState,
+                              NumOfAwarenessL2, Clock, NumOfVNodes}, ?DEF_TIMEOUT).
 
 %% @doc Change node status to 'detach'.
 %%
@@ -362,7 +363,7 @@ handle_call({_, routing_table,_Filename}, _From, State) ->
 handle_call({attach, Node, NumOfAwarenessL2, Clock, NumOfVNodes}, _From, State) ->
     TblInfo = leo_redundant_manager_api:table_info(?VER_CURRENT),
     NodeStr = atom_to_list(Node),
-    IP = case (string:chr(atom_to_list(Node), $@) > 0) of
+    IP = case (string:chr(NodeStr, $@) > 0) of
              true ->
                  lists:nth(2,string:tokens(NodeStr,"@"));
              false ->
@@ -385,22 +386,30 @@ handle_call({attach, Node, NumOfAwarenessL2, Clock, NumOfVNodes}, _From, State) 
     {reply, Reply, State};
 
 
-handle_call({reserve, Node, NumOfAwarenessL2, Clock, NumOfVNodes}, _From, State) ->
-    NodeStr = atom_to_list(Node),
-    IP = case (string:chr(atom_to_list(Node), $@) > 0) of
-             true ->
-                 lists:nth(2,string:tokens(NodeStr,"@"));
-             false ->
-                 []
-         end,
+handle_call({reserve, Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes}, _From, State) ->
+    Reply = case leo_redundant_manager_table_member:lookup(Node) of
+                {ok, Member} ->
+                    leo_redundant_manager_table_member:insert(
+                      {Node, Member#member{state = CurState}});
+                not_found ->
+                    NodeStr = atom_to_list(Node),
+                    IP = case (string:chr(NodeStr, $@) > 0) of
+                             true ->
+                                 lists:nth(2,string:tokens(NodeStr,"@"));
+                             false ->
+                                 []
+                         end,
 
-    Reply = leo_redundant_manager_table_member:insert(
-              {Node, #member{node  = Node,
-                             ip    = IP,
-                             clock = Clock,
-                             state = ?STATE_RESERVED,
-                             num_of_vnodes = NumOfVNodes,
-                             grp_level_2   = NumOfAwarenessL2}}),
+                    leo_redundant_manager_table_member:insert(
+                      {Node, #member{node  = Node,
+                                     ip    = IP,
+                                     clock = Clock,
+                                     state = CurState,
+                                     num_of_vnodes = NumOfVNodes,
+                                     grp_level_2   = NumOfAwarenessL2}});
+                {error, Cause} ->
+                    {error, Cause}
+            end,
     {reply, Reply, State};
 
 

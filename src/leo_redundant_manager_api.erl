@@ -33,7 +33,7 @@
 -export([create/0, create/1, create/2,
          set_options/1, get_options/0,
          attach/1, attach/2, attach/3, attach/4,
-         reserve/4, detach/1, detach/2,
+         reserve/3, reserve/5, detach/1, detach/2,
          suspend/1, suspend/2, append/3,
          checksum/1, synchronize/2, synchronize/3, adjust/1,
          get_ring/0, dump/1
@@ -136,10 +136,16 @@ attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
 
 %% @doc reserve a node during in operation
 %%
--spec(reserve(atom(), string(), pos_integer(), pos_integer()) ->
+-spec(reserve(atom(), atom(), pos_integer()) ->
              ok | {error, any()}).
-reserve(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
-    case leo_redundant_manager:reserve(Node, NumOfAwarenessL2, Clock, NumOfVNodes) of
+reserve(Node, CurState, Clock) ->
+    reserve(Node, CurState, [], Clock, 0).
+
+-spec(reserve(atom(), atom(), string(), pos_integer(), pos_integer()) ->
+             ok | {error, any()}).
+reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes) ->
+    case leo_redundant_manager:reserve(
+           Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes) of
         ok ->
             ok;
         Error ->
@@ -560,7 +566,7 @@ table_info(?VER_PREV) ->
         {ok, ?SERVER_MANAGER} ->
             {mnesia, ?PREV_RING_TABLE};
         _ ->
-             {ets, ?PREV_RING_TABLE}
+            {ets, ?PREV_RING_TABLE}
     end.
 -endif.
 
