@@ -39,7 +39,7 @@
          get_member_by_node/1, get_members_by_status/1,
          update_members/1, update_member_by_node/3, synchronize/3, adjust/3, dump/1]).
 
--export([attach/4, detach/2, suspend/2]).
+-export([attach/4, reserve/4, detach/2, suspend/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -156,6 +156,13 @@ dump(Type) ->
              ok | {error, any()}).
 attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
     gen_server:call(?MODULE, {attach, Node, NumOfAwarenessL2, Clock, NumOfVNodes}, ?DEF_TIMEOUT).
+
+%% @doc Change node status to 'reserve'.
+%%
+-spec(reserve(atom(), string(), integer(), integer()) ->
+             ok | {error, any()}).
+reserve(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
+    gen_server:call(?MODULE, {reserve, Node, NumOfAwarenessL2, Clock, NumOfVNodes}, ?DEF_TIMEOUT).
 
 %% @doc Change node status to 'detach'.
 %%
@@ -375,6 +382,25 @@ handle_call({attach, Node, NumOfAwarenessL2, Clock, NumOfVNodes}, _From, State) 
                 {error, Cause} ->
                     {error, Cause}
             end,
+    {reply, Reply, State};
+
+
+handle_call({reserve, Node, NumOfAwarenessL2, Clock, NumOfVNodes}, _From, State) ->
+    NodeStr = atom_to_list(Node),
+    IP = case (string:chr(atom_to_list(Node), $@) > 0) of
+             true ->
+                 lists:nth(2,string:tokens(NodeStr,"@"));
+             false ->
+                 []
+         end,
+
+    Reply = leo_redundant_manager_table_member:insert(
+              {Node, #member{node  = Node,
+                             ip    = IP,
+                             clock = Clock,
+                             state = ?STATE_RESERVED,
+                             num_of_vnodes = NumOfVNodes,
+                             grp_level_2   = NumOfAwarenessL2}}),
     {reply, Reply, State};
 
 

@@ -88,6 +88,7 @@
 -define(STATE_RUNNING,   'running').
 -define(STATE_STOP,      'stop').
 -define(STATE_RESTARTED, 'restarted').
+-define(STATE_RESERVED,  'reserved').
 
 -type(node_state() :: ?STATE_IDLING   |
                       ?STATE_ATTACHED |

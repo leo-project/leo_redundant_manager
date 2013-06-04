@@ -33,7 +33,7 @@
 -export([create/0, create/1, create/2,
          set_options/1, get_options/0,
          attach/1, attach/2, attach/3, attach/4,
-         detach/1, detach/2,
+         reserve/4, detach/1, detach/2,
          suspend/1, suspend/2, append/3,
          checksum/1, synchronize/2, synchronize/3, adjust/1,
          get_ring/0, dump/1
@@ -127,6 +127,19 @@ attach(Node, NumOfAwarenessL2, Clock) ->
              ok | {error, any()}).
 attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
     case leo_redundant_manager:attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) of
+        ok ->
+            ok;
+        Error ->
+            Error
+    end.
+
+
+%% @doc reserve a node during in operation
+%%
+-spec(reserve(atom(), string(), pos_integer(), pos_integer()) ->
+             ok | {error, any()}).
+reserve(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
+    case leo_redundant_manager:reserve(Node, NumOfAwarenessL2, Clock, NumOfVNodes) of
         ok ->
             ok;
         Error ->
