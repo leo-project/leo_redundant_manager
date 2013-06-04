@@ -444,10 +444,18 @@ code_change(_OldVsn, State, _Extra) ->
 add_members(Members) ->
     State = ?STATE_RUNNING,
     NewMembers = lists:map(
-                   fun(#member{node = Node} = Member) ->
-                           _ = leo_redundant_manager_table_member:insert(
-                                 {Node, Member#member{state = State}}),
-                           Member#member{state = State}
+                   fun(#member{node = Node} = M1) ->
+                           case leo_redundant_manager_table_member:lookup(Node) of
+                               {ok, M2} ->
+                                   leo_redundant_manager_table_member:insert(
+                                     {Node, M2#member{state = State}});
+                               not_found ->
+                                   leo_redundant_manager_table_member:insert(
+                                     {Node, M1#member{state = State}});
+                               _ ->
+                                   void
+                           end,
+                           M1#member{state = State}
                    end, Members),
 
     TblInfo0 = leo_redundant_manager_api:table_info(?VER_CURRENT),
@@ -472,14 +480,10 @@ add_members(Members) ->
 alias(Node) ->
     case leo_redundant_manager_table_member:find_by_status(?STATE_DETACHED) of
         not_found ->
-            Id = leo_redundant_manager_table_member:size() + 1,
-            HV = string:substr(
-                   leo_hex:binary_to_hex(
-                     erlang:md5(lists:append([atom_to_list(Node),
-                                              integer_to_list(leo_date:clock())]))),1,8),
-            {ok, lists:append([?NODE_ALIAS_PREFIX,
-                               lists:flatten(io_lib:format("~4..0w_",[Id])),
-                               HV])};
+            PartOfAlias = string:substr(
+                            leo_hex:binary_to_hex(
+                              erlang:md5(lists:append([atom_to_list(Node)]))),1,8),
+            {ok, lists:append([?NODE_ALIAS_PREFIX, PartOfAlias])};
         {ok, [M|_]} ->
             {ok, M#member.alias};
         {error, Cause} ->
