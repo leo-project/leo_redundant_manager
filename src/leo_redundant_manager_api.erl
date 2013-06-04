@@ -32,7 +32,7 @@
 
 -export([create/0, create/1, create/2,
          set_options/1, get_options/0,
-         attach/1, attach/2, attach/3,
+         attach/1, attach/2, attach/3, attach/4,
          detach/1, detach/2,
          suspend/1, suspend/2, append/3,
          checksum/1, synchronize/2, synchronize/3, adjust/1,
@@ -115,12 +115,18 @@ get_options() ->
              ok | {error, any()}).
 attach(Node) ->
     attach(Node, [], leo_date:clock()).
-attach(Node, Rack) ->
-    attach(Node, Rack, leo_date:clock()).
-attach(Node, Rack, Clock) ->
-    attach(Node, Rack, Clock, ?DEF_NUMBER_OF_VNODES).
-attach(Node, Rack, Clock, NumOfVNodes) ->
-    case leo_redundant_manager:attach(Node, Rack, Clock, NumOfVNodes) of
+-spec(attach(atom(), string()) ->
+             ok | {error, any()}).
+attach(Node, NumOfAwarenessL2) ->
+    attach(Node, NumOfAwarenessL2, leo_date:clock()).
+-spec(attach(atom(), string(), pos_integer()) ->
+             ok | {error, any()}).
+attach(Node, NumOfAwarenessL2, Clock) ->
+    attach(Node, NumOfAwarenessL2, Clock, ?DEF_NUMBER_OF_VNODES).
+-spec(attach(atom(), string(), pos_integer(), pos_integer()) ->
+             ok | {error, any()}).
+attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
+    case leo_redundant_manager:attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) of
         ok ->
             ok;
         Error ->

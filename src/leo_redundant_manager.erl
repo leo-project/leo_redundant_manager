@@ -154,8 +154,8 @@ dump(Type) ->
 %%
 -spec(attach(atom(), string(), integer(), integer()) ->
              ok | {error, any()}).
-attach(Node, Rack, Clock, NumOfVNodes) ->
-    gen_server:call(?MODULE, {attach, Node, Rack, Clock, NumOfVNodes}, ?DEF_TIMEOUT).
+attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
+    gen_server:call(?MODULE, {attach, Node, NumOfAwarenessL2, Clock, NumOfVNodes}, ?DEF_TIMEOUT).
 
 %% @doc Change node status to 'detach'.
 %%
@@ -352,7 +352,7 @@ handle_call({_, routing_table,_Filename}, _From, State) ->
     {reply, {error, badarg}, State};
 
 
-handle_call({attach, Node, Rack, Clock, NumOfVNodes}, _From, State) ->
+handle_call({attach, Node, NumOfAwarenessL2, Clock, NumOfVNodes}, _From, State) ->
     TblInfo = leo_redundant_manager_api:table_info(?VER_CURRENT),
     NodeStr = atom_to_list(Node),
     IP = case (string:chr(atom_to_list(Node), $@) > 0) of
@@ -370,7 +370,7 @@ handle_call({attach, Node, Rack, Clock, NumOfVNodes}, _From, State) ->
                                      clock = Clock,
                                      state = ?STATE_ATTACHED,
                                      num_of_vnodes = NumOfVNodes,
-                                     grp_level_2   = Rack},
+                                     grp_level_2   = NumOfAwarenessL2},
                     attach_fun(TblInfo, Member);
                 {error, Cause} ->
                     {error, Cause}
