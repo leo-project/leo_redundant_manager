@@ -37,7 +37,7 @@
 
 -export([create/0, checksum/1, has_member/1, get_members/0, get_members/1,
          get_member_by_node/1, get_members_by_status/1,
-         update_members/1, update_member_by_node/3, synchronize/3, adjust/3, dump/1]).
+         update_member/1, update_members/1, update_member_by_node/3, synchronize/3, adjust/3, dump/1]).
 
 -export([attach/4, reserve/5, detach/2, suspend/2]).
 
@@ -114,6 +114,14 @@ get_members_by_status(Status) ->
     gen_server:call(?MODULE, {get_members_by_status, Status}, ?DEF_TIMEOUT).
 
 
+%% @doc Modify a member.
+%%
+-spec(update_member(#member{}) ->
+             ok | {error, any()}).
+update_member(Member) ->
+    gen_server:call(?MODULE, {update_member, Member}, ?DEF_TIMEOUT).
+
+
 %% @doc Modify members.
 %%
 -spec(update_members(list()) ->
@@ -155,7 +163,8 @@ dump(Type) ->
 -spec(attach(atom(), string(), integer(), integer()) ->
              ok | {error, any()}).
 attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
-    gen_server:call(?MODULE, {attach, Node, NumOfAwarenessL2, Clock, NumOfVNodes}, ?DEF_TIMEOUT).
+    gen_server:call(?MODULE, {attach, Node,
+                              NumOfAwarenessL2, Clock, NumOfVNodes}, ?DEF_TIMEOUT).
 
 %% @doc Change node status to 'reserve'.
 %%
@@ -275,6 +284,9 @@ handle_call({update_member_by_node, Node, Clock, NodeState}, _From, State) ->
             end,
     {reply, Reply, State};
 
+handle_call({update_member, Member}, _From, State) ->
+    Reply = leo_redundant_manager_table_member:insert({Member#member.node, Member}),
+    {reply, Reply, State};
 
 handle_call({update_members, Members}, _From, State) ->
     Reply = case leo_redundant_manager_table_member:find_all() of
@@ -527,7 +539,8 @@ alias(Node) ->
 
 
 attach_fun({_, ?CUR_RING_TABLE} = TblInfo, #member{node = Node} = Member) ->
-    case leo_redundant_manager_table_member:insert({Node, Member}) of
+    case leo_redundant_manager_table_member:insert(
+           {Node, Member#member{clock = leo_date:clock()}}) of
         ok ->
             attach_fun1(TblInfo, Member);
         Error ->
