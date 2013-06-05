@@ -111,7 +111,7 @@ redundancies(_Table,_VNodeId, NumOfReplicas, L2,_Members) when (NumOfReplicas - 
 redundancies(_Table,_VNodeId,_NumOfReplicas,_L2, [#member{node  = Node,
                                                           state = State}]) ->
         {ok, #redundancies{temp_nodes = [],
-                           nodes      = [{Node, State}]}};
+                           nodes      = [{Node, (State == ?STATE_RUNNING)}]}};
 redundancies(Table, VNodeId0, NumOfReplicas, L2, Members) ->
     case leo_redundant_manager_table_ring:lookup(Table, VNodeId0) of
         {error, Cause} ->
@@ -166,7 +166,8 @@ redundancies_2( Table, NumOfReplicas, L2, Members, VNodeId0, #redundancies{temp_
                    '$end_of_table' ->
                        case leo_redundant_manager_table_ring:first(Table) of
                            '$end_of_table' -> -1;
-                           VNodeId1        -> VNodeId1
+                           VNodeId1 ->
+                               VNodeId1
                        end;
                    VNodeId1 ->
                        VNodeId1
