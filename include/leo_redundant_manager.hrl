@@ -183,7 +183,7 @@
          clock = 0             :: pos_integer(), %% joined at
          state = null          :: atom(),        %% current-status
          num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
-         grp_level_1           :: atom(),        %% Group of level_1
-         grp_level_2           :: atom()         %% Group of level_2
+         grp_level_1           :: string(),      %% Group of level_1
+         grp_level_2           :: string()       %% Group of level_2
         }).
 
