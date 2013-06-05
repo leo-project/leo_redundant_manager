@@ -153,12 +153,13 @@ redundnacies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, Valu
 
 %% @private
 redundancies_2(_Table, 0,_L2,_Members,_VNodeId, #redundancies{nodes = Acc} = R) ->
-    {ok, R#redundancies{temp_nodes = [],
-                        nodes      = lists:reverse(Acc)}};
+    {ok, R#redundancies{temp_nodes   = [],
+                        temp_level_2 = [],
+                        nodes        = lists:reverse(Acc)}};
 redundancies_2(_Table, _,_L2,_Members, -1,      #redundancies{nodes = Acc} = R) ->
-    {ok, R#redundancies{temp_nodes = [],
-                        nodes      = lists:reverse(Acc)}};
-
+    {ok, R#redundancies{temp_nodes   = [],
+                        temp_level_2 = [],
+                        nodes        = lists:reverse(Acc)}};
 redundancies_2( Table, NumOfReplicas, L2, Members, VNodeId0, #redundancies{temp_nodes   = AccTempNode,
                                                                            temp_level_2 = AccLevel2,
                                                                            nodes        = AccNodes} = R) ->
