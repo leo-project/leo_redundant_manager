@@ -311,11 +311,12 @@ handle_call({update_members, Members}, _From, State) ->
 handle_call({synchronize, TblInfo, MgrRing, MyRing}, _From, State) ->
     %% 1. MyRing.vnode-id -> MgrRing.vnode-id
     lists:foreach(fun({VNodeId0, Node0}) ->
+                          ?debugVal(lists:keyfind(VNodeId0, 1, MgrRing)),
                           Res = case lists:keyfind(VNodeId0, 1, MgrRing) of
                                     {VNodeId1, Node1} when VNodeId0 == VNodeId1 andalso
                                                            Node0    == Node1 ->
                                         true;
-                                    false ->
+                                    _ ->
                                         false
                                 end,
 
@@ -333,7 +334,7 @@ handle_call({synchronize, TblInfo, MgrRing, MyRing}, _From, State) ->
                                     {VNodeId1, Node1} when VNodeId0 == VNodeId1 andalso
                                                            Node0    == Node1 ->
                                         true;
-                                    false ->
+                                    _ ->
                                         false
                                 end,
 
