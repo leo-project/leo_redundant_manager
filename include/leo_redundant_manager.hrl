@@ -88,6 +88,7 @@
 -define(STATE_RUNNING,   'running').
 -define(STATE_STOP,      'stop').
 -define(STATE_RESTARTED, 'restarted').
+-define(STATE_RESERVED,  'reserved').
 
 -type(node_state() :: ?STATE_IDLING   |
                       ?STATE_ATTACHED |
@@ -156,9 +157,9 @@
 -record(redundancies,
         {id = -1               :: pos_integer(),
          vnode_id = -1         :: pos_integer(), %% virtual-node-id
-         temp_nodes   = []     :: list(),        %% tempolary objects of redundant-nodes
+         temp_nodes = []       :: list(),        %% tempolary objects of redundant-nodes
          temp_level_2          :: set(),         %% tempolary list of level-2's node
-         nodes        = []     :: list(),        %% objects of redundant-nodes
+         nodes = []            :: list(),        %% objects of redundant-nodes
          n = 0                 :: pos_integer(), %% # of replicas
          r = 0                 :: pos_integer(), %% # of successes of READ
          w = 0                 :: pos_integer(), %% # of successes of WRITE
@@ -182,7 +183,7 @@
          clock = 0             :: pos_integer(), %% joined at
          state = null          :: atom(),        %% current-status
          num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
-         grp_level_1           :: atom(),        %% Group of level_1
-         grp_level_2           :: atom()         %% Group of level_2
+         grp_level_1 = []      :: string(),      %% Group of level_1
+         grp_level_2 = []      :: string()       %% Group of level_2
         }).
 

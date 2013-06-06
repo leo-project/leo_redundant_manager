@@ -108,10 +108,6 @@ redundancies(_Table,_VNodeId, NumOfReplicas,_L2,_Members) when NumOfReplicas < 1
     {error, out_of_renge};
 redundancies(_Table,_VNodeId, NumOfReplicas, L2,_Members) when (NumOfReplicas - L2) < 1 ->
     {error, invalid_level2};
-redundancies(_Table,_VNodeId,_NumOfReplicas,_L2, [#member{node  = Node,
-                                                          state = State}]) ->
-        {ok, #redundancies{temp_nodes = [],
-                           nodes      = [{Node, State}]}};
 redundancies(Table, VNodeId0, NumOfReplicas, L2, Members) ->
     case leo_redundant_manager_table_ring:lookup(Table, VNodeId0) of
         {error, Cause} ->
@@ -153,12 +149,13 @@ redundnacies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, Valu
 
 %% @private
 redundancies_2(_Table, 0,_L2,_Members,_VNodeId, #redundancies{nodes = Acc} = R) ->
-    {ok, R#redundancies{temp_nodes = [],
-                        nodes      = lists:reverse(Acc)}};
+    {ok, R#redundancies{temp_nodes   = [],
+                        temp_level_2 = [],
+                        nodes        = lists:reverse(Acc)}};
 redundancies_2(_Table, _,_L2,_Members, -1,      #redundancies{nodes = Acc} = R) ->
-    {ok, R#redundancies{temp_nodes = [],
-                        nodes      = lists:reverse(Acc)}};
-
+    {ok, R#redundancies{temp_nodes   = [],
+                        temp_level_2 = [],
+                        nodes        = lists:reverse(Acc)}};
 redundancies_2( Table, NumOfReplicas, L2, Members, VNodeId0, #redundancies{temp_nodes   = AccTempNode,
                                                                            temp_level_2 = AccLevel2,
                                                                            nodes        = AccNodes} = R) ->
@@ -166,7 +163,8 @@ redundancies_2( Table, NumOfReplicas, L2, Members, VNodeId0, #redundancies{temp_
                    '$end_of_table' ->
                        case leo_redundant_manager_table_ring:first(Table) of
                            '$end_of_table' -> -1;
-                           VNodeId1        -> VNodeId1
+                           VNodeId1 ->
+                               VNodeId1
                        end;
                    VNodeId1 ->
                        VNodeId1
