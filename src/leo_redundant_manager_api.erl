@@ -48,7 +48,7 @@
          get_members/0, get_members/1, get_member_by_node/1, get_members_count/0,
          get_members_by_status/1,
          update_member/1, update_members/1, update_member_by_node/3,
-         get_ring/1, is_alive/0, table_info/1
+         delete_member_by_node/1, get_ring/1, is_alive/0, table_info/1
         ]).
 
 -type(method() :: put | get | delete | head).
@@ -529,12 +529,15 @@ update_members(Members) ->
 -spec(update_member_by_node(atom(), integer(), atom()) ->
              ok | {error, any()}).
 update_member_by_node(Node, Clock, State) ->
-    case leo_redundant_manager:update_member_by_node(Node, Clock, State) of
-        ok ->
-            ok;
-        Error ->
-            Error
-    end.
+    leo_redundant_manager:update_member_by_node(Node, Clock, State).
+
+
+%% @doc remove a member by node-name.
+%%
+-spec(delete_member_by_node(atom()) ->
+             ok | {error, any()}).
+delete_member_by_node(Node) ->
+    leo_redundant_manager:delete_member_by_node(Node).
 
 
 %% @doc Retrieve ring by version.

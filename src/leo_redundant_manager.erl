@@ -37,7 +37,8 @@
 
 -export([create/0, checksum/1, has_member/1, get_members/0, get_members/1,
          get_member_by_node/1, get_members_by_status/1,
-         update_member/1, update_members/1, update_member_by_node/3, synchronize/3, adjust/3, dump/1]).
+         update_member/1, update_members/1, update_member_by_node/3,
+         delete_member_by_node/1, synchronize/3, adjust/3, dump/1]).
 
 -export([attach/4, reserve/5, detach/2, suspend/2]).
 
@@ -132,10 +133,18 @@ update_members(Members) ->
 
 %% @doc Modify a member by node.
 %%
--spec(update_member_by_node(atom, integer(), atom()) ->
+-spec(update_member_by_node(atom(), integer(), atom()) ->
              ok | {error, any()}).
 update_member_by_node(Node, Clock, NodeState) ->
     gen_server:call(?MODULE, {update_member_by_node, Node, Clock, NodeState}, ?DEF_TIMEOUT).
+
+
+%% @doc Remove a member by node.
+%%
+-spec(delete_member_by_node(atom()) ->
+             ok | {error, any()}).
+delete_member_by_node(Node) ->
+    gen_server:call(?MODULE, {delete_member_by_node, Node}, ?DEF_TIMEOUT).
 
 
 %% @doc Synchronize a ring.
@@ -266,24 +275,6 @@ handle_call({get_members_by_status, Status}, _From, State) ->
             end,
     {reply, Reply, State};
 
-handle_call({update_member_by_node, Node, Clock, NodeState}, _From, State) ->
-    Reply = case leo_redundant_manager_table_member:lookup(Node) of
-                {ok, Member} ->
-                    case leo_redundant_manager_table_member:insert(
-                           {Node, Member#member{clock = Clock,
-                                                state = NodeState}}) of
-                        ok ->
-                            ok;
-                        Error ->
-                            Error
-                    end;
-                not_found = Cause ->
-                    {error, Cause};
-                Error ->
-                    Error
-            end,
-    {reply, Reply, State};
-
 handle_call({update_member, Member}, _From, State) ->
     Reply = leo_redundant_manager_table_member:insert({Member#member.node, Member}),
     {reply, Reply, State};
@@ -307,6 +298,27 @@ handle_call({update_members, Members}, _From, State) ->
             end,
     {reply, Reply, State};
 
+handle_call({update_member_by_node, Node, Clock, NodeState}, _From, State) ->
+    Reply = case leo_redundant_manager_table_member:lookup(Node) of
+                {ok, Member} ->
+                    case leo_redundant_manager_table_member:insert(
+                           {Node, Member#member{clock = Clock,
+                                                state = NodeState}}) of
+                        ok ->
+                            ok;
+                        Error ->
+                            Error
+                    end;
+                not_found = Cause ->
+                    {error, Cause};
+                Error ->
+                    Error
+            end,
+    {reply, Reply, State};
+
+handle_call({delete_member_by_node, Node}, _From, State) ->
+    Reply = leo_redundant_manager_table_member:delete(Node),
+    {reply, Reply, State};
 
 handle_call({synchronize, TblInfo, MgrRing, MyRing}, _From, State) ->
     %% 1. MyRing.vnode-id -> MgrRing.vnode-id
