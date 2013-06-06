@@ -108,10 +108,6 @@ redundancies(_Table,_VNodeId, NumOfReplicas,_L2,_Members) when NumOfReplicas < 1
     {error, out_of_renge};
 redundancies(_Table,_VNodeId, NumOfReplicas, L2,_Members) when (NumOfReplicas - L2) < 1 ->
     {error, invalid_level2};
-redundancies(_Table,_VNodeId,_NumOfReplicas,_L2, [#member{node  = Node,
-                                                          state = State}]) ->
-        {ok, #redundancies{temp_nodes = [],
-                           nodes      = [{Node, (State == ?STATE_RUNNING)}]}};
 redundancies(Table, VNodeId0, NumOfReplicas, L2, Members) ->
     case leo_redundant_manager_table_ring:lookup(Table, VNodeId0) of
         {error, Cause} ->
