@@ -510,6 +510,11 @@ inspect0(Hostname) ->
                           ?assertEqual(3, length(Nodes0))
                   end, lists:seq(0, 300)),
 
+    {ok, #redundancies{nodes = N0}} = leo_redundant_manager_api:get_redundancies_by_addr_id(put, 0),
+    {ok, #redundancies{nodes = N1}} = leo_redundant_manager_api:get_redundancies_by_addr_id(put, leo_math:power(2, 128)),
+    ?assertEqual(3, length(N0)),
+    ?assertEqual(3, length(N1)),
+
     {ok, #redundancies{id       = Id,
                        vnode_id = VNodeId1,
                        nodes    = Nodes1,
