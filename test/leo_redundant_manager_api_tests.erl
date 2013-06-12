@@ -553,4 +553,80 @@ inspect1(Id, VNodes) ->
             end
     end.
 
+
+redundant_1_test_() -> {timeout, 120, ?_assertEqual([], redundant(0, 500000))}.
+
+redundant(St, End) ->
+    ?debugVal(start),
+    %% prepare
+    [] = os:cmd("epmd -daemon"),
+    {ok, Hostname} = inet:gethostname(),
+
+    catch ets:delete_all_objects('leo_members'),
+    catch ets:delete_all_objects(?CUR_RING_TABLE),
+    catch ets:delete_all_objects(?PREV_RING_TABLE),
+
+    leo_misc:init_env(),
+    leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
+    leo_redundant_manager_table_member:create_members(),
+
+    %% execute
+    {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),
+    leo_redundant_manager_api:set_options([{n, 3},
+                                           {r, 1},
+                                           {w ,2},
+                                           {d, 2},
+                                           {bit_of_ring, 128},
+                                           {level_2, 0}
+                                          ]),
+    Node0  = list_to_atom("node_0@"  ++ Hostname),
+    Node1  = list_to_atom("node_1@"  ++ Hostname),
+    Node2  = list_to_atom("node_2@"  ++ Hostname),
+    Node3  = list_to_atom("node_3@"  ++ Hostname),
+    Node4  = list_to_atom("node_4@"  ++ Hostname),
+    Node5  = list_to_atom("node_5@"  ++ Hostname),
+    Node6  = list_to_atom("node_6@"  ++ Hostname),
+    Node7  = list_to_atom("node_7@"  ++ Hostname),
+
+    leo_redundant_manager_api:attach(Node0),
+    leo_redundant_manager_api:attach(Node1),
+    leo_redundant_manager_api:attach(Node2),
+    leo_redundant_manager_api:attach(Node3),
+    leo_redundant_manager_api:attach(Node4),
+    leo_redundant_manager_api:attach(Node5),
+    leo_redundant_manager_api:attach(Node6),
+    leo_redundant_manager_api:attach(Node7),
+
+    {ok, _, _} =leo_redundant_manager_api:create(),
+    ok = redundant_1(St, End),
+    ?debugVal(done),
+    [].
+
+redundant_1(End, End) ->
+    ok;
+redundant_1(St, End) ->
+    case St of
+        10000  -> ?debugVal(10000);
+        50000  -> ?debugVal(50000);
+        100000 -> ?debugVal(100000);
+        150000 -> ?debugVal(150000);
+        200000 -> ?debugVal(200000);
+        250000 -> ?debugVal(250000);
+        300000 -> ?debugVal(300000);
+        350000 -> ?debugVal(350000);
+        400000 -> ?debugVal(400000);
+        450000 -> ?debugVal(450000);
+        _ ->
+            void
+    end,
+
+    case leo_redundant_manager_api:get_redundancies_by_key(
+           lists:append(["LEOFS_", integer_to_list(St)])) of
+        {ok, #redundancies{nodes = Nodes}} ->
+            ?assertEqual(3, length(Nodes));
+        _Error ->
+            ?debugVal(_Error)
+    end,
+    redundant_1(St+1, End).
+
 -endif.
