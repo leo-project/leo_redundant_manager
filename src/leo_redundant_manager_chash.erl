@@ -137,8 +137,7 @@ redundnacies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members) ->
     redundnacies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, Value).
 
 redundnacies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, Value) ->
-    SetsL2 = sets:new(),
-    {Node, State, SetsL2_1} = get_state(Members, Value, SetsL2),
+    {Node, State, SetsL2_1} = get_state(Members, Value, []),
 
     redundancies_2(Table, NumOfReplicas-1, L2, Members, VNodeId_Hop,
                    #redundancies{id           = VNodeId_Org,
@@ -177,7 +176,7 @@ redundancies_2( Table, NumOfReplicas, L2, Members, VNodeId0, #redundancies{temp_
         false ->
             {Node, State, AccLevel2_1} = get_state(Members, Value, AccLevel2),
             AccNodesSize  = length(AccNodes),
-            AccLevel2Size = sets:size(AccLevel2_1),
+            AccLevel2Size = length(AccLevel2_1),
 
             case (L2 /= 0 andalso L2 == AccNodesSize) of
                 true when AccLevel2Size < (L2+1) ->
@@ -313,7 +312,12 @@ get_state([],_Node1,_) ->
 get_state([#member{node        = Node0,
                    state       = State,
                    grp_level_2 = L2}|_], Node1, SetL2) when Node0 == Node1  ->
-    {Node0, (State == ?STATE_RUNNING), sets:add_element(L2, SetL2)};
+    case lists:member(L2, SetL2) of
+        false ->
+            {Node0, (State == ?STATE_RUNNING), [L2|SetL2]};
+        _ ->
+            {Node0, (State == ?STATE_RUNNING), SetL2}
+    end;
 get_state([#member{node = Node0}|T], Node1, SetL2) when Node0 /= Node1 ->
     get_state(T, Node1, SetL2).
 
