@@ -104,7 +104,7 @@ remove(N, Table, #member{alias = Alias} = Member) ->
 -spec(redundancies(ring_table_info(), any(), pos_integer(), pos_integer(),list()) ->
              {ok, any()} | {error, any()}).
 redundancies(_Table,_VNodeId, NumOfReplicas,_L2,_Members) when NumOfReplicas < 1;
-                                                               NumOfReplicas > 3 ->
+                                                               NumOfReplicas > 8 ->
     {error, out_of_renge};
 redundancies(_Table,_VNodeId, NumOfReplicas, L2,_Members) when (NumOfReplicas - L2) < 1 ->
     {error, invalid_level2};
@@ -113,18 +113,12 @@ redundancies(Table, VNodeId0, NumOfReplicas, L2, Members) ->
         {error, Cause} ->
             {error, Cause};
         [] ->
-            case leo_redundant_manager_table_ring:next(Table, VNodeId0) of
-                '$end_of_table' ->
-                    case leo_redundant_manager_table_ring:first(Table) of
-                        '$end_of_table' ->
-                            {error, no_entry};
-                        VNodeId1 ->
-                            redundnacies_1(Table, VNodeId0, VNodeId1,
-                                           NumOfReplicas, L2, Members)
-                    end;
-                VNodeId1 ->
+            case get_node_by_vnodeid(Table, VNodeId0) of
+                {ok, VNodeId1} ->
                     redundnacies_1(Table, VNodeId0, VNodeId1,
-                                   NumOfReplicas, L2, Members)
+                                   NumOfReplicas, L2, Members);
+                {error, Cause} ->
+                    {error, Cause}
             end;
         Value ->
             redundnacies_1(Table, VNodeId0, VNodeId0, Members,
@@ -133,8 +127,21 @@ redundancies(Table, VNodeId0, NumOfReplicas, L2, Members) ->
 
 %% @private
 redundnacies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members) ->
-    Value = leo_redundant_manager_table_ring:lookup(Table, VNodeId_Hop),
-    redundnacies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, Value).
+    case leo_redundant_manager_table_ring:lookup(Table, VNodeId_Hop) of
+        {error, Cause} ->
+            {error, Cause};
+        [] ->
+            case get_node_by_vnodeid(Table, VNodeId_Hop) of
+                {ok, Value} ->
+                    redundnacies_1(Table, VNodeId_Org, VNodeId_Hop,
+                                   NumOfReplicas, L2, Members, Value);
+                {error, Cause} ->
+                    {error, Cause}
+            end;
+        Value ->
+            redundnacies_1(Table, VNodeId_Org, VNodeId_Hop,
+                           NumOfReplicas, L2, Members, Value)
+    end.
 
 redundnacies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, Value) ->
     {Node, State, SetsL2_1} = get_state(Members, Value, []),
@@ -148,47 +155,72 @@ redundnacies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, Valu
 
 %% @private
 redundancies_2(_Table,_,_L2,_Members,-1,_R) ->
-    {error, invalid_vnode};
+    {error,  invalid_vnode};
 redundancies_2(_Table, 0,_L2,_Members,_VNodeId, #redundancies{nodes = Acc} = R) ->
     {ok, R#redundancies{temp_nodes   = [],
                         temp_level_2 = [],
                         nodes        = lists:reverse(Acc)}};
-redundancies_2( Table, NumOfReplicas, L2, Members, VNodeId0, #redundancies{temp_nodes   = AccTempNode,
-                                                                           temp_level_2 = AccLevel2,
-                                                                           nodes        = AccNodes} = R) ->
-    VNodeId2 = case leo_redundant_manager_table_ring:next(Table, VNodeId0) of
-                   '$end_of_table' ->
-                       case leo_redundant_manager_table_ring:first(Table) of
-                           '$end_of_table' -> -1;
-                           VNodeId1 ->
-                               VNodeId1
-                       end;
-                   VNodeId1 ->
-                       VNodeId1
-               end,
+redundancies_2( Table, NumOfReplicas, L2, Members, VNodeId0, R) ->
+    case get_node_by_vnodeid(Table, VNodeId0) of
+        {ok, VNodeId1} ->
+            case leo_redundant_manager_table_ring:lookup(Table, VNodeId1) of
+                {error, Cause} ->
+                    {error, Cause};
+                [] ->
+                    case get_node_by_vnodeid(Table, VNodeId1) of
+                        {ok, Node} ->
+                            redundancies_3(Table, NumOfReplicas, L2, Members, VNodeId1, Node, R);
+                        {error, Cause} ->
+                            {error, Cause}
+                    end;
+                Node ->
+                    redundancies_3(Table, NumOfReplicas, L2, Members, VNodeId1, Node, R)
+            end;
+        _ ->
+            {error, out_of_range}
+    end.
 
-    Value = leo_redundant_manager_table_ring:lookup(Table, VNodeId2),
-    case lists:member(Value, AccTempNode) of
+
+redundancies_3(Table, NumOfReplicas, L2, Members,
+               VNodeId, Node1, #redundancies{temp_nodes   = AccTempNode,
+                                            temp_level_2 = AccLevel2,
+                                            nodes        = AccNodes} = R) ->
+    case lists:member(Node1, AccTempNode) of
         true  ->
-            redundancies_2(Table, NumOfReplicas, L2, Members, VNodeId2, R);
+            redundancies_2(Table, NumOfReplicas, L2, Members, VNodeId, R);
         false ->
-            case get_state(Members, Value, AccLevel2) of
+            case get_state(Members, Node1, AccLevel2) of
                 {null, false, undefined} ->
                     {error, node_not_found};
-                {Node, State, AccLevel2_1} ->
+                {Node2, State, AccLevel2_1} ->
                     AccNodesSize  = length(AccNodes),
                     AccLevel2Size = length(AccLevel2_1),
 
                     case (L2 /= 0 andalso L2 == AccNodesSize) of
                         true when AccLevel2Size < (L2+1) ->
-                            redundancies_2(Table, NumOfReplicas, L2, Members, VNodeId2, R);
+                            redundancies_2(Table, NumOfReplicas, L2, Members, VNodeId, R);
                         _ ->
-                            redundancies_2(Table, NumOfReplicas-1, L2, Members, VNodeId2,
-                                           R#redundancies{temp_nodes   = [Value|AccTempNode],
+                            redundancies_2(Table, NumOfReplicas-1, L2, Members, VNodeId,
+                                           R#redundancies{temp_nodes   = [Node2|AccTempNode],
                                                           temp_level_2 = AccLevel2_1,
-                                                          nodes        = [{Node, State}|AccNodes]})
+                                                          nodes        = [{Node2, State}|AccNodes]})
                     end
             end
+    end.
+
+
+%% @private
+get_node_by_vnodeid(Table, VNodeId) ->
+    case leo_redundant_manager_table_ring:next(Table, VNodeId) of
+        '$end_of_table' ->
+            case leo_redundant_manager_table_ring:first(Table) of
+                '$end_of_table' ->
+                    {error, no_entry};
+                Value ->
+                    {ok, Value}
+            end;
+        Value ->
+            {ok, Value}
     end.
 
 
