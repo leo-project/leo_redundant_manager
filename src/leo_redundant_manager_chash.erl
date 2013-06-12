@@ -308,6 +308,9 @@ import(Table, FileName) ->
 %% @doc Retrieve a member from an argument.
 %% @private
 get_state([],_Node1,_) ->
+    error_logger:error_msg("~p,~p,~p,~p~n",
+                           [{module, ?MODULE_STRING}, {function, "get_state/3"},
+                            {line, ?LINE}, {body, 'not_match'}]),
     {null, false, undefined};
 get_state([#member{node        = Node0,
                    state       = State,

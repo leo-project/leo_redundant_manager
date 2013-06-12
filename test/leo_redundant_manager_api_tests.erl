@@ -340,7 +340,7 @@ rack_aware_({Hostname}) ->
               %%     false ->
               %%         void
               %% end
-      end, lists:seq(1, 3000)),
+      end, lists:seq(1, 5000)),
     ok.
 
 
@@ -464,8 +464,8 @@ inspect0(Hostname) ->
                           Id2 = random:uniform(Max),
                           {ok, Res2} = leo_redundant_manager_api:range_of_vnodes(Id2),
                           inspect1(Id2, Res2)
-                  end, lists:seq(0, 1000)),
-
+                  end, lists:seq(0, 5000)),
+    ?debugVal("***** ok *****"),
     {ok, Res3} = leo_redundant_manager_api:range_of_vnodes(0),
     inspect1(0, Res3),
     ok.
