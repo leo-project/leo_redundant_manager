@@ -147,11 +147,9 @@ redundnacies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, Valu
                                  nodes        = [{Node, State}]}).
 
 %% @private
+redundancies_2(_Table,_,_L2,_Members,-1,_R) ->
+    {error, invalid_vnode};
 redundancies_2(_Table, 0,_L2,_Members,_VNodeId, #redundancies{nodes = Acc} = R) ->
-    {ok, R#redundancies{temp_nodes   = [],
-                        temp_level_2 = [],
-                        nodes        = lists:reverse(Acc)}};
-redundancies_2(_Table, _,_L2,_Members, -1,      #redundancies{nodes = Acc} = R) ->
     {ok, R#redundancies{temp_nodes   = [],
                         temp_level_2 = [],
                         nodes        = lists:reverse(Acc)}};
@@ -174,18 +172,22 @@ redundancies_2( Table, NumOfReplicas, L2, Members, VNodeId0, #redundancies{temp_
         true  ->
             redundancies_2(Table, NumOfReplicas, L2, Members, VNodeId2, R);
         false ->
-            {Node, State, AccLevel2_1} = get_state(Members, Value, AccLevel2),
-            AccNodesSize  = length(AccNodes),
-            AccLevel2Size = length(AccLevel2_1),
+            case get_state(Members, Value, AccLevel2) of
+                {null, false, undefined} ->
+                    {error, node_not_found};
+                {Node, State, AccLevel2_1} ->
+                    AccNodesSize  = length(AccNodes),
+                    AccLevel2Size = length(AccLevel2_1),
 
-            case (L2 /= 0 andalso L2 == AccNodesSize) of
-                true when AccLevel2Size < (L2+1) ->
-                    redundancies_2(Table, NumOfReplicas, L2, Members, VNodeId2, R);
-                _ ->
-                    redundancies_2(Table, NumOfReplicas-1, L2, Members, VNodeId2,
-                                   R#redundancies{temp_nodes   = [Value|AccTempNode],
-                                                  temp_level_2 = AccLevel2_1,
-                                                  nodes        = [{Node, State}|AccNodes]})
+                    case (L2 /= 0 andalso L2 == AccNodesSize) of
+                        true when AccLevel2Size < (L2+1) ->
+                            redundancies_2(Table, NumOfReplicas, L2, Members, VNodeId2, R);
+                        _ ->
+                            redundancies_2(Table, NumOfReplicas-1, L2, Members, VNodeId2,
+                                           R#redundancies{temp_nodes   = [Value|AccTempNode],
+                                                          temp_level_2 = AccLevel2_1,
+                                                          nodes        = [{Node, State}|AccNodes]})
+                    end
             end
     end.
 
