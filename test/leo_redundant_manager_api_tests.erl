@@ -49,7 +49,8 @@ redundant_manager_test_() ->
                            fun append_/1,
                            fun suspend_/1,
 
-                           fun rack_aware_/1
+                           fun rack_aware_1_/1,
+                           fun rack_aware_2_/1
                           ]]}.
 
 
@@ -250,7 +251,7 @@ suspend_({Hostname}) ->
     ?assertEqual(true, undefined /= M1#member.alias),
     ok.
 
-rack_aware_({Hostname}) ->
+rack_aware_1_({Hostname}) ->
     {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),
     %% ok = leo_redundant_manager_table_member:create_members(),
 
@@ -340,6 +341,65 @@ rack_aware_({Hostname}) ->
               %%     false ->
               %%         void
               %% end
+      end, lists:seq(1, 3000)),
+    ok.
+
+rack_aware_2_({Hostname}) ->
+    {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),
+    %% ok = leo_redundant_manager_table_member:create_members(),
+
+    leo_redundant_manager_api:set_options([{n, 5},
+                                           {r, 1},
+                                           {w ,2},
+                                           {d, 2},
+                                           {bit_of_ring, 128},
+                                           {level_2, 1}
+                                          ]),
+    Node0  = list_to_atom("node_0@"  ++ Hostname),
+    Node1  = list_to_atom("node_1@"  ++ Hostname),
+    Node2  = list_to_atom("node_2@"  ++ Hostname),
+    Node3  = list_to_atom("node_3@"  ++ Hostname),
+    Node4  = list_to_atom("node_4@"  ++ Hostname),
+    Node5  = list_to_atom("node_5@"  ++ Hostname),
+    Node6  = list_to_atom("node_6@"  ++ Hostname),
+    Node7  = list_to_atom("node_7@"  ++ Hostname),
+    Node8  = list_to_atom("node_8@"  ++ Hostname),
+    Node9  = list_to_atom("node_9@"  ++ Hostname),
+    Node10 = list_to_atom("node_10@" ++ Hostname),
+    Node11 = list_to_atom("node_11@" ++ Hostname),
+    Node12 = list_to_atom("node_12@" ++ Hostname),
+    Node13 = list_to_atom("node_13@" ++ Hostname),
+    Node14 = list_to_atom("node_14@" ++ Hostname),
+    Node15 = list_to_atom("node_15@" ++ Hostname),
+
+    %% R1 = [Node0, Node1, Node2,  Node3,  Node4,  Node5,  Node6,  Node7],
+    %% R2 = [Node8, Node9, Node10, Node11, Node12, Node13, Node14, Node15],
+
+    leo_redundant_manager_api:attach(Node0, "R1"),
+    leo_redundant_manager_api:attach(Node1, "R1"),
+    leo_redundant_manager_api:attach(Node2, "R1"),
+    leo_redundant_manager_api:attach(Node3, "R1"),
+    leo_redundant_manager_api:attach(Node4, "R1"),
+    leo_redundant_manager_api:attach(Node5, "R1"),
+    leo_redundant_manager_api:attach(Node6, "R1"),
+    leo_redundant_manager_api:attach(Node7, "R1"),
+
+    leo_redundant_manager_api:attach(Node8,  "R2"),
+    leo_redundant_manager_api:attach(Node9,  "R2"),
+    leo_redundant_manager_api:attach(Node10, "R2"),
+    leo_redundant_manager_api:attach(Node11, "R2"),
+    leo_redundant_manager_api:attach(Node12, "R2"),
+    leo_redundant_manager_api:attach(Node13, "R2"),
+    leo_redundant_manager_api:attach(Node14, "R2"),
+    leo_redundant_manager_api:attach(Node15, "R2"),
+
+    {ok, _, _} =leo_redundant_manager_api:create(),
+    lists:foreach(
+      fun(N) ->
+              {ok, #redundancies{nodes = Nodes}} =
+                  leo_redundant_manager_api:get_redundancies_by_key(
+                    lists:append(["LEOFS_", integer_to_list(N)])),
+              ?assertEqual(5, length(Nodes))
       end, lists:seq(1, 3000)),
     ok.
 
