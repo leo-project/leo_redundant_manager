@@ -554,23 +554,20 @@ inspect1(Id, VNodes) ->
     end.
 
 
-redundant_1_test_() -> {timeout, 120, ?_assertEqual([], redundant(0, 500000))}.
+redundant_1_test_() ->
+    {timeout, 300, ?_assertEqual([], redundant())}.
 
-redundant(St, End) ->
+redundant() ->
     ?debugVal(start),
-    %% prepare
+    %% prepare-1
     [] = os:cmd("epmd -daemon"),
     {ok, Hostname} = inet:gethostname(),
-
-    catch ets:delete_all_objects('leo_members'),
-    catch ets:delete_all_objects(?CUR_RING_TABLE),
-    catch ets:delete_all_objects(?PREV_RING_TABLE),
 
     leo_misc:init_env(),
     leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
     leo_redundant_manager_table_member:create_members(),
 
-    %% execute
+    %% prepare-2
     {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),
     leo_redundant_manager_api:set_options([{n, 3},
                                            {r, 1},
@@ -587,6 +584,8 @@ redundant(St, End) ->
     Node5  = list_to_atom("node_5@"  ++ Hostname),
     Node6  = list_to_atom("node_6@"  ++ Hostname),
     Node7  = list_to_atom("node_7@"  ++ Hostname),
+    Members = [Node0, Node1, Node2, Node3,
+               Node4, Node5, Node6, Node7],
 
     leo_redundant_manager_api:attach(Node0),
     leo_redundant_manager_api:attach(Node1),
@@ -596,37 +595,42 @@ redundant(St, End) ->
     leo_redundant_manager_api:attach(Node5),
     leo_redundant_manager_api:attach(Node6),
     leo_redundant_manager_api:attach(Node7),
-
     {ok, _, _} =leo_redundant_manager_api:create(),
-    ok = redundant_1(St, End),
-    ?debugVal(done),
+
+    %% execute
+    ok = redundant_1(Members,       0,  250000),
+    ok = redundant_1(Members,  250001,  500000),
+    ok = redundant_1(Members,  500001,  750000),
+    ok = redundant_1(Members,  750001, 1000000),
+    ok = redundant_1(Members, 1000001, 1250000),
+    ok = redundant_1(Members, 1250001, 1500000),
+    ok = redundant_1(Members, 1500001, 1750000),
+    ok = redundant_1(Members, 1750001, 2000000),
+    ok = redundant_1(Members, 2000001, 2250000),
+    ok = redundant_1(Members, 2250001, 2500000),
+    ok = redundant_1(Members, 2500001, 2750000),
+    ok = redundant_1(Members, 2750001, 3000000),
+
+    %% terminate
+    os:cmd("rm -rf queue"),
+    os:cmd("rm ring_*"),
     [].
 
-redundant_1(End, End) ->
-    ok;
-redundant_1(St, End) ->
-    case St of
-        10000  -> ?debugVal(10000);
-        50000  -> ?debugVal(50000);
-        100000 -> ?debugVal(100000);
-        150000 -> ?debugVal(150000);
-        200000 -> ?debugVal(200000);
-        250000 -> ?debugVal(250000);
-        300000 -> ?debugVal(300000);
-        350000 -> ?debugVal(350000);
-        400000 -> ?debugVal(400000);
-        450000 -> ?debugVal(450000);
-        _ ->
-            void
-    end,
 
+redundant_1(_, End, End) ->
+    ?debugVal({done, End}),
+    ok;
+redundant_1(Members, St, End) ->
     case leo_redundant_manager_api:get_redundancies_by_key(
            lists:append(["LEOFS_", integer_to_list(St)])) of
         {ok, #redundancies{nodes = Nodes}} ->
-            ?assertEqual(3, length(Nodes));
+            ?assertEqual(3, length(Nodes)),
+            lists:foreach(fun({N, _}) ->
+                                  ?assertEqual(true, lists:member(N, Members))
+                          end, Nodes);                                                 
         _Error ->
             ?debugVal(_Error)
     end,
-    redundant_1(St+1, End).
+    redundant_1(Members, St+1, End).
 
 -endif.
