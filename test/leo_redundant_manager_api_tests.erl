@@ -68,11 +68,11 @@ setup() ->
     {Hostname}.
 
 teardown(_) ->
-    application:stop(leo_mq),
-    application:stop(leo_backend_db),
+    catch application:stop(leo_mq),
+    catch application:stop(leo_backend_db),
 
     catch leo_redundant_manager_sup:stop(),
-    application:stop(leo_redundant_manager),
+    catch application:stop(leo_redundant_manager),
     timer:sleep(200),
 
     os:cmd("rm -rf queue"),

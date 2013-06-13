@@ -57,6 +57,10 @@
 -type(ring_table_info() :: {ring_table_type(), ?CUR_RING_TABLE} |
                            {ring_table_type(), ?PREV_RING_TABLE}).
 
+-define(RING_WORKER_POOL_NAME, 'ring_worker_pool').
+-define(RING_WORKER_POOL_SIZE, 32).
+-define(RING_WORKER_POOL_BUF,  16).
+
 
 %% Checksum
 -define(CHECKSUM_RING,   'ring').
