@@ -554,11 +554,12 @@ inspect1(Id, VNodes) ->
     end.
 
 
-redundant_1_test_() ->
-    {timeout, 300, ?_assertEqual([], redundant())}.
+redundant_test_() ->
+    {timeout, 300, ?_assertEqual(ok, redundant(false))}.
 
-redundant() ->
-    ?debugVal(start),
+redundant(false) ->
+    ok;
+redundant(true) ->
     %% prepare-1
     [] = os:cmd("epmd -daemon"),
     {ok, Hostname} = inet:gethostname(),
@@ -612,9 +613,10 @@ redundant() ->
     ok = redundant_1(Members, 2750001, 3000000),
 
     %% terminate
+    timer:sleep(200),
     os:cmd("rm -rf queue"),
     os:cmd("rm ring_*"),
-    [].
+    ok.
 
 
 redundant_1(_, End, End) ->
@@ -627,7 +629,7 @@ redundant_1(Members, St, End) ->
             ?assertEqual(3, length(Nodes)),
             lists:foreach(fun({N, _}) ->
                                   ?assertEqual(true, lists:member(N, Members))
-                          end, Nodes);                                                 
+                          end, Nodes);
         _Error ->
             ?debugVal(_Error)
     end,
