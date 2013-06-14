@@ -360,40 +360,12 @@ get_redundancies_by_addr_id(_ServerType, TblInfo, AddrId, Options) ->
     get_redundancies_by_addr_id_1(Ret, TblInfo, AddrId, Options).
 
 get_redundancies_by_addr_id_1({ok, Members}, TblInfo, AddrId, Options) ->
-    N = leo_misc:get_value(?PROP_N, Options),
-    R = leo_misc:get_value(?PROP_R, Options),
-    W = leo_misc:get_value(?PROP_W, Options),
-    D = leo_misc:get_value(?PROP_D, Options),
-
-    %% for rack-awareness replica placement
-    L2 = leo_misc:get_value(?PROP_L2, Options, 0),
-
     %% checkout worker's ref from the pool
     case catch poolboy:checkout(?RING_WORKER_POOL_NAME) of
         {'EXIT', Cause} ->
             {error, Cause};
         ServerRef ->
-            Ret = case leo_redundant_manager_chash:redundancies(
-                         {ServerRef, TblInfo}, AddrId, N, L2, Members) of
-                      {ok, Redundancies} ->
-                          CurRingHash =
-                              case leo_misc:get_env(?APP, ?PROP_RING_HASH) of
-                                  {ok, RingHash} ->
-                                      RingHash;
-                                  undefined ->
-                                      {ok, {RingHash, _}} = checksum(?CHECKSUM_RING),
-                                      ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, RingHash),
-                                      RingHash
-                              end,
-                          {ok, Redundancies#redundancies{n = N,
-                                                         r = R,
-                                                         w = W,
-                                                         d = D,
-                                                         ring_hash = CurRingHash}};
-                      Error ->
-                          Error
-                  end,
-
+            Ret = get_redundancies_by_addr_id_1_1(ServerRef, TblInfo, Members, AddrId, Options),
             _ = poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
             Ret
         end;
@@ -402,6 +374,37 @@ get_redundancies_by_addr_id_1(Error, _TblInfo, _AddrId, _Options) ->
                              [{module, ?MODULE_STRING}, {function, "get_redundancies_by_addr_id_1/4"},
                               {line, ?LINE}, {body, Error}]),
     {error, not_found}.
+
+%% @private
+get_redundancies_by_addr_id_1_1(ServerRef, TblInfo, Members, AddrId, Options) ->
+    N = leo_misc:get_value(?PROP_N, Options),
+    R = leo_misc:get_value(?PROP_R, Options),
+    W = leo_misc:get_value(?PROP_W, Options),
+    D = leo_misc:get_value(?PROP_D, Options),
+
+    %% for rack-awareness replica placement
+    L2 = leo_misc:get_value(?PROP_L2, Options, 0),
+
+    case leo_redundant_manager_chash:redundancies(
+           {ServerRef, TblInfo}, AddrId, N, L2, Members) of
+        {ok, Redundancies} ->
+            CurRingHash =
+                case leo_misc:get_env(?APP, ?PROP_RING_HASH) of
+                    {ok, RingHash} ->
+                        RingHash;
+                    undefined ->
+                        {ok, {RingHash, _}} = checksum(?CHECKSUM_RING),
+                        ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, RingHash),
+                        RingHash
+                end,
+            {ok, Redundancies#redundancies{n = N,
+                                           r = R,
+                                           w = W,
+                                           d = D,
+                                           ring_hash = CurRingHash}};
+        Error ->
+            Error
+    end.
 
 
 %% @doc Retrieve range of vnodes.
