@@ -31,8 +31,9 @@
 -ifdef(EUNIT).
 
 redundant_manager_test_() ->
-    {foreach, fun setup/0, fun teardown/1,
-     [{with, [T]} || T <- [fun redundant_manager_0_/1,
+    {timeout, 300,
+     {foreach, fun setup/0, fun teardown/1,
+      [{with, [T]} || T <- [fun redundant_manager_0_/1,
                            fun redundant_manager_1_/1,
                            fun attach_/1,
                            fun detach_/1,
@@ -47,7 +48,7 @@ redundant_manager_test_() ->
 
                            fun rack_aware_1_/1,
                            fun rack_aware_2_/1
-                          ]]}.
+                          ]]}}.
 
 
 setup() ->
@@ -244,9 +245,11 @@ suspend_({Hostname}) ->
     ok.
 
 rack_aware_1_({Hostname}) ->
-    {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),
-    %% ok = leo_redundant_manager_table_member:create_members(),
+    catch ets:delete_all_objects('leo_members'),
+    catch ets:delete_all_objects(?CUR_RING_TABLE),
+    catch ets:delete_all_objects(?PREV_RING_TABLE),
 
+    {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),
     leo_redundant_manager_api:set_options([{n, 3},
                                            {r, 1},
                                            {w ,2},
@@ -293,6 +296,10 @@ rack_aware_1_({Hostname}) ->
     leo_redundant_manager_api:attach(Node15, "R2"),
 
     {ok, _, _} =leo_redundant_manager_api:create(),
+    ServerRef = poolboy:checkout(?RING_WORKER_POOL_NAME),
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, {ets, ?CUR_RING_TABLE}),
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, {ets, ?PREV_RING_TABLE}),
+
     lists:foreach(
       fun(N) ->
               {ok, #redundancies{nodes = Nodes}} =
@@ -327,19 +334,17 @@ rack_aware_1_({Hostname}) ->
                             false -> SumR2_2
                         end,
               ?assertEqual(false, (SumR1_3 == 0 orelse SumR2_3 == 0))
-              %% case (SumR1_3 == 0 orelse SumR2_3 == 0) of
-              %%     true ->
-              %%         ?debugVal({N1,N2,N3,SumR1_3,SumR2_3});
-              %%     false ->
-              %%         void
-              %% end
-      end, lists:seq(1, 3000)),
+      end, lists:seq(1, 300)),
+    ?debugVal(ok),
+    poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
     ok.
 
 rack_aware_2_({Hostname}) ->
-    {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),
-    %% ok = leo_redundant_manager_table_member:create_members(),
+    catch ets:delete_all_objects('leo_members'),
+    catch ets:delete_all_objects(?CUR_RING_TABLE),
+    catch ets:delete_all_objects(?PREV_RING_TABLE),
 
+    {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),
     leo_redundant_manager_api:set_options([{n, 5},
                                            {r, 1},
                                            {w ,2},
@@ -364,9 +369,6 @@ rack_aware_2_({Hostname}) ->
     Node14 = list_to_atom("node_14@" ++ Hostname),
     Node15 = list_to_atom("node_15@" ++ Hostname),
 
-    %% R1 = [Node0, Node1, Node2,  Node3,  Node4,  Node5,  Node6,  Node7],
-    %% R2 = [Node8, Node9, Node10, Node11, Node12, Node13, Node14, Node15],
-
     leo_redundant_manager_api:attach(Node0, "R1"),
     leo_redundant_manager_api:attach(Node1, "R1"),
     leo_redundant_manager_api:attach(Node2, "R1"),
@@ -386,13 +388,20 @@ rack_aware_2_({Hostname}) ->
     leo_redundant_manager_api:attach(Node15, "R2"),
 
     {ok, _, _} =leo_redundant_manager_api:create(),
+    ServerRef = poolboy:checkout(?RING_WORKER_POOL_NAME),
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, {ets, ?CUR_RING_TABLE}),
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, {ets, ?PREV_RING_TABLE}),
+
     lists:foreach(
       fun(N) ->
               {ok, #redundancies{nodes = Nodes}} =
                   leo_redundant_manager_api:get_redundancies_by_key(
                     lists:append(["LEOFS_", integer_to_list(N)])),
               ?assertEqual(5, length(Nodes))
-      end, lists:seq(1, 3000)),
+      end, lists:seq(1, 300)),
+
+    ?debugVal(ok),
+    poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
     ok.
 
 
@@ -429,7 +438,7 @@ prepare(Hostname, ServerType) ->
     leo_redundant_manager_api:attach(list_to_atom("node_7@" ++ Hostname)),
     ?debugVal(leo_redundant_manager_table_member:size()),
 
-    timer:sleep(3000),
+    timer:sleep(500),
     ok.
 
 
@@ -527,7 +536,7 @@ inspect0(Hostname) ->
                           Id2 = random:uniform(Max),
                           {ok, Res2} = leo_redundant_manager_api:range_of_vnodes(Id2),
                           inspect1(Id2, Res2)
-                  end, lists:seq(0, 10)),
+                  end, lists:seq(0, 300)),
     ?debugVal("***** ok *****"),
     {ok, Res3} = leo_redundant_manager_api:range_of_vnodes(0),
     inspect1(0, Res3),
