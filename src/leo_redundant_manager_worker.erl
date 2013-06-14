@@ -39,6 +39,20 @@
 	       terminate/2,
          code_change/3]).
 
+-undef(DEF_TIMEOUT).
+
+-ifdef(TEST).
+-define(CURRENT_TIME,      65432100000).
+-define(DEF_SYNC_MIN_INTERVAL,  250).
+-define(DEF_SYNC_MAX_INTERVAL, 1500).
+-define(DEF_TIMEOUT,       1000).
+-else.
+-define(CURRENT_TIME,      leo_date:now()).
+-define(DEF_SYNC_MIN_INTERVAL,  250).
+-define(DEF_SYNC_MAX_INTERVAL, 1500).
+-define(DEF_TIMEOUT,       3000).
+-endif.
+
 -record(routing_table, {index = []    :: list(pos_integer()),
                         checksum = -1 :: integer(),
                         table = []    :: list()
@@ -46,23 +60,10 @@
 
 -record(state, {cur  = #routing_table{} :: #routing_table{},
                 prev = #routing_table{} :: #routing_table{},
-                interval = 3000  :: pos_integer(),
-                enable   = false :: boolean()
+                min_interval = ?DEF_SYNC_MIN_INTERVAL :: pos_integer(),
+                max_interval = ?DEF_SYNC_MAX_INTERVAL :: pos_integer(),
+                timestamp = 0 :: pos_integer()
                }).
-
--undef(DEF_TIMEOUT).
-
--ifdef(TEST).
--define(CURRENT_TIME,      65432100000).
--define(DEF_SYNC_INTERVAL, 1000).
--define(DEF_SYNC_MIN,       100).
--define(DEF_TIMEOUT,       1000).
--else.
--define(CURRENT_TIME,      leo_date:now()).
--define(DEF_SYNC_INTERVAL, 1000).
--define(DEF_SYNC_MIN,       100).
--define(DEF_TIMEOUT,       3000).
--endif.
 
 %%--------------------------------------------------------------------
 %% API
@@ -70,12 +71,9 @@
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 start_link() ->
-    start_link(?DEF_SYNC_INTERVAL).
-
+    gen_server:start_link(?MODULE, [], []).
 start_link([]) ->
-    start_link(?DEF_SYNC_INTERVAL);
-start_link(Interval) ->
-    gen_server:start_link(?MODULE, [Interval], []).
+    gen_server:start_link(?MODULE, [], []).
 
 stop() ->
     gen_server:call(?MODULE, stop, ?DEF_TIMEOUT).
@@ -89,9 +87,9 @@ stop() ->
 %%                         ignore               |
 %%                         {stop, Reason}
 %% Description: Initiates the server
-init([Interval]) ->
-    sync(Interval),
-    {ok, #state{}}.
+init([]) ->
+    sync(),
+    {ok, #state{timestamp = timestamp()}}.
 
 handle_call(stop,_From,State) ->
     {stop, normal, ok, State};
@@ -106,7 +104,7 @@ handle_call(_Handle, _From, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 handle_cast(sync, State) ->
-    case catch maybe_sync(State#state{enable = true}) of
+    case catch maybe_sync(State) of
         {'EXIT', _Reason} ->
             {noreply, State};
         NewState ->
@@ -140,42 +138,51 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% INTERNAL FUNCTIONS
 %%--------------------------------------------------------------------
+%% @private
+timestamp() ->
+    leo_math:floor(leo_date:clock() / 1000).
+
 %% @doc Synchronize
 %% @private
--spec(sync(integer()) ->
+-spec(sync() ->
              ok | any()).
-sync(Time) ->
-    Time1 = erlang:phash2(term_to_binary(leo_date:clock()), Time) + ?DEF_SYNC_MIN,
-    catch timer:apply_after(Time1, gen_server, cast, [self(), sync]).
+sync() ->
+    Time = erlang:phash2(term_to_binary(leo_date:clock()),
+                         (?DEF_SYNC_MAX_INTERVAL - ?DEF_SYNC_MIN_INTERVAL)
+                        ) + ?DEF_SYNC_MIN_INTERVAL,
+    catch timer:apply_after(Time, gen_server, cast, [self(), sync]).
 
 %% @doc Heatbeat
 %% @private
 -spec(maybe_sync(#state{}) ->
              #state{}).
-maybe_sync(#state{enable = false} = State) ->
-    State;
 maybe_sync(#state{cur  = #routing_table{checksum = CurHash},
                   prev = #routing_table{checksum = PrevHash},
-                  interval  = Interval,
-                  enable    = true} = State) ->
+                  min_interval = MinInterval,
+                  timestamp    = Timestamp} = State) ->
 
     {ok, {R1, R2}}= leo_redundant_manager_api:checksum(?CHECKSUM_RING),
-    ?debugVal({{R1, R2}, {CurHash, PrevHash}}),
+    ?debugVal({R1, R2, CurHash, PrevHash}),
+    ThisTime = timestamp(),
 
-    NewState = case (R1 == -1 orelse R2 == -1) of
-                   true ->
-                       State;
-                   false when R1 == CurHash andalso
-                              R2 == PrevHash ->
-                       State;
-                   false ->
-                       maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash})
-               end,
-    sync(Interval),
-    NewState#state{enable = false}.
+    case ((ThisTime - Timestamp) < MinInterval) of
+        true ->
+            State;
+        false ->
+            NewState = case (R1 == -1 orelse R2 == -1) of
+                           true ->
+                               State;
+                           false when R1 == CurHash andalso
+                                      R2 == PrevHash ->
+                               State;
+                           false ->
+                               maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash})
+                       end,
+            sync(),
+            NewState#state{timestamp = ThisTime}
+    end.
 
-
-
+%% @private
 maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
     State1 = case (R1 == CurHash) of
                  true  -> State;
