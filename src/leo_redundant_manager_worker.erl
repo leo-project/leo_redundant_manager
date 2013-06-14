@@ -30,7 +30,7 @@
 
 %% API
 -export([start_link/0, start_link/1, stop/0]).
--export([lookup/3, first/2, next/3]).
+-export([lookup/3, first/2, prev/3, next/3, last/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -88,8 +88,14 @@ lookup(ServerRef, Table, VNodeId) ->
 first(ServerRef, Table) ->
     gen_server:call(ServerRef, {first, Table}, ?DEF_TIMEOUT).
 
+prev(ServerRef, Table, VNodeId) ->
+    gen_server:call(ServerRef, {prev, Table, VNodeId}, ?DEF_TIMEOUT).
+
 next(ServerRef, Table, VNodeId) ->
     gen_server:call(ServerRef, {next, Table, VNodeId}, ?DEF_TIMEOUT).
+
+last(ServerRef, Table) ->
+    gen_server:call(ServerRef, {last, Table}, ?DEF_TIMEOUT).
 
 
 %%--------------------------------------------------------------------
@@ -134,6 +140,22 @@ handle_call({first, {_, Tbl}},_From, State) ->
     {reply, Reply, State};
 
 
+handle_call({prev, {_, Tbl}, VNodeId},_From, State) ->
+    Reply = case get_ring(Tbl, State) of
+                [] ->
+                    '$end_of_table';
+                Ring ->
+                    case get_index(Tbl, State) of
+                        [] ->
+                            '$end_of_table';
+                        Index ->
+                            RowId = find_index(VNodeId, Index),
+                            prev_vnode_id(RowId, VNodeId, Ring)
+                    end
+            end,
+    {reply, Reply, State};
+
+
 handle_call({next, {_, Tbl}, VNodeId},_From, State) ->
     Reply = case get_ring(Tbl, State) of
                 [] ->
@@ -146,6 +168,17 @@ handle_call({next, {_, Tbl}, VNodeId},_From, State) ->
                             RowId = find_index(VNodeId, Index),
                             find_vnode_id(RowId, VNodeId, Ring)
                     end
+            end,
+    {reply, Reply, State};
+
+
+handle_call({last, {_, Tbl}},_From, State) ->
+    Reply = case get_ring(Tbl, State) of
+                [] ->
+                    '$end_of_table';
+                Ring ->
+                    {_,_,Node,_} = lists:last(Ring),
+                    Node
             end,
     {reply, Reply, State};
 
@@ -342,4 +375,20 @@ find_vnode_id_1(VNodeId, [{_, AddrId, VNode, _}|_]) when VNodeId =< AddrId ->
     VNode;
 find_vnode_id_1(VNodeId, [_|Rest]) ->
     find_vnode_id_1(VNodeId, Rest).
+
+
+%% @doc Find vnode-id by rowid and addrId
+%% @private
+prev_vnode_id(RowId, VNodeId, Ring) when RowId =< length(Ring) ->
+    {Head, _Rest} = lists:split(RowId + 1, Ring),
+    prev_vnode_id_1(VNodeId, lists:reverse(Head));
+prev_vnode_id(_,_,_) ->
+    '$end_of_table'.
+
+prev_vnode_id_1(_VNodeId, []) ->
+    '$end_of_table';
+prev_vnode_id_1(VNodeId, [{_, AddrId, VNode, _}|_]) when VNodeId > AddrId ->
+    VNode;
+prev_vnode_id_1(VNodeId, [_|Rest]) ->
+    prev_vnode_id_1(VNodeId, Rest).
 

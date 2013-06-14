@@ -40,16 +40,16 @@ setup() ->
     catch ets:delete('leo_ring_cur'),
     catch ets:delete('leo_ring_prv'),
 
-    leo_misc:init_env(),    
+    leo_misc:init_env(),
     leo_misc:set_env(leo_redundant_manager, 'server_type', 'gateway'),
-    {ok, Pid} = leo_redundant_manager_sup:start_link(gateway),    
+    {ok, Pid} = leo_redundant_manager_sup:start_link(gateway),
     leo_redundant_manager_api:set_options(
       [{n, 3},{r, 1}, {w ,2},{d, 2},{bit_of_ring, 128},{level_2, 0}]),
-    leo_redundant_manager_api:attach('node_0@127.0.0.1'),    
-    leo_redundant_manager_api:attach('node_1@127.0.0.1'),    
-    leo_redundant_manager_api:attach('node_2@127.0.0.1'),    
-    leo_redundant_manager_api:attach('node_3@127.0.0.1'),   
-    leo_redundant_manager_api:attach('node_4@127.0.0.1'),    
+    leo_redundant_manager_api:attach('node_0@127.0.0.1'),
+    leo_redundant_manager_api:attach('node_1@127.0.0.1'),
+    leo_redundant_manager_api:attach('node_2@127.0.0.1'),
+    leo_redundant_manager_api:attach('node_3@127.0.0.1'),
+    leo_redundant_manager_api:attach('node_4@127.0.0.1'),
     leo_redundant_manager_api:create(),
     timer:sleep(1500),
     Pid.
@@ -61,27 +61,37 @@ teardown(Pid) ->
 
 suite_(_) ->
     RingWorker1 = poolboy:checkout('ring_worker_pool'),
-    Res0 = leo_redundant_manager_worker:first(RingWorker1, {mnesia, 'leo_ring_cur'}),
+    Res0 = leo_redundant_manager_worker:first(RingWorker1, {ets, 'leo_ring_cur'}),
 
     Res1 = leo_redundant_manager_worker:next(
-             RingWorker1, {mnesia, 'leo_ring_cur'}, 0),
+             RingWorker1, {ets, 'leo_ring_cur'}, 0),
     Res2 = leo_redundant_manager_worker:next(
-             RingWorker1, {mnesia, 'leo_ring_cur'}, 243058967694854461280959919528606475), 
+             RingWorker1, {ets, 'leo_ring_cur'}, 243058967694854461280959919528606475),
     Res3 = leo_redundant_manager_worker:next(
-             RingWorker1, {mnesia, 'leo_ring_cur'}, 340282366920938463463374607431768211456),
+             RingWorker1, {ets, 'leo_ring_cur'}, 340282366920938463463374607431768211456),
 
     Res4 = leo_redundant_manager_worker:lookup(
-             RingWorker1, {mnesia, 'leo_ring_cur'}, 0),
+             RingWorker1, {ets, 'leo_ring_cur'}, 0),
     Res5 = leo_redundant_manager_worker:lookup(
-             RingWorker1, {mnesia, 'leo_ring_cur'}, 1264314306571079495751037749109419166),
+             RingWorker1, {ets, 'leo_ring_cur'}, 1264314306571079495751037749109419166),
     Res6 = leo_redundant_manager_worker:lookup(
-             RingWorker1, {mnesia, 'leo_ring_cur'}, 3088066518744027498382227205172020754),
+             RingWorker1, {ets, 'leo_ring_cur'}, 3088066518744027498382227205172020754),
     Res7 = leo_redundant_manager_worker:lookup(
-             RingWorker1, {mnesia, 'leo_ring_cur'}, 4870818527799149765629747665733758595),
+             RingWorker1, {ets, 'leo_ring_cur'}, 4870818527799149765629747665733758595),
     Res8 = leo_redundant_manager_worker:lookup(
-             RingWorker1, {mnesia, 'leo_ring_cur'}, 5257965865843856950061366315134191522),
+             RingWorker1, {ets, 'leo_ring_cur'}, 5257965865843856950061366315134191522),
     Res9 = leo_redundant_manager_worker:lookup(
-             RingWorker1, {mnesia, 'leo_ring_cur'}, 340282366920938463463374607431768211456),
+             RingWorker1, {ets, 'leo_ring_cur'}, 340282366920938463463374607431768211456),
+
+    Res10 = leo_redundant_manager_worker:last(RingWorker1, {ets, 'leo_ring_cur'}),
+    Res11 = leo_redundant_manager_worker:prev(
+              RingWorker1, {ets, 'leo_ring_cur'}, 5257965865843856950061366315134191522),
+    Res12 = leo_redundant_manager_worker:prev(
+              RingWorker1, {ets, 'leo_ring_cur'}, 0),
+    Res13 = leo_redundant_manager_worker:prev(
+             RingWorker1, {ets, 'leo_ring_cur'}, 340282366920938463463374607431768211456),
+    Res14 = leo_redundant_manager_worker:prev(
+              RingWorker1, {ets, 'leo_ring_cur'}, 5257965865843856950061366315134191523),
 
     ?assertEqual('node_0@127.0.0.1', Res0),
     ?assertEqual('node_0@127.0.0.1', Res1),
@@ -94,6 +104,12 @@ suite_(_) ->
     ?assertEqual('node_1@127.0.0.1', Res7),
     ?assertEqual('node_4@127.0.0.1', Res8),
     ?assertEqual('$end_of_table',    Res9),
+
+    ?assertEqual('node_4@127.0.0.1', Res10),
+    ?assertEqual('node_1@127.0.0.1', Res11),
+    ?assertEqual('$end_of_table',    Res12),
+    ?assertEqual('node_1@127.0.0.1', Res13),
+    ?assertEqual(Res8, Res14),
 
     poolboy:checkin('ring_worker_pool', RingWorker1),
     ok.
