@@ -89,27 +89,26 @@ suite_(_) ->
     Res12 = leo_redundant_manager_worker:prev(
               RingWorker1, {ets, 'leo_ring_cur'}, 0),
     Res13 = leo_redundant_manager_worker:prev(
-             RingWorker1, {ets, 'leo_ring_cur'}, 340282366920938463463374607431768211456),
+              RingWorker1, {ets, 'leo_ring_cur'}, 340282366920938463463374607431768211456),
     Res14 = leo_redundant_manager_worker:prev(
               RingWorker1, {ets, 'leo_ring_cur'}, 5257965865843856950061366315134191523),
 
-    ?assertEqual('node_0@127.0.0.1', Res0),
-    ?assertEqual('node_0@127.0.0.1', Res1),
-    ?assertEqual('node_3@127.0.0.1', Res2),
-    ?assertEqual('$end_of_table',    Res3),
-
-    ?assertEqual([],                 Res4),
+    ?assertEqual(243058967694854461280959919528606474, Res0),
+    ?assertEqual(243058967694854461280959919528606474, Res1),
+    ?assertEqual(Res0, Res1),
+    ?assertEqual(643266634996242345494209403527351060, Res2),
+    ?assertEqual('$end_of_table', Res3),
+    ?assertEqual([], Res4),
     ?assertEqual('node_2@127.0.0.1', Res5),
     ?assertEqual('node_1@127.0.0.1', Res6),
     ?assertEqual('node_1@127.0.0.1', Res7),
     ?assertEqual('node_4@127.0.0.1', Res8),
-    ?assertEqual('$end_of_table',    Res9),
-
-    ?assertEqual('node_4@127.0.0.1', Res10),
-    ?assertEqual('node_1@127.0.0.1', Res11),
-    ?assertEqual('$end_of_table',    Res12),
-    ?assertEqual('node_1@127.0.0.1', Res13),
-    ?assertEqual(Res8, Res14),
+    ?assertEqual([], Res9),
+    ?assertEqual(340273463498854239912439946299330026060, Res10),
+    ?assertEqual(4870818527799149765629747665733758595,   Res11),
+    ?assertEqual('$end_of_table', Res12),
+    ?assertEqual(329347436126708067719614132431830616781, Res13),
+    ?assertEqual(5257965865843856950061366315134191522,   Res14),
 
     poolboy:checkin('ring_worker_pool', RingWorker1),
     ok.

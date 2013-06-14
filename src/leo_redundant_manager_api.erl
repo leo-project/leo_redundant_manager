@@ -368,24 +368,35 @@ get_redundancies_by_addr_id_1({ok, Members}, TblInfo, AddrId, Options) ->
     %% for rack-awareness replica placement
     L2 = leo_misc:get_value(?PROP_L2, Options, 0),
 
-    case leo_redundant_manager_chash:redundancies(TblInfo, AddrId, N, L2, Members) of
-        {ok, Redundancies} ->
-            CurRingHash = case leo_misc:get_env(?APP, ?PROP_RING_HASH) of
-                              {ok, RingHash} ->
-                                  RingHash;
-                              undefined ->
-                                  {ok, {RingHash, _}} = checksum(?CHECKSUM_RING),
-                                  ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, RingHash),
-                                  RingHash
-                          end,
-            {ok, Redundancies#redundancies{n = N,
-                                           r = R,
-                                           w = W,
-                                           d = D,
-                                           ring_hash = CurRingHash}};
-        Error ->
-            Error
-    end;
+    %% checkout worker's ref from the pool
+    case catch poolboy:checkout(?RING_WORKER_POOL_NAME) of
+        {'EXIT', Cause} ->
+            {error, Cause};
+        ServerRef ->
+            Ret = case leo_redundant_manager_chash:redundancies(
+                         {ServerRef, TblInfo}, AddrId, N, L2, Members) of
+                      {ok, Redundancies} ->
+                          CurRingHash =
+                              case leo_misc:get_env(?APP, ?PROP_RING_HASH) of
+                                  {ok, RingHash} ->
+                                      RingHash;
+                                  undefined ->
+                                      {ok, {RingHash, _}} = checksum(?CHECKSUM_RING),
+                                      ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, RingHash),
+                                      RingHash
+                              end,
+                          {ok, Redundancies#redundancies{n = N,
+                                                         r = R,
+                                                         w = W,
+                                                         d = D,
+                                                         ring_hash = CurRingHash}};
+                      Error ->
+                          Error
+                  end,
+
+            _ = poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
+            Ret
+        end;
 get_redundancies_by_addr_id_1(Error, _TblInfo, _AddrId, _Options) ->
     error_logger:warning_msg("~p,~p,~p,~p~n",
                              [{module, ?MODULE_STRING}, {function, "get_redundancies_by_addr_id_1/4"},
