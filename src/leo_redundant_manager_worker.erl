@@ -53,6 +53,8 @@
 -define(DEF_TIMEOUT,       3000).
 -endif.
 
+-define(DEF_NUM_OF_DIV, 32).
+
 -record(routing_table, {index = []    :: list(pos_integer()),
                         checksum = -1 :: integer(),
                         table = []    :: list()
@@ -162,7 +164,6 @@ maybe_sync(#state{cur  = #routing_table{checksum = CurHash},
                   timestamp    = Timestamp} = State) ->
 
     {ok, {R1, R2}}= leo_redundant_manager_api:checksum(?CHECKSUM_RING),
-    ?debugVal({R1, R2, CurHash, PrevHash}),
     ThisTime = timestamp(),
 
     case ((ThisTime - Timestamp) < MinInterval) of
@@ -187,14 +188,18 @@ maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
     State1 = case (R1 == CurHash) of
                  true  -> State;
                  false ->
-                     {ok, CurHash1} = gen_routing_table(?SYNC_MODE_CUR_RING),
-                     State#state{cur = #routing_table{checksum = CurHash1}}
+                     {ok, {CurHash1, CurIdx, CurTbl}} = gen_routing_table(?SYNC_MODE_CUR_RING),
+                     State#state{cur = #routing_table{checksum = CurHash1,
+                                                      index    = CurIdx,
+                                                      table    = CurTbl}}
              end,
     State2 = case (R2 == PrevHash) of
                  true  -> State1;
                  false ->
-                     {ok, PrevHash1} = gen_routing_table(?SYNC_MODE_PREV_RING),
-                     State1#state{prev = #routing_table{checksum = PrevHash1}}
+                     {ok, {PrevHash1, PrevIdx, PrevTbl}} = gen_routing_table(?SYNC_MODE_PREV_RING),
+                     State1#state{prev = #routing_table{checksum = PrevHash1,
+                                                        index    = PrevIdx,
+                                                        table    = PrevTbl}}
              end,
     State2.
 
@@ -204,9 +209,17 @@ maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
 gen_routing_table(Version) ->
     %% Retrieve ring from local's master [etc|mnesia]
     {ok, CurRing} = leo_redundant_manager_api:get_ring(Version),
-    Checksum = erlang:crc32(term_to_binary(CurRing)),
-    ?debugVal(Checksum),
-    %%
+    Checksum  = erlang:crc32(term_to_binary(CurRing)),
+    RingSize  = length(CurRing),
+    GroupSize = leo_math:ceiling(RingSize / ?DEF_NUM_OF_DIV),
 
+    %% table:{id, vnode-id, node, next-vnode-id}
+    {_,_,_,Index,Table} =
+        lists:foldl(
+          fun({VId, Node}, {Id, GId, NextVId, IdxAcc, TblAcc}) when GId == GroupSize ->
+                  {Id - 1, 0, VId, [VId|IdxAcc], [{Id, VId, Node, NextVId}|TblAcc]};
+             ({VId, Node}, {Id, GId, NextVId, IdxAcc, TblAcc}) ->
+                  {Id - 1, GId + 1, VId, IdxAcc, [{Id, VId, Node, NextVId}|TblAcc]}
+          end, {RingSize, 0, '$end_of_table', [], []}, lists:reverse(CurRing)),
+    {ok, {Checksum, Index, Table}}.
 
-    {ok, Checksum}.
