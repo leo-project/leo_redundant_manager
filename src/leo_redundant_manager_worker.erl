@@ -30,7 +30,7 @@
 
 %% API
 -export([start_link/0, start_link/1, stop/0]).
--export([lookup/3, first/2, prev/3, next/3, last/2, force_sync/2]).
+-export([lookup/3, first/2, last/2, force_sync/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -43,21 +43,22 @@
 -undef(DEF_TIMEOUT).
 
 -ifdef(TEST).
--define(CURRENT_TIME,      65432100000).
+-define(CURRENT_TIME, 65432100000).
 -define(DEF_SYNC_MIN_INTERVAL,  5).
 -define(DEF_SYNC_MAX_INTERVAL, 10).
 -define(DEF_TIMEOUT,         1000).
 -else.
--define(CURRENT_TIME,      leo_date:now()).
+-define(CURRENT_TIME, leo_date:now()).
 -define(DEF_SYNC_MIN_INTERVAL,  250).
 -define(DEF_SYNC_MAX_INTERVAL, 1500).
--define(DEF_TIMEOUT,       3000).
+-define(DEF_TIMEOUT,           3000).
 -endif.
 
 -define(DEF_NUM_OF_DIV, 32).
 
 -record(routing_table, {index = []    :: list(pos_integer()),
                         checksum = -1 :: integer(),
+                        rows  = -1    :: integer(),
                         table = []    :: list()
                        }).
 
@@ -88,12 +89,6 @@ lookup(ServerRef, Table, VNodeId) ->
 first(ServerRef, Table) ->
     gen_server:call(ServerRef, {first, Table}, ?DEF_TIMEOUT).
 
-prev(ServerRef, Table, VNodeId) ->
-    gen_server:call(ServerRef, {prev, Table, VNodeId}, ?DEF_TIMEOUT).
-
-next(ServerRef, Table, VNodeId) ->
-    gen_server:call(ServerRef, {next, Table, VNodeId}, ?DEF_TIMEOUT).
-
 last(ServerRef, Table) ->
     gen_server:call(ServerRef, {last, Table}, ?DEF_TIMEOUT).
 
@@ -117,88 +112,49 @@ handle_call(stop,_From,State) ->
     {stop, normal, ok, State};
 
 
-handle_call({lookup, {_, Tbl}, VNodeId},_From, State) ->
-    Reply = case get_ring(Tbl, State) of
-                [] ->
-                    [];
-                Ring ->
-                    case get_index(Tbl, State) of
-                        [] ->
-                            [];
-                        Index ->
-                            RowId = find_index(VNodeId, Index),
-                            get_vnode_id(RowId, VNodeId, Ring)
-                    end
-            end,
+handle_call({lookup, Tbl, VNodeId},_From, State) ->
+    ?debugVal({Tbl, VNodeId}),
+    Reply = ok,
     {reply, Reply, State};
 
 
-handle_call({first, {_, Tbl}},_From, State) ->
-    Reply = case get_ring(Tbl, State) of
-                [] ->
-                    '$end_of_table';
-                [{_,VNodeId,_Node,_}|_]  ->
-                    VNodeId
-            end,
+handle_call({first, Tbl},_From, State) ->
+    ?debugVal(Tbl),
+    Reply = ok,
     {reply, Reply, State};
 
 
-handle_call({prev, {_, Tbl}, VNodeId},_From, State) ->
-    Reply = case get_ring(Tbl, State) of
-                [] ->
-                    '$end_of_table';
-                Ring ->
-                    case get_index(Tbl, State) of
-                        [] ->
-                            '$end_of_table';
-                        Index ->
-                            RowId = find_index(VNodeId, Index),
-                            prev_vnode_id(RowId, VNodeId, Ring)
-                    end
-            end,
-    {reply, Reply, State};
-
-
-handle_call({next, {_, Tbl}, VNodeId},_From, State) ->
-    Reply = case get_ring(Tbl, State) of
-                [] ->
-                    '$end_of_table';
-                Ring ->
-                    case get_index(Tbl, State) of
-                        [] ->
-                            '$end_of_table';
-                        Index ->
-                            RowId = find_index(VNodeId, Index),
-                            next_vnode_id(RowId, VNodeId, Ring)
-                    end
-            end,
-    {reply, Reply, State};
-
-
-handle_call({last, {_, Tbl}},_From, State) ->
-    Reply = case get_ring(Tbl, State) of
-                [] ->
-                    '$end_of_table';
-                Ring ->
-                    {_,VNodeId,_Node,_} = lists:last(Ring),
-                    VNodeId
-            end,
+handle_call({last, Tbl},_From, State) ->
+    ?debugVal(Tbl),
+    Reply = ok,
     {reply, Reply, State};
 
 
 handle_call({force_sync, {_, ?CUR_RING_TABLE}},_From, State) ->
-    {ok, {Checksum, Index, Table}} =
-        gen_routing_table(?SYNC_MODE_CUR_RING),
+    {ok, Members} = leo_redundant_manager_table_member:find_all(),
+    {ok, Options} = leo_misc:get_env(?APP, ?PROP_OPTIONS),
+    N  = leo_misc:get_value(?PROP_N,  Options),
+    L2 = leo_misc:get_value(?PROP_L2, Options, 0),
+
+    {ok, {Checksum, Index, RingSize, Ring}} =
+        gen_routing_table(?SYNC_MODE_CUR_RING, N, L2, Members),
     NewState = State#state{cur = #routing_table{checksum = Checksum,
                                                 index    = Index,
-                                                table    = Table}},
+                                                rows     = RingSize,
+                                                table    = Ring}},
     {reply, ok, NewState};
 handle_call({force_sync, {_, ?PREV_RING_TABLE}},_From, State) ->
-    {ok, {Checksum, Index, Table}} =
-        gen_routing_table(?SYNC_MODE_PREV_RING),
+    {ok, Members} = leo_redundant_manager_table_member:find_all(),
+    {ok, Options} = leo_misc:get_env(?APP, ?PROP_OPTIONS),
+    N  = leo_misc:get_value(?PROP_N,  Options),
+    L2 = leo_misc:get_value(?PROP_L2, Options, 0),
+
+    {ok, {Checksum, Index, RingSize, Ring}} =
+        gen_routing_table(?SYNC_MODE_PREV_RING, N, L2, Members),
     NewState = State#state{prev = #routing_table{checksum = Checksum,
                                                  index    = Index,
-                                                 table    = Table}},    
+                                                 rows     = RingSize,
+                                                 table    = Ring}},
     {reply, ok, NewState};
 
 
@@ -291,124 +247,287 @@ maybe_sync(#state{cur  = #routing_table{checksum = CurHash},
 
 %% @private
 maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
-    State1 = case (R1 == CurHash) of
-                 true  -> State;
-                 false ->
-                     {ok, {CurHash1, CurIdx, CurTbl}} = gen_routing_table(?SYNC_MODE_CUR_RING),
-                     State#state{cur = #routing_table{checksum = CurHash1,
-                                                      index    = CurIdx,
-                                                      table    = CurTbl}}
-             end,
-    State2 = case (R2 == PrevHash) of
-                 true  -> State1;
-                 false ->
-                     {ok, {PrevHash1, PrevIdx, PrevTbl}} = gen_routing_table(?SYNC_MODE_PREV_RING),
-                     State1#state{prev = #routing_table{checksum = PrevHash1,
-                                                        index    = PrevIdx,
-                                                        table    = PrevTbl}}
-             end,
-    State2.
+    try
+        {ok, Members} = leo_redundant_manager_table_member:find_all(),
+        {ok, Options} = leo_misc:get_env(?APP, ?PROP_OPTIONS),
+        N  = leo_misc:get_value(?PROP_N,  Options),
+        L2 = leo_misc:get_value(?PROP_L2, Options, 0),
+
+        State1 = case (R1 == CurHash) of
+                     true  -> State;
+                     false ->
+                         {ok, {CurHash1, CurIdx, CurRingSize, CurRing}} =
+                             gen_routing_table(?SYNC_MODE_CUR_RING,  N, L2, Members),
+                         State#state{cur = #routing_table{checksum = CurHash1,
+                                                          index    = CurIdx,
+                                                          rows     = CurRingSize,
+                                                          table    = CurRing}}
+                 end,
+        State2 = case (R2 == PrevHash) of
+                     true  -> State1;
+                     false ->
+                         {ok, {PrevHash1, PrevIdx, PrevRingSize, PrevRing}} =
+                             gen_routing_table(?SYNC_MODE_PREV_RING, N, L2, Members),
+                         State1#state{prev = #routing_table{checksum = PrevHash1,
+                                                            index    = PrevIdx,
+                                                            rows     = PrevRingSize,
+                                                            table    = PrevRing}}
+                 end,
+        State2
+    catch _:_ ->
+            State
+    end.
 
 
 %% @doc Generate RING for this process
 %% @private
-gen_routing_table(Version) ->
+gen_routing_table(Version, NumOfReplicas, NumOfAwarenessL2, Members) ->
     %% Retrieve ring from local's master [etc|mnesia]
+    ETS_Tbl = case Version of
+                  ?SYNC_MODE_CUR_RING  -> {ets, ?CUR_RING_TABLE};
+                  ?SYNC_MODE_PREV_RING -> {ets, ?PREV_RING_TABLE};
+                  _ ->
+                      {ets, ?PREV_RING_TABLE}
+              end,
     {ok, CurRing} = leo_redundant_manager_api:get_ring(Version),
     Checksum  = erlang:crc32(term_to_binary(CurRing)),
     RingSize  = length(CurRing),
     GroupSize = leo_math:ceiling(RingSize / ?DEF_NUM_OF_DIV),
 
-    %% table:{id, vnode-id, node, next-vnode-id}
-    {_,_,_,Index,Table} =
+    {_,_,Index,Ring} =
         lists:foldl(
-          fun({VId, Node}, {Id, GId, NextVId, IdxAcc, TblAcc}) when GId == GroupSize ->
-                  {Id - 1, 0, VId, [{Id, VId}|IdxAcc], [{Id, VId, Node, NextVId}|TblAcc]};
-             ({VId, Node}, {Id, GId, NextVId, IdxAcc, TblAcc}) ->
-                  {Id - 1, GId + 1, VId, IdxAcc, [{Id, VId, Node, NextVId}|TblAcc]}
-          end, {RingSize, 0, '$end_of_table', [], []}, lists:reverse(CurRing)),
-    {ok, {Checksum, lists:reverse(Index), Table}}.
+          fun({VNodeId, _Node}, {Id, GId, IdxAcc, TblAcc}) ->
+                  case redundancies(ETS_Tbl, VNodeId, NumOfReplicas, NumOfAwarenessL2, Members) of
+                      {ok, #redundancies{nodes = Nodes}} ->
+                          case (GId == GroupSize) of
+                              true  -> {Id - 1, 0,
+                                        [{Id, VNodeId}|IdxAcc], [{Id, VNodeId, Nodes}|TblAcc]};
+                              false -> {Id - 1, GId + 1,
+                                        IdxAcc,                 [{Id, VNodeId, Nodes}|TblAcc]}
+                          end
+                  end
+          end, {RingSize, 0, [], []}, lists:reverse(CurRing)),
+    ?debugVal({Index,Ring}),
+    {ok, {Checksum, lists:reverse(Index), length(Ring), Ring}}.
 
 
-%% @doc Retrieve a ring's list
-%% @private
-get_ring(Tbl, State) ->
-    case Tbl of
-        ?CUR_RING_TABLE  -> (State#state.cur )#routing_table.table;
-        ?PREV_RING_TABLE -> (State#state.prev)#routing_table.table;
-        _ ->
-            []
+%% @doc get redundancies by key.
+%%x
+-spec(redundancies(ring_table_info(), any(), pos_integer(), pos_integer(),list()) ->
+             {ok, any()} | {error, any()}).
+redundancies(_Table,_VNodeId, NumOfReplicas,_L2,_Members) when NumOfReplicas < 1;
+                                                               NumOfReplicas > 8 ->
+    {error, out_of_renge};
+redundancies(_Table,_VNodeId, NumOfReplicas, L2,_Members) when (NumOfReplicas - L2) < 1 ->
+    {error, invalid_level2};
+redundancies(Table, VNodeId0, NumOfReplicas, L2, Members) ->
+    case leo_redundant_manager_table_ring:lookup(Table, VNodeId0) of
+        {error, Cause} ->
+            {error, Cause};
+        [] ->
+            case get_node_by_vnodeid(Table, VNodeId0) of
+                {ok, VNodeId1} ->
+                    redundnacies_1(Table, VNodeId0, VNodeId1,
+                                   NumOfReplicas, L2, Members);
+                {error, Cause} ->
+                    {error, Cause}
+            end;
+        Value ->
+            redundnacies_1(Table, VNodeId0, VNodeId0,
+                           NumOfReplicas, L2, Members, Value)
     end.
 
-
-%% @doc Retrieve index's list
-%%      - [{rowid, addr-id}|...]
 %% @private
-get_index(Tbl, State) ->
-    case Tbl of
-        ?CUR_RING_TABLE  -> (State#state.cur )#routing_table.index;
-        ?PREV_RING_TABLE -> (State#state.prev)#routing_table.index;
-        _ ->
-            []
+redundnacies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members) ->
+    case leo_redundant_manager_table_ring:lookup(Table, VNodeId_Hop) of
+        {error, Cause} ->
+            {error, Cause};
+        [] ->
+            case get_node_by_vnodeid(Table, VNodeId_Hop) of
+                {ok, Value} ->
+                    redundnacies_1(Table, VNodeId_Org, VNodeId_Hop,
+                                   NumOfReplicas, L2, Members, Value);
+                {error, Cause} ->
+                    {error, Cause}
+            end;
+        Value ->
+            redundnacies_1(Table, VNodeId_Org, VNodeId_Hop,
+                           NumOfReplicas, L2, Members, Value)
     end.
 
+redundnacies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, Value) ->
+    {Node, SetsL2_1} = get_state(Members, Value, []),
 
-%% @doc Retrieve vnode-id from a ring's list
+    redundancies_2(Table, NumOfReplicas-1, L2, Members, VNodeId_Hop,
+                   #redundancies{id           = VNodeId_Org,
+                                 vnode_id     = VNodeId_Hop,
+                                 temp_nodes   = [Value],
+                                 temp_level_2 = SetsL2_1,
+                                 nodes        = [Node]}).
+
 %% @private
-get_vnode_id(RowId, VNodeId, Ring) when RowId =< length(Ring) ->
-    {_, Rest} = lists:split(RowId, Ring),
-    get_vnode_id_1(VNodeId, Rest);
-get_vnode_id(_,_,_) ->
-    [].
+redundancies_2(_Table,_,_L2,_Members,-1,_R) ->
+    {error,  invalid_vnode};
+redundancies_2(_Table, 0,_L2,_Members,_VNodeId, #redundancies{nodes = Acc} = R) ->
+    {ok, R#redundancies{temp_nodes   = [],
+                        temp_level_2 = [],
+                        nodes        = lists:reverse(Acc)}};
+redundancies_2( Table, NumOfReplicas, L2, Members, VNodeId0, R) ->
+    case get_node_by_vnodeid(Table, VNodeId0) of
+        {ok, VNodeId1} ->
+            case leo_redundant_manager_table_ring:lookup(Table, VNodeId1) of
+                {error, Cause} ->
+                    {error, Cause};
+                [] ->
+                    case get_node_by_vnodeid(Table, VNodeId1) of
+                        {ok, Node} ->
+                            redundancies_3(Table, NumOfReplicas, L2, Members, VNodeId1, Node, R);
+                        {error, Cause} ->
+                            {error, Cause}
+                    end;
+                Node ->
+                    redundancies_3(Table, NumOfReplicas, L2, Members, VNodeId1, Node, R)
+            end;
+        _ ->
+            {error, out_of_range}
+    end.
 
-get_vnode_id_1(_VNodeId, []) ->
-    [];
-get_vnode_id_1(VNodeId, [{_, AddrId,_VNode, _}|_Rest] ) when VNodeId < AddrId ->
-    [];
-get_vnode_id_1(VNodeId, [{_, AddrId, VNode, _}|_Rest]) when VNodeId == AddrId ->
-    VNode;
-get_vnode_id_1(VNodeId, [{_, AddrId,_VNode, _}|Rest]) when VNodeId > AddrId ->
-    get_vnode_id_1(VNodeId, Rest).
+redundancies_3(Table, NumOfReplicas, L2, Members,
+               VNodeId, Node1, #redundancies{temp_nodes   = AccTempNode,
+                                             temp_level_2 = AccLevel2,
+                                             nodes        = AccNodes} = R) ->
+    case lists:member(Node1, AccTempNode) of
+        true  ->
+            redundancies_2(Table, NumOfReplicas, L2, Members, VNodeId, R);
+        false ->
+            case get_state(Members, Node1, AccLevel2) of
+                not_found ->
+                    {error, node_not_found};
+                {Node2, AccLevel2_1} ->
+                    AccNodesSize  = length(AccNodes),
+                    AccLevel2Size = length(AccLevel2_1),
 
+                    case (L2 /= 0 andalso L2 == AccNodesSize) of
+                        true when AccLevel2Size < (L2+1) ->
+                            redundancies_2(Table, NumOfReplicas, L2, Members, VNodeId, R);
+                        _ ->
+                            redundancies_2(Table, NumOfReplicas-1, L2, Members, VNodeId,
+                                           R#redundancies{temp_nodes   = [Node2|AccTempNode],
+                                                          temp_level_2 = AccLevel2_1,
+                                                          nodes        = [Node2|AccNodes]})
+                    end
+            end
+    end.
 
-%% @doc Find index by vnode-id
 %% @private
-find_index(_VNodeId,[]) ->
-    0;
-find_index(VNodeId, [{RowId, Index}|_]) when VNodeId >= Index ->
-    RowId - 1;
-find_index(VNodeId, [_|Rest]) ->
-    find_index(VNodeId, Rest).
+get_node_by_vnodeid(Table, VNodeId) ->
+    case leo_redundant_manager_table_ring:next(Table, VNodeId) of
+        '$end_of_table' ->
+            case leo_redundant_manager_table_ring:first(Table) of
+                '$end_of_table' ->
+                    {error, no_entry};
+                Value ->
+                    {ok, Value}
+            end;
+        Value ->
+            {ok, Value}
+    end.
 
-
-%% @doc Find vnode-id by rowid and addrId
+%% @doc Retrieve a member from an argument.
 %% @private
-next_vnode_id(RowId, VNodeId, Ring) when RowId =< length(Ring) ->
-    {_, Rest} = lists:split(RowId, Ring),
-    next_vnode_id_1(VNodeId, Rest);
-next_vnode_id(_,_,_) ->
-    '$end_of_table'.
+get_state([],_Node1,_) ->
+    not_found;
+get_state([#member{node        = Node0,
+                   grp_level_2 = L2}|_], Node1, SetL2) when Node0 == Node1  ->
+    case lists:member(L2, SetL2) of
+        false ->
+            {Node0, [L2|SetL2]};
+        _ ->
+            {Node0, SetL2}
+    end;
+get_state([#member{node = Node0}|T], Node1, SetL2) when Node0 /= Node1 ->
+    get_state(T, Node1, SetL2).
 
-next_vnode_id_1(_VNodeId, []) ->
-    '$end_of_table';
-next_vnode_id_1(VNodeId, [{_, AddrId,_Node, _}|_]) when VNodeId < AddrId ->
-    AddrId;
-next_vnode_id_1(VNodeId, [_|Rest]) ->
-    next_vnode_id_1(VNodeId, Rest).
+
+%% %% @doc Retrieve a ring's list
+%% %% @private
+%% get_ring(Tbl, State) ->
+%%     case Tbl of
+%%         ?CUR_RING_TABLE  -> (State#state.cur )#routing_table.table;
+%%         ?PREV_RING_TABLE -> (State#state.prev)#routing_table.table;
+%%         _ ->
+%%             []
+%%     end.
 
 
-%% @doc Find vnode-id by rowid and addrId
-%% @private
-prev_vnode_id(RowId, VNodeId, Ring) when RowId =< length(Ring) ->
-    {Head, _Rest} = lists:split(RowId + 1, Ring),
-    prev_vnode_id_1(VNodeId, lists:reverse(Head));
-prev_vnode_id(_,_,_) ->
-    '$end_of_table'.
+%% %% @doc Retrieve index's list
+%% %%      - [{rowid, addr-id}|...]
+%% %% @private
+%% get_index(Tbl, State) ->
+%%     case Tbl of
+%%         ?CUR_RING_TABLE  -> (State#state.cur )#routing_table.index;
+%%         ?PREV_RING_TABLE -> (State#state.prev)#routing_table.index;
+%%         _ ->
+%%             []
+%%     end.
 
-prev_vnode_id_1(_VNodeId, []) ->
-    '$end_of_table';
-prev_vnode_id_1(VNodeId, [{_, AddrId,_Node, _}|_]) when VNodeId > AddrId ->
-    AddrId;
-prev_vnode_id_1(VNodeId, [_|Rest]) ->
-    prev_vnode_id_1(VNodeId, Rest).
+
+%% %% @doc Retrieve vnode-id from a ring's list
+%% %% @private
+%% get_vnode_id(RowId, VNodeId, Ring) when RowId =< length(Ring) ->
+%%     {_, Rest} = lists:split(RowId, Ring),
+%%     get_vnode_id_1(VNodeId, Rest);
+%% get_vnode_id(_,_,_) ->
+%%     [].
+
+%% get_vnode_id_1(_VNodeId, []) ->
+%%     [];
+%% get_vnode_id_1(VNodeId, [{_, AddrId,_VNode, _}|_Rest] ) when VNodeId < AddrId ->
+%%     [];
+%% get_vnode_id_1(VNodeId, [{_, AddrId, VNode, _}|_Rest]) when VNodeId == AddrId ->
+%%     VNode;
+%% get_vnode_id_1(VNodeId, [{_, AddrId,_VNode, _}|Rest]) when VNodeId > AddrId ->
+%%     get_vnode_id_1(VNodeId, Rest).
+
+
+%% %% @doc Find index by vnode-id
+%% %% @private
+%% find_index(_VNodeId,[]) ->
+%%     0;
+%% find_index(VNodeId, [{RowId, Index}|_]) when VNodeId >= Index ->
+%%     RowId - 1;
+%% find_index(VNodeId, [_|Rest]) ->
+%%     find_index(VNodeId, Rest).
+
+
+%% %% @doc Find vnode-id by rowid and addrId
+%% %% @private
+%% next_vnode_id(RowId, VNodeId, Ring) when RowId =< length(Ring) ->
+%%     {_, Rest} = lists:split(RowId, Ring),
+%%     next_vnode_id_1(VNodeId, Rest);
+%% next_vnode_id(_,_,_) ->
+%%     '$end_of_table'.
+
+%% next_vnode_id_1(_VNodeId, []) ->
+%%     '$end_of_table';
+%% next_vnode_id_1(VNodeId, [{_, AddrId,_Node, _}|_]) when VNodeId < AddrId ->
+%%     AddrId;
+%% next_vnode_id_1(VNodeId, [_|Rest]) ->
+%%     next_vnode_id_1(VNodeId, Rest).
+
+
+%% %% @doc Find vnode-id by rowid and addrId
+%% %% @private
+%% prev_vnode_id(RowId, VNodeId, Ring) when RowId =< length(Ring) ->
+%%     {Head, _Rest} = lists:split(RowId + 1, Ring),
+%%     prev_vnode_id_1(VNodeId, lists:reverse(Head));
+%% prev_vnode_id(_,_,_) ->
+%%     '$end_of_table'.
+
+%% prev_vnode_id_1(_VNodeId, []) ->
+%%     '$end_of_table';
+%% prev_vnode_id_1(VNodeId, [{_, AddrId,_Node, _}|_]) when VNodeId > AddrId ->
+%%     AddrId;
+%% prev_vnode_id_1(VNodeId, [_|Rest]) ->
+%%     prev_vnode_id_1(VNodeId, Rest).
 
