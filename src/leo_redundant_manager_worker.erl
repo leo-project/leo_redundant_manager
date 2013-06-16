@@ -59,6 +59,7 @@
 -record(addrid_nodes, {
           id = 0        :: integer(),
           addr_id = 0   :: integer(),
+          next_id = 0   :: integer(),
           next_addr_id = 0 :: integer(),
           nodes         :: list(atom())
          }).
@@ -70,13 +71,8 @@
          }).
 
 -record(ring_info, {
-          %% index = []    :: list(pos_integer()),
-          %% table = []    :: list(),
-          %% rows  = -1    :: integer(),
-          %% min_addr_id   :: integer(),
-          %% max_addr_id   :: integer(),
           checksum = -1 :: integer(),
-          ring_group_list  :: list(#ring_group{})
+          ring_group_list :: list(#ring_group{})
          }).
 
 -record(state, {
@@ -148,29 +144,32 @@ handle_call({last, Tbl},_From, State) ->
     {reply, Reply, State};
 
 
-handle_call({force_sync, {_, ?CUR_RING_TABLE}},_From, State) ->
-    {ok, Members} = leo_redundant_manager_table_member:find_all(),
-    {ok, Options} = leo_misc:get_env(?APP, ?PROP_OPTIONS),
-    N  = leo_misc:get_value(?PROP_N,  Options),
-    L2 = leo_misc:get_value(?PROP_L2, Options, 0),
+handle_call({force_sync, Tbl},_From, State) ->
+    Version = case Tbl of
+                  ?CUR_RING_TABLE ->
+                      ?SYNC_MODE_CUR_RING;
+                  ?PREV_RING_TABLE ->
+                      ?SYNC_MODE_PREV_RING
+              end,
+    NewState =
+        case leo_redundant_manager_table_member:find_all() of
+            {ok, Members} ->
+                case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
+                    {ok, Options} ->
+                        N  = leo_misc:get_value(?PROP_N,  Options),
+                        L2 = leo_misc:get_value(?PROP_L2, Options, 0),
 
-    {ok, {Checksum, RingGroupList}} =
-        gen_routing_table(?SYNC_MODE_CUR_RING, N, L2, Members),
-    NewState = State#state{cur = #ring_info{checksum = Checksum,
-                                            ring_group_list = RingGroupList}},
+                        {ok, {Checksum, RingGroupList}} =
+                            gen_routing_table(Version, N, L2, Members),
+                        State#state{cur = #ring_info{checksum = Checksum,
+                                                     ring_group_list = RingGroupList}};
+                    _ ->
+                        State
+                end;
+            _ ->
+                State
+        end,
     {reply, ok, NewState};
-handle_call({force_sync, {_, ?PREV_RING_TABLE}},_From, State) ->
-    {ok, Members} = leo_redundant_manager_table_member:find_all(),
-    {ok, Options} = leo_misc:get_env(?APP, ?PROP_OPTIONS),
-    N  = leo_misc:get_value(?PROP_N,  Options),
-    L2 = leo_misc:get_value(?PROP_L2, Options, 0),
-
-    {ok, {Checksum, RingGroupList}} =
-        gen_routing_table(?SYNC_MODE_PREV_RING, N, L2, Members),
-    NewState = State#state{prev = #ring_info{checksum = Checksum,
-                                             ring_group_list = RingGroupList}},
-    {reply, ok, NewState};
-
 
 handle_call(_Handle, _From, State) ->
     {reply, ok, State}.
@@ -261,31 +260,36 @@ maybe_sync(#state{cur  = #ring_info{checksum = CurHash},
 
 %% @private
 maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
-    try
-        {ok, Members} = leo_redundant_manager_table_member:find_all(),
-        {ok, Options} = leo_misc:get_env(?APP, ?PROP_OPTIONS),
-        N  = leo_misc:get_value(?PROP_N,  Options),
-        L2 = leo_misc:get_value(?PROP_L2, Options, 0),
+    case leo_redundant_manager_table_member:find_all() of
+        {ok, Members} ->
+            case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
+                {ok, Options} ->
+                    N  = leo_misc:get_value(?PROP_N,  Options),
+                    L2 = leo_misc:get_value(?PROP_L2, Options, 0),
 
-        State1 = case (R1 == CurHash) of
-                     true  -> State;
-                     false ->
-                         {ok, {CurHash1, CurRingGroupList}} =
-                             gen_routing_table(?SYNC_MODE_CUR_RING,  N, L2, Members),
-                         State#state{cur = #ring_info{checksum = CurHash1,
-                                                      ring_group_list = CurRingGroupList}}
-                 end,
-        State2 = case (R2 == PrevHash) of
-                     true  -> State1;
-                     false ->
-                         {ok, {PrevHash1, PrevRingGroupList}} =
-                             gen_routing_table(?SYNC_MODE_PREV_RING, N, L2, Members),
-                         State1#state{prev = #ring_info{checksum = PrevHash1,
-                                                        ring_group_list = PrevRingGroupList}}
-                 end,
-        State2
-    catch _:_ ->
+                    State1 = maybe_sync_1_1(?SYNC_MODE_CUR_RING,  R1, CurHash,  N, L2, Members, State),
+                    State2 = maybe_sync_1_1(?SYNC_MODE_PREV_RING, R2, PrevHash, N, L2, Members, State1),
+                    State2;
+                _ ->
+                    State
+            end;
+        _ ->
             State
+    end.
+
+maybe_sync_1_1(_TargetRing, OrgChecksum, CurChecksum,
+               _NumOfReplicas,_NumOfAwarenessL2,_Members, State) when OrgChecksum == CurChecksum ->
+    State;
+maybe_sync_1_1(TargetRing,_OrgChecksum,_CurChecksum,
+               NumOfReplicas, NumOfAwarenessL2, Members, State) ->
+    {ok, {Checksum, RingGroupList}} =
+        gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members),
+
+    RingInfo = #ring_info{checksum = Checksum,
+                          ring_group_list = RingGroupList},
+    case TargetRing of
+        ?SYNC_MODE_CUR_RING  -> State#state{cur =  RingInfo};
+        ?SYNC_MODE_PREV_RING -> State#state{prev = RingInfo}
     end.
 
 
@@ -303,33 +307,43 @@ gen_routing_table(Version, NumOfReplicas, NumOfAwarenessL2, Members) ->
     Checksum  = erlang:crc32(term_to_binary(CurRing)),
     RingSize  = length(CurRing),
     GroupSize = leo_math:ceiling(RingSize / ?DEF_NUM_OF_DIV),
+    {FirstAddrId,_} = lists:nth(1, CurRing),
 
     {_,_,Ring,_,_} =
         lists:foldl(
-          fun({AddrId, _Node}, {Id, GId, IdxAcc, TblAcc, NextAddrId}) ->
+          fun({AddrId, _Node}, {Id1, GId, IdxAcc, TblAcc, {NextId, NextAddrId}}) ->
                   case redundancies(ETS_Tbl, AddrId, NumOfReplicas, NumOfAwarenessL2, Members) of
                       {ok, #redundancies{nodes = Nodes}} ->
+                          Id2 = Id1 - 1,
+                          NextId1 = case NextId of
+                                        0 -> RingSize;
+                                        _ -> NextId
+                                    end,
+
                           case (GId == GroupSize) of
                               true ->
-                                  RingGroup = [#addrid_nodes{id = Id,
-                                                             addr_id      = AddrId,
+                                  RingGroup = [#addrid_nodes{id = Id1,
+                                                             addr_id = AddrId,
+                                                             next_id = NextId1,
                                                              next_addr_id = NextAddrId,
                                                              nodes        = Nodes}|TblAcc],
                                   #addrid_nodes{id = LastId,
                                                 addr_id = LastAddrId} = lists:last(TblAcc),
-                                  {Id - 1, 0,
-                                   [#ring_group{index_from = {Id, AddrId},
+
+                                  {Id2, 0,
+                                   [#ring_group{index_from = {Id1, AddrId},
                                                 index_to   = {LastId, LastAddrId},
-                                                addrid_nodes_list = RingGroup}|IdxAcc], [], AddrId};
+                                                addrid_nodes_list = RingGroup}|IdxAcc], [], {NextId1 -1, AddrId}};
                               false ->
-                                  {Id - 1, GId + 1, IdxAcc,
-                                   [#addrid_nodes{id = Id,
-                                                  addr_id      = AddrId,
+                                  {Id2, GId + 1, IdxAcc,
+                                   [#addrid_nodes{id = Id1,
+                                                  addr_id = AddrId,
+                                                  next_id = NextId1,
                                                   next_addr_id = NextAddrId,
-                                                  nodes        = Nodes}|TblAcc], AddrId}
+                                                  nodes        = Nodes}|TblAcc], {NextId1 -1, AddrId}}
                           end
                   end
-          end, {RingSize, 0, [], [], '$end_of_table'}, lists:reverse(CurRing)),
+          end, {RingSize, 0, [], [], {1, FirstAddrId}}, lists:reverse(CurRing)),
 
     %% @TODO - debug (unnecessary-codes)
     %% lists:foreach(fun(#ring_group{index_from = From,
