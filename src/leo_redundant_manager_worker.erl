@@ -59,6 +59,7 @@
 -record(addrid_nodes, {
           id = 0        :: integer(),
           addr_id = 0   :: integer(),
+          next_addr_id = 0 :: integer(),
           nodes         :: list(atom())
          }).
 
@@ -303,30 +304,32 @@ gen_routing_table(Version, NumOfReplicas, NumOfAwarenessL2, Members) ->
     RingSize  = length(CurRing),
     GroupSize = leo_math:ceiling(RingSize / ?DEF_NUM_OF_DIV),
 
-    {_,_,Ring,_} =
+    {_,_,Ring,_,_} =
         lists:foldl(
-          fun({AddrId, _Node}, {Id, GId, IdxAcc, TblAcc}) ->
+          fun({AddrId, _Node}, {Id, GId, IdxAcc, TblAcc, NextAddrId}) ->
                   case redundancies(ETS_Tbl, AddrId, NumOfReplicas, NumOfAwarenessL2, Members) of
                       {ok, #redundancies{nodes = Nodes}} ->
                           case (GId == GroupSize) of
                               true ->
                                   RingGroup = [#addrid_nodes{id = Id,
-                                                             addr_id = AddrId,
-                                                             nodes   = Nodes}|TblAcc],
+                                                             addr_id      = AddrId,
+                                                             next_addr_id = NextAddrId,
+                                                             nodes        = Nodes}|TblAcc],
                                   #addrid_nodes{id = LastId,
                                                 addr_id = LastAddrId} = lists:last(TblAcc),
                                   {Id - 1, 0,
                                    [#ring_group{index_from = {Id, AddrId},
                                                 index_to   = {LastId, LastAddrId},
-                                                addrid_nodes_list = RingGroup}|IdxAcc], []};
+                                                addrid_nodes_list = RingGroup}|IdxAcc], [], AddrId};
                               false ->
                                   {Id - 1, GId + 1, IdxAcc,
                                    [#addrid_nodes{id = Id,
-                                                  addr_id = AddrId,
-                                                  nodes   = Nodes}|TblAcc]}
+                                                  addr_id      = AddrId,
+                                                  next_addr_id = NextAddrId,
+                                                  nodes        = Nodes}|TblAcc], AddrId}
                           end
                   end
-          end, {RingSize, 0, [], []}, lists:reverse(CurRing)),
+          end, {RingSize, 0, [], [], '$end_of_table'}, lists:reverse(CurRing)),
 
     %% @TODO - debug (unnecessary-codes)
     %% lists:foreach(fun(#ring_group{index_from = From,
