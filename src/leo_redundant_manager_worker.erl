@@ -56,18 +56,35 @@
 
 -define(DEF_NUM_OF_DIV, 32).
 
--record(routing_table, {index = []    :: list(pos_integer()),
-                        checksum = -1 :: integer(),
-                        rows  = -1    :: integer(),
-                        table = []    :: list()
-                       }).
+-record(addrid_nodes, {
+          id = 0        :: integer(),
+          addr_id = 0   :: integer(),
+          nodes         :: list(atom())
+         }).
 
--record(state, {cur  = #routing_table{} :: #routing_table{},
-                prev = #routing_table{} :: #routing_table{},
-                min_interval = ?DEF_SYNC_MIN_INTERVAL :: pos_integer(),
-                max_interval = ?DEF_SYNC_MAX_INTERVAL :: pos_integer(),
-                timestamp = 0 :: pos_integer()
-               }).
+-record(ring_group, {
+          index_from    :: tuple(integer(),integer()),
+          index_to      :: tuple(integer(),integer()),
+          addrid_nodes_list :: list(#addrid_nodes{})
+         }).
+
+-record(ring_info, {
+          %% index = []    :: list(pos_integer()),
+          %% table = []    :: list(),
+          %% rows  = -1    :: integer(),
+          %% min_addr_id   :: integer(),
+          %% max_addr_id   :: integer(),
+          checksum = -1 :: integer(),
+          ring_group_list  :: list(#ring_group{})
+         }).
+
+-record(state, {
+          cur  = #ring_info{} :: #ring_info{},
+          prev = #ring_info{} :: #ring_info{},
+          min_interval = ?DEF_SYNC_MIN_INTERVAL :: pos_integer(),
+          max_interval = ?DEF_SYNC_MAX_INTERVAL :: pos_integer(),
+          timestamp = 0 :: pos_integer()
+         }).
 
 %%--------------------------------------------------------------------
 %% API
@@ -136,12 +153,10 @@ handle_call({force_sync, {_, ?CUR_RING_TABLE}},_From, State) ->
     N  = leo_misc:get_value(?PROP_N,  Options),
     L2 = leo_misc:get_value(?PROP_L2, Options, 0),
 
-    {ok, {Checksum, Index, RingSize, Ring}} =
+    {ok, {Checksum, RingGroupList}} =
         gen_routing_table(?SYNC_MODE_CUR_RING, N, L2, Members),
-    NewState = State#state{cur = #routing_table{checksum = Checksum,
-                                                index    = Index,
-                                                rows     = RingSize,
-                                                table    = Ring}},
+    NewState = State#state{cur = #ring_info{checksum = Checksum,
+                                            ring_group_list = RingGroupList}},
     {reply, ok, NewState};
 handle_call({force_sync, {_, ?PREV_RING_TABLE}},_From, State) ->
     {ok, Members} = leo_redundant_manager_table_member:find_all(),
@@ -149,12 +164,10 @@ handle_call({force_sync, {_, ?PREV_RING_TABLE}},_From, State) ->
     N  = leo_misc:get_value(?PROP_N,  Options),
     L2 = leo_misc:get_value(?PROP_L2, Options, 0),
 
-    {ok, {Checksum, Index, RingSize, Ring}} =
+    {ok, {Checksum, RingGroupList}} =
         gen_routing_table(?SYNC_MODE_PREV_RING, N, L2, Members),
-    NewState = State#state{prev = #routing_table{checksum = Checksum,
-                                                 index    = Index,
-                                                 rows     = RingSize,
-                                                 table    = Ring}},
+    NewState = State#state{prev = #ring_info{checksum = Checksum,
+                                             ring_group_list = RingGroupList}},
     {reply, ok, NewState};
 
 
@@ -220,8 +233,8 @@ sync() ->
 %% @private
 -spec(maybe_sync(#state{}) ->
              #state{}).
-maybe_sync(#state{cur  = #routing_table{checksum = CurHash},
-                  prev = #routing_table{checksum = PrevHash},
+maybe_sync(#state{cur  = #ring_info{checksum = CurHash},
+                  prev = #ring_info{checksum = PrevHash},
                   min_interval = MinInterval,
                   timestamp    = Timestamp} = State) ->
 
@@ -256,22 +269,18 @@ maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
         State1 = case (R1 == CurHash) of
                      true  -> State;
                      false ->
-                         {ok, {CurHash1, CurIdx, CurRingSize, CurRing}} =
+                         {ok, {CurHash1, CurRingGroupList}} =
                              gen_routing_table(?SYNC_MODE_CUR_RING,  N, L2, Members),
-                         State#state{cur = #routing_table{checksum = CurHash1,
-                                                          index    = CurIdx,
-                                                          rows     = CurRingSize,
-                                                          table    = CurRing}}
+                         State#state{cur = #ring_info{checksum = CurHash1,
+                                                      ring_group_list = CurRingGroupList}}
                  end,
         State2 = case (R2 == PrevHash) of
                      true  -> State1;
                      false ->
-                         {ok, {PrevHash1, PrevIdx, PrevRingSize, PrevRing}} =
+                         {ok, {PrevHash1, PrevRingGroupList}} =
                              gen_routing_table(?SYNC_MODE_PREV_RING, N, L2, Members),
-                         State1#state{prev = #routing_table{checksum = PrevHash1,
-                                                            index    = PrevIdx,
-                                                            rows     = PrevRingSize,
-                                                            table    = PrevRing}}
+                         State1#state{prev = #ring_info{checksum = PrevHash1,
+                                                        ring_group_list = PrevRingGroupList}}
                  end,
         State2
     catch _:_ ->
@@ -294,21 +303,41 @@ gen_routing_table(Version, NumOfReplicas, NumOfAwarenessL2, Members) ->
     RingSize  = length(CurRing),
     GroupSize = leo_math:ceiling(RingSize / ?DEF_NUM_OF_DIV),
 
-    {_,_,Index,Ring} =
+    {_,_,Ring,_} =
         lists:foldl(
-          fun({VNodeId, _Node}, {Id, GId, IdxAcc, TblAcc}) ->
-                  case redundancies(ETS_Tbl, VNodeId, NumOfReplicas, NumOfAwarenessL2, Members) of
+          fun({AddrId, _Node}, {Id, GId, IdxAcc, TblAcc}) ->
+                  case redundancies(ETS_Tbl, AddrId, NumOfReplicas, NumOfAwarenessL2, Members) of
                       {ok, #redundancies{nodes = Nodes}} ->
                           case (GId == GroupSize) of
-                              true  -> {Id - 1, 0,
-                                        [{Id, VNodeId}|IdxAcc], [{Id, VNodeId, Nodes}|TblAcc]};
-                              false -> {Id - 1, GId + 1,
-                                        IdxAcc,                 [{Id, VNodeId, Nodes}|TblAcc]}
+                              true ->
+                                  RingGroup = [#addrid_nodes{id = Id,
+                                                             addr_id = AddrId,
+                                                             nodes   = Nodes}|TblAcc],
+                                  #addrid_nodes{id = LastId,
+                                                addr_id = LastAddrId} = lists:last(TblAcc),
+                                  {Id - 1, 0,
+                                   [#ring_group{index_from = {Id, AddrId},
+                                                index_to   = {LastId, LastAddrId},
+                                                addrid_nodes_list = RingGroup}|IdxAcc], []};
+                              false ->
+                                  {Id - 1, GId + 1, IdxAcc,
+                                   [#addrid_nodes{id = Id,
+                                                  addr_id = AddrId,
+                                                  nodes   = Nodes}|TblAcc]}
                           end
                   end
           end, {RingSize, 0, [], []}, lists:reverse(CurRing)),
-    ?debugVal({Index,Ring}),
-    {ok, {Checksum, lists:reverse(Index), length(Ring), Ring}}.
+
+    %% @TODO - debug (unnecessary-codes)
+    %% lists:foreach(fun(#ring_group{index_from = From,
+    %%                               index_to   = To,
+    %%                               addrid_nodes_list = List}) ->
+    %%                       ?debugVal({From, To}),
+    %%                       lists:foreach(fun(AddrId_Nodes) ->
+    %%                                             ?debugVal(AddrId_Nodes)
+    %%                                     end, List)
+    %%               end, Ring),
+    {ok, {Checksum, Ring}}.
 
 
 %% @doc get redundancies by key.
@@ -447,87 +476,4 @@ get_state([#member{node        = Node0,
     end;
 get_state([#member{node = Node0}|T], Node1, SetL2) when Node0 /= Node1 ->
     get_state(T, Node1, SetL2).
-
-
-%% %% @doc Retrieve a ring's list
-%% %% @private
-%% get_ring(Tbl, State) ->
-%%     case Tbl of
-%%         ?CUR_RING_TABLE  -> (State#state.cur )#routing_table.table;
-%%         ?PREV_RING_TABLE -> (State#state.prev)#routing_table.table;
-%%         _ ->
-%%             []
-%%     end.
-
-
-%% %% @doc Retrieve index's list
-%% %%      - [{rowid, addr-id}|...]
-%% %% @private
-%% get_index(Tbl, State) ->
-%%     case Tbl of
-%%         ?CUR_RING_TABLE  -> (State#state.cur )#routing_table.index;
-%%         ?PREV_RING_TABLE -> (State#state.prev)#routing_table.index;
-%%         _ ->
-%%             []
-%%     end.
-
-
-%% %% @doc Retrieve vnode-id from a ring's list
-%% %% @private
-%% get_vnode_id(RowId, VNodeId, Ring) when RowId =< length(Ring) ->
-%%     {_, Rest} = lists:split(RowId, Ring),
-%%     get_vnode_id_1(VNodeId, Rest);
-%% get_vnode_id(_,_,_) ->
-%%     [].
-
-%% get_vnode_id_1(_VNodeId, []) ->
-%%     [];
-%% get_vnode_id_1(VNodeId, [{_, AddrId,_VNode, _}|_Rest] ) when VNodeId < AddrId ->
-%%     [];
-%% get_vnode_id_1(VNodeId, [{_, AddrId, VNode, _}|_Rest]) when VNodeId == AddrId ->
-%%     VNode;
-%% get_vnode_id_1(VNodeId, [{_, AddrId,_VNode, _}|Rest]) when VNodeId > AddrId ->
-%%     get_vnode_id_1(VNodeId, Rest).
-
-
-%% %% @doc Find index by vnode-id
-%% %% @private
-%% find_index(_VNodeId,[]) ->
-%%     0;
-%% find_index(VNodeId, [{RowId, Index}|_]) when VNodeId >= Index ->
-%%     RowId - 1;
-%% find_index(VNodeId, [_|Rest]) ->
-%%     find_index(VNodeId, Rest).
-
-
-%% %% @doc Find vnode-id by rowid and addrId
-%% %% @private
-%% next_vnode_id(RowId, VNodeId, Ring) when RowId =< length(Ring) ->
-%%     {_, Rest} = lists:split(RowId, Ring),
-%%     next_vnode_id_1(VNodeId, Rest);
-%% next_vnode_id(_,_,_) ->
-%%     '$end_of_table'.
-
-%% next_vnode_id_1(_VNodeId, []) ->
-%%     '$end_of_table';
-%% next_vnode_id_1(VNodeId, [{_, AddrId,_Node, _}|_]) when VNodeId < AddrId ->
-%%     AddrId;
-%% next_vnode_id_1(VNodeId, [_|Rest]) ->
-%%     next_vnode_id_1(VNodeId, Rest).
-
-
-%% %% @doc Find vnode-id by rowid and addrId
-%% %% @private
-%% prev_vnode_id(RowId, VNodeId, Ring) when RowId =< length(Ring) ->
-%%     {Head, _Rest} = lists:split(RowId + 1, Ring),
-%%     prev_vnode_id_1(VNodeId, lists:reverse(Head));
-%% prev_vnode_id(_,_,_) ->
-%%     '$end_of_table'.
-
-%% prev_vnode_id_1(_VNodeId, []) ->
-%%     '$end_of_table';
-%% prev_vnode_id_1(VNodeId, [{_, AddrId,_Node, _}|_]) when VNodeId > AddrId ->
-%%     AddrId;
-%% prev_vnode_id_1(VNodeId, [_|Rest]) ->
-%%     prev_vnode_id_1(VNodeId, Rest).
 
