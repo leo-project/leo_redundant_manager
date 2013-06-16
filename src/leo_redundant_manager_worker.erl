@@ -361,8 +361,8 @@ gen_routing_table(Version, NumOfReplicas, NumOfAwarenessL2, Members) ->
 %%x
 -spec(redundancies(ring_table_info(), any(), pos_integer(), pos_integer(),list()) ->
              {ok, any()} | {error, any()}).
-redundancies(_Table,_VNodeId, NumOfReplicas,_L2,_Members) when NumOfReplicas < 1;
-                                                               NumOfReplicas > 8 ->
+redundancies(_Table,_VNodeId, NumOfReplicas,_L2,_Members) when NumOfReplicas < ?DEF_MIN_REPLICAS;
+                                                               NumOfReplicas > ?DEF_MAX_REPLICAS ->
     {error, out_of_renge};
 redundancies(_Table,_VNodeId, NumOfReplicas, L2,_Members) when (NumOfReplicas - L2) < 1 ->
     {error, invalid_level2};
@@ -402,7 +402,7 @@ redundnacies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members) ->
     end.
 
 redundnacies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, Value) ->
-    {Node, SetsL2_1} = get_state(Members, Value, []),
+    {Node, SetsL2_1} = get_redundancies(Members, Value, []),
 
     redundancies_2(Table, NumOfReplicas-1, L2, Members, VNodeId_Hop,
                    #redundancies{id           = VNodeId_Org,
@@ -446,7 +446,7 @@ redundancies_3(Table, NumOfReplicas, L2, Members,
         true  ->
             redundancies_2(Table, NumOfReplicas, L2, Members, VNodeId, R);
         false ->
-            case get_state(Members, Node1, AccLevel2) of
+            case get_redundancies(Members, Node1, AccLevel2) of
                 not_found ->
                     {error, node_not_found};
                 {Node2, AccLevel2_1} ->
@@ -481,9 +481,9 @@ get_node_by_vnodeid(Table, VNodeId) ->
 
 %% @doc Retrieve a member from an argument.
 %% @private
-get_state([],_Node1,_) ->
+get_redundancies([],_Node1,_) ->
     not_found;
-get_state([#member{node        = Node0,
+get_redundancies([#member{node        = Node0,
                    grp_level_2 = L2}|_], Node1, SetL2) when Node0 == Node1  ->
     case lists:member(L2, SetL2) of
         false ->
@@ -491,6 +491,6 @@ get_state([#member{node        = Node0,
         _ ->
             {Node0, SetL2}
     end;
-get_state([#member{node = Node0}|T], Node1, SetL2) when Node0 /= Node1 ->
-    get_state(T, Node1, SetL2).
+get_redundancies([#member{node = Node0}|T], Node1, SetL2) when Node0 /= Node1 ->
+    get_redundancies(T, Node1, SetL2).
 

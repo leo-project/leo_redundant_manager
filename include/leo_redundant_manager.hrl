@@ -45,6 +45,9 @@
 -define(PROP_L2, 'level_2').
 -define(PROP_RING_BIT, 'bit_of_ring').
 
+-define(DEF_MIN_REPLICAS, 1).
+-define(DEF_MAX_REPLICAS, 8).
+
 
 %% Ring related
 -define(TYPE_RING_TABLE_ETS,    'ets').
