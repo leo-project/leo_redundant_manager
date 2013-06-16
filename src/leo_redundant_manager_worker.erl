@@ -132,9 +132,33 @@ handle_call({lookup, Tbl, VNodeId},_From, State) ->
     {reply, Reply, State};
 
 
-handle_call({first, Tbl},_From, State) ->
-    ?debugVal(Tbl),
-    Reply = ok,
+handle_call({first, Tbl},_From, State) when Tbl /= ?CUR_RING_TABLE,
+                                            Tbl /= ?PREV_RING_TABLE ->
+    {reply, {error, invalid_table}, State};
+handle_call({first, Tbl},_From, #state{cur  = Cur,
+                                       prev = Prev} = State) ->
+    Fun = fun (_RingGroupList) ->
+                  case _RingGroupList of
+                      [] ->
+                          not_found;
+                      [#ring_group{addrid_nodes_list = AddrId_Nodes}|_] ->
+                          case AddrId_Nodes of
+                              [] ->
+                                  not_found;
+                              [#addrid_nodes{nodes = Nodes}|_] ->
+                                  {ok, Nodes}
+                          end
+                  end
+          end,
+
+    Reply = case Tbl of
+                ?CUR_RING_TABLE ->
+                    #ring_info{ring_group_list = RingGroupList} = Cur,
+                    Fun(RingGroupList);
+                ?PREV_RING_TABLE ->
+                    #ring_info{ring_group_list = RingGroupList} = Prev,
+                    Fun(RingGroupList)
+            end,
     {reply, Reply, State};
 
 
