@@ -57,21 +57,20 @@
 -define(DEF_NUM_OF_DIV, 32).
 
 -record(addrid_nodes, {
-          id = 0        :: integer(),
-          addr_id = 0   :: integer(),
-          next_id = 0   :: integer(),
-          next_addr_id = 0 :: integer(),
-          nodes         :: list(atom())
+          id = 0         :: integer(),
+          st_addr_id = 0 :: integer(),
+          addr_id = 0    :: integer(),
+          nodes          :: list(atom())
          }).
 
 -record(ring_group, {
-          index_from    :: tuple(integer(),integer()),
-          index_to      :: tuple(integer(),integer()),
+          index_from     :: tuple(integer(),integer()),
+          index_to       :: tuple(integer(),integer()),
           addrid_nodes_list :: list(#addrid_nodes{})
          }).
 
 -record(ring_info, {
-          checksum = -1 :: integer(),
+          checksum = -1   :: integer(),
           ring_group_list :: list(#ring_group{})
          }).
 
@@ -130,9 +129,25 @@ handle_call({lookup, Tbl,_VNodeId},_From, State) when Tbl /= ?CUR_RING_TABLE,
                                                       Tbl /= ?PREV_RING_TABLE ->
     {reply, {error, invalid_table}, State};
 
-handle_call({lookup, Tbl, VNodeId},_From, State) ->
-    ?debugVal({Tbl, VNodeId}),
-    Reply = ok,
+handle_call({lookup, Tbl, VNodeId},_From, #state{cur  = Cur,
+                                                 prev = Prev} = State) ->
+    Fun = fun (_RingGroupList) ->
+                  case _RingGroupList of
+                      [] ->
+                          not_found;
+                      _ ->
+                          find_redundancies_by_vnode_id(_RingGroupList, VNodeId)
+                  end
+          end,
+
+    Reply = case Tbl of
+                ?CUR_RING_TABLE ->
+                    #ring_info{ring_group_list = RingGroupList} = Cur,
+                    Fun(RingGroupList);
+                ?PREV_RING_TABLE ->
+                    #ring_info{ring_group_list = RingGroupList} = Prev,
+                    Fun(RingGroupList)
+            end,
     {reply, Reply, State};
 
 
@@ -366,43 +381,40 @@ gen_routing_table(Version, NumOfReplicas, NumOfAwarenessL2, Members) ->
     Checksum  = erlang:crc32(term_to_binary(CurRing)),
     RingSize  = length(CurRing),
     GroupSize = leo_math:ceiling(RingSize / ?DEF_NUM_OF_DIV),
-    {FirstAddrId,_} = lists:nth(1, CurRing),
 
     {_,_,Ring,_,_} =
         lists:foldl(
-          fun({AddrId, _Node}, {Id1, GId, IdxAcc, TblAcc, {NextId, NextAddrId}}) ->
+          fun({AddrId, _Node}, {Id1, GId, IdxAcc, TblAcc, StAddrId}) ->
                   case redundancies(ETS_Tbl, AddrId, NumOfReplicas, NumOfAwarenessL2, Members) of
                       {ok, #redundancies{nodes = Nodes}} ->
-                          Id2 = Id1 - 1,
-                          NextId1 = case NextId of
-                                        0 -> RingSize;
-                                        _ -> NextId
-                                    end,
+                          Id2 = Id1 + 1,
 
                           case (GId == GroupSize) of
                               true ->
                                   RingGroup = [#addrid_nodes{id = Id1,
                                                              addr_id = AddrId,
-                                                             next_id = NextId1,
-                                                             next_addr_id = NextAddrId,
+                                                             st_addr_id = StAddrId,
                                                              nodes        = Nodes}|TblAcc],
-                                  #addrid_nodes{id = LastId,
-                                                addr_id = LastAddrId} = lists:last(TblAcc),
+                                  #addrid_nodes{id = FirstId,
+                                                addr_id = FirstAddrId} = lists:last(TblAcc),
+                                  FirstAddrId_1 = case FirstId of
+                                                      1 -> 0;
+                                                      _ -> FirstAddrId
+                                                  end,
 
                                   {Id2, 0,
-                                   [#ring_group{index_from = {Id1, AddrId},
-                                                index_to   = {LastId, LastAddrId},
-                                                addrid_nodes_list = RingGroup}|IdxAcc], [], {NextId1 -1, AddrId}};
+                                   [#ring_group{index_from = {FirstId, FirstAddrId_1},
+                                                index_to   = {Id1, AddrId},
+                                                addrid_nodes_list = lists:reverse(RingGroup)}|IdxAcc], [], AddrId + 1};
                               false ->
                                   {Id2, GId + 1, IdxAcc,
                                    [#addrid_nodes{id = Id1,
                                                   addr_id = AddrId,
-                                                  next_id = NextId1,
-                                                  next_addr_id = NextAddrId,
-                                                  nodes        = Nodes}|TblAcc], {NextId1 -1, AddrId}}
+                                                  st_addr_id = StAddrId,
+                                                  nodes        = Nodes}|TblAcc], AddrId + 1}
                           end
                   end
-          end, {RingSize, 0, [], [], {1, FirstAddrId}}, lists:reverse(CurRing)),
+          end, {1, 0, [], [], 0}, CurRing),
 
     %% @TODO - debug (unnecessary-codes)
     %% lists:foreach(fun(#ring_group{index_from = From,
@@ -412,8 +424,8 @@ gen_routing_table(Version, NumOfReplicas, NumOfAwarenessL2, Members) ->
     %%                       lists:foreach(fun(AddrId_Nodes) ->
     %%                                             ?debugVal(AddrId_Nodes)
     %%                                     end, List)
-    %%               end, Ring),
-    {ok, {Checksum, Ring}}.
+    %%               end, lists:reverse(Ring)),
+    {ok, {Checksum, lists:reverse(Ring)}}.
 
 
 %% @doc get redundancies by key.
@@ -538,6 +550,7 @@ get_node_by_vnodeid(Table, VNodeId) ->
             {ok, Value}
     end.
 
+
 %% @doc Retrieve a member from an argument.
 %% @private
 get_redundancies([],_Node1,_) ->
@@ -552,4 +565,28 @@ get_redundancies([#member{node        = Node0,
     end;
 get_redundancies([#member{node = Node0}|T], Node1, SetL2) when Node0 /= Node1 ->
     get_redundancies(T, Node1, SetL2).
+
+
+%% @doc Find redundanciess by vnodeid
+%% @private
+find_redundancies_by_vnode_id([],_VNodeId) ->
+    not_found;
+find_redundancies_by_vnode_id([#ring_group{index_from = {_,From},
+                                           index_to   = {_,To},
+                                           addrid_nodes_list = List}|_Rest], VNodeId) when From =< VNodeId,
+                                                                                           To   >= VNodeId ->
+    find_redundancies_by_vnode_id_1(List, VNodeId);
+find_redundancies_by_vnode_id([_|Rest], VNodeId) ->
+    find_redundancies_by_vnode_id(Rest, VNodeId).
+
+
+find_redundancies_by_vnode_id_1([],_VNodeId) ->
+    not_found;
+find_redundancies_by_vnode_id_1([#addrid_nodes{st_addr_id = From,
+                                               addr_id    = To,
+                                               nodes = Nodes}|_Rest], VNodeId) when From =< VNodeId,
+                                                                                    To   >=  VNodeId ->
+    {ok, Nodes};
+find_redundancies_by_vnode_id_1([_|Rest], VNodeId) ->
+    find_redundancies_by_vnode_id_1(Rest, VNodeId).
 
