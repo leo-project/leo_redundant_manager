@@ -36,6 +36,8 @@ redundant_manager_test_() ->
                           ]]}.
 
 setup() ->
+    application:start(crypto),
+
     catch ets:delete('leo_members'),
     catch ets:delete('leo_ring_cur'),
     catch ets:delete('leo_ring_prv'),
@@ -57,6 +59,7 @@ setup() ->
 teardown(Pid) ->
     timer:sleep(200),
     exit(Pid, normal),
+    application:stop(crypto),
     ok.
 
 suite_(_) ->
@@ -76,7 +79,7 @@ suite_(_) ->
                                         RingWorker1, 'leo_ring_cur', 5257965865843856950061366315134191522),
     {ok, #redundancies{nodes = N6}} = leo_redundant_manager_worker:lookup(
                                         RingWorker1, 'leo_ring_cur', 340282366920938463463374607431768211456),
-    {ok, #addrid_nodes{id = 840,                       
+    {ok, #addrid_nodes{id = 840,
                        nodes = N7}} = leo_redundant_manager_worker:last(RingWorker1, 'leo_ring_cur'),
 
     ?assertEqual(3, length(N0)),
@@ -88,11 +91,14 @@ suite_(_) ->
     ?assertEqual(3, length(N6)),
     ?assertEqual(3, length(N7)),
 
-    Seq  = lists:seq(1, 100000),
+    Seq  = lists:seq(1, 10000),
     St = leo_date:clock(),
-    lists:foreach(fun(Idx) ->
-                          {ok, _} = leo_redundant_manager_worker:lookup(
-                                      RingWorker1, 'leo_ring_cur', Idx)
+    lists:foreach(fun(_) ->
+                          AddrId = leo_redundant_manager_chash:vnode_id(128, crypto:rand_bytes(64)),
+                          {ok, #redundancies{nodes = N8}} =
+                              leo_redundant_manager_worker:lookup(
+                                RingWorker1, 'leo_ring_cur', AddrId),
+                          ?assertEqual(3, length(N8))
                   end, Seq),
     End = leo_date:clock(),
     ?debugVal((End - St) / 1000),
