@@ -56,26 +56,6 @@
 
 -define(DEF_NUM_OF_DIV, 32).
 
--record(addrid_nodes, {
-          id = 0            :: integer(),
-          addr_id_from = 0  :: integer(),
-          addr_id_to = 0    :: integer(),
-          nodes             :: list(atom())
-         }).
-
--record(ring_group, {
-          index_from        :: integer(),
-          index_to          :: integer(),
-          addrid_nodes_list :: list(#addrid_nodes{})
-         }).
-
--record(ring_info, {
-          checksum = -1     :: integer(),
-          first_addr_id     :: integer(),
-          last_addr_id      :: integer(),
-          ring_group_list   :: list(#ring_group{})
-         }).
-
 -record(state, {
           cur  = #ring_info{} :: #ring_info{},
           prev = #ring_info{} :: #ring_info{},
@@ -383,14 +363,16 @@ gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members) ->
             {ok, #addrid_nodes{addr_id_to = LastAddrId}}  = last_fun(RingGroup2),
 
             %% @TODO - debug (unnecessary-codes)
-            %% lists:foreach(fun(#ring_group{index_from = From,
-            %%                               index_to   = To,
-            %%                               addrid_nodes_list = List}) ->
-            %%                       ?debugVal({From, To}),
-            %%                       lists:foreach(fun(AddrId_Nodes) ->
-            %%                                             ?debugVal(AddrId_Nodes)
-            %%                                     end, List)
-            %%               end, lists:reverse(Ring)),
+            lists:foreach(fun(#ring_group{index_from = From,
+                                          index_to   = To,
+                                          addrid_nodes_list = List}) ->
+                                  ?debugVal({From, To}),
+                                  lists:foreach(fun(#addrid_nodes{id = Idx,
+                                                                  addr_id_from = F,
+                                                                  addr_id_to   = T}) ->
+                                                        ?debugVal({Idx, F, T})
+                                                end, List)
+                          end, RingGroup2),
             {ok, {Checksum, RingGroup2, FirstAddrId, LastAddrId}}
     end.
 
@@ -406,7 +388,7 @@ gen_routing_table_1({ok, #redundancies{nodes = Nodes}},
                                        nodes = Nodes}|TblAcc],
 
             #addrid_nodes{id = FirstId,
-                          addr_id_to = FirstAddrId} = lists:last(TblAcc),
+                          addr_id_from = FirstAddrId} = lists:last(TblAcc),
             FirstAddrId_1 = case FirstId of
                                 1 -> 0;
                                 _ -> FirstAddrId
@@ -573,23 +555,26 @@ get_redundancies([#member{node = Node0}|T], Node1, SetL2) when Node0 /= Node1 ->
 %% @private
 reply_redundancies(not_found,_) ->
     not_found;
-reply_redundancies({ok, #addrid_nodes{addr_id_to = AddrId,
+reply_redundancies({ok, #addrid_nodes{addr_id_from = AddrIdFrom,
+                                      addr_id_to   = AddrIdTo,
                                       nodes = Nodes}}, VNodeId) ->
-    reply_redundancies_1(AddrId, VNodeId, Nodes, []).
+    reply_redundancies_1(AddrIdFrom, AddrIdTo, VNodeId, Nodes, []).
 
 
-reply_redundancies_1(AddrId, VNodeId, [], Acc) ->
-    {ok, #redundancies{id       = AddrId,
-                       vnode_id = VNodeId,
-                       nodes    = lists:reverse(Acc)}};
-reply_redundancies_1(AddrId, VNodeId, [Node|Rest], Acc) ->
+reply_redundancies_1(AddrIdFrom, AddrIdTo, VNodeId, [], Acc) ->
+    {ok, #redundancies{id           = AddrIdTo,
+                       addr_id_from = AddrIdFrom,
+                       addr_id_to   = AddrIdTo,
+                       vnode_id     = VNodeId,
+                       nodes        = lists:reverse(Acc)}};
+reply_redundancies_1(AddrIdFrom, AddrIdTo, VNodeId, [Node|Rest], Acc) ->
     case leo_redundant_manager_table_member:lookup(Node) of
         {ok, #member{state = ?STATE_RUNNING}} ->
-            reply_redundancies_1(AddrId, VNodeId, Rest, [{Node, true}|Acc]);
+            reply_redundancies_1(AddrIdFrom, AddrIdTo, VNodeId, Rest, [{Node, true}|Acc]);
         {ok, #member{state = _State}} ->
-            reply_redundancies_1(AddrId, VNodeId, Rest, [{Node, false}|Acc]);
+            reply_redundancies_1(AddrIdFrom, AddrIdTo, VNodeId, Rest, [{Node, false}|Acc]);
         _ ->
-            reply_redundancies_1(AddrId, VNodeId, Rest, Acc)
+            reply_redundancies_1(AddrIdFrom, AddrIdTo, VNodeId, Rest, Acc)
     end.
 
 
