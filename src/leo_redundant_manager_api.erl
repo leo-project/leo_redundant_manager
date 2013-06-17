@@ -376,17 +376,15 @@ get_redundancies_by_addr_id_1(Error, _TblInfo, _AddrId, _Options) ->
     {error, not_found}.
 
 %% @private
-get_redundancies_by_addr_id_1_1(ServerRef, TblInfo, Members, AddrId, Options) ->
-    N = leo_misc:get_value(?PROP_N, Options),
-    R = leo_misc:get_value(?PROP_R, Options),
-    W = leo_misc:get_value(?PROP_W, Options),
-    D = leo_misc:get_value(?PROP_D, Options),
+get_redundancies_by_addr_id_1_1(ServerRef, TblInfo,_Members, AddrId, Options) ->
+    ?debugVal(AddrId),
+    N  = leo_misc:get_value(?PROP_N,  Options),
+    R  = leo_misc:get_value(?PROP_R,  Options),
+    W  = leo_misc:get_value(?PROP_W,  Options),
+    D  = leo_misc:get_value(?PROP_D,  Options),
+    %% L2 = leo_misc:get_value(?PROP_L2, Options, 0),
 
-    %% for rack-awareness replica placement
-    L2 = leo_misc:get_value(?PROP_L2, Options, 0),
-
-    case leo_redundant_manager_chash:redundancies(
-           {ServerRef, TblInfo}, AddrId, N, L2, Members) of
+    case leo_redundant_manager_chash:redundancies(ServerRef, TblInfo, AddrId) of
         {ok, Redundancies} ->
             CurRingHash =
                 case leo_misc:get_env(?APP, ?PROP_RING_HASH) of
@@ -421,30 +419,22 @@ range_of_vnodes(ToVNodeId) ->
 -spec(rebalance() ->
              {ok, list()} | {error, any()}).
 rebalance() ->
-    case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
-        {ok, Options} ->
-            N  = leo_misc:get_value(?PROP_N,  Options),
-            L2 = leo_misc:get_value(?PROP_L2, Options),
+    ServerType = leo_misc:get_env(?APP, ?PROP_SERVER_TYPE),
+    rebalance(ServerType).
 
-            ServerType = leo_misc:get_env(?APP, ?PROP_SERVER_TYPE),
-            rebalance(ServerType, N, L2);
-        Error ->
-            Error
-    end.
-
-rebalance(?SERVER_MANAGER, N, L2) ->
+rebalance(?SERVER_MANAGER) ->
     Ret = leo_redundant_manager_table_member:find_all(),
-    rebalance_1(Ret, N, L2);
-rebalance(_, N, L2) ->
+    rebalance_1(Ret);
+rebalance(_) ->
     Ret = leo_redundant_manager_table_member:find_all(),
-    rebalance_1(Ret, N, L2).
+    rebalance_1(Ret).
 
-rebalance_1({ok, Members}, N, L2) ->
+rebalance_1({ok, Members}) ->
     TblInfo0 = table_info(?VER_CURRENT),
     TblInfo1 = table_info(?VER_PREV),
 
-    leo_redundant_manager_chash:rebalance({TblInfo0, TblInfo1}, N, L2, Members);
-rebalance_1(Error,_N,_L2) ->
+    leo_redundant_manager_chash:rebalance({TblInfo0, TblInfo1}, Members);
+rebalance_1(Error) ->
     Error.
 
 
