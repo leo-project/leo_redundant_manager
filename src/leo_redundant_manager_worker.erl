@@ -71,6 +71,8 @@
 
 -record(ring_info, {
           checksum = -1     :: integer(),
+          first_addr_id     :: integer(),
+          last_addr_id      :: integer(),
           ring_group_list   :: list(#ring_group{})
          }).
 
@@ -131,22 +133,17 @@ handle_call({lookup, Tbl,_VNodeId},_From, State) when Tbl /= ?CUR_RING_TABLE,
 
 handle_call({lookup, Tbl, VNodeId},_From, #state{cur  = Cur,
                                                  prev = Prev} = State) ->
-    Fun = fun (_RingGroupList) ->
-                  case _RingGroupList of
-                      [] ->
-                          not_found;
-                      _ ->
-                          find_redundancies_by_vnode_id(_RingGroupList, VNodeId)
-                  end
-          end,
-
     Reply = case Tbl of
                 ?CUR_RING_TABLE ->
-                    #ring_info{ring_group_list = RingGroupList} = Cur,
-                    Fun(RingGroupList);
+                    #ring_info{ring_group_list = RingGroupList,
+                               first_addr_id   = FirstAddrId,
+                               last_addr_id    = LastAddrId} = Cur,
+                    lookup_fun(RingGroupList, FirstAddrId, LastAddrId, VNodeId);
                 ?PREV_RING_TABLE ->
-                    #ring_info{ring_group_list = RingGroupList} = Prev,
-                    Fun(RingGroupList)
+                    #ring_info{ring_group_list = RingGroupList,
+                               first_addr_id   = FirstAddrId,
+                               last_addr_id    = LastAddrId} = Prev,
+                    lookup_fun(RingGroupList, FirstAddrId, LastAddrId, VNodeId)
             end,
     {reply, Reply, State};
 
@@ -156,27 +153,13 @@ handle_call({first, Tbl},_From, State) when Tbl /= ?CUR_RING_TABLE,
     {reply, {error, invalid_table}, State};
 handle_call({first, Tbl},_From, #state{cur  = Cur,
                                        prev = Prev} = State) ->
-    Fun = fun (_RingGroupList) ->
-                  case _RingGroupList of
-                      [] ->
-                          not_found;
-                      [#ring_group{addrid_nodes_list = AddrId_Nodes}|_] ->
-                          case AddrId_Nodes of
-                              [] ->
-                                  not_found;
-                              [#addrid_nodes{nodes = Nodes}|_] ->
-                                  {ok, Nodes}
-                          end
-                  end
-          end,
-
     Reply = case Tbl of
                 ?CUR_RING_TABLE ->
                     #ring_info{ring_group_list = RingGroupList} = Cur,
-                    Fun(RingGroupList);
+                    first_fun(RingGroupList);
                 ?PREV_RING_TABLE ->
                     #ring_info{ring_group_list = RingGroupList} = Prev,
-                    Fun(RingGroupList)
+                    first_fun(RingGroupList)
             end,
     {reply, Reply, State};
 
@@ -186,30 +169,13 @@ handle_call({last, Tbl},_From, State) when Tbl /= ?CUR_RING_TABLE,
     {reply, {error, invalid_table}, State};
 handle_call({last, Tbl},_From, #state{cur  = Cur,
                                       prev = Prev} = State) ->
-    Fun = fun (_RingGroupList) ->
-                  case _RingGroupList of
-                      [] ->
-                          not_found;
-                      _ ->
-                          #ring_group{
-                        addrid_nodes_list = AddrId_Nodes} = lists:last(_RingGroupList),
-                          case AddrId_Nodes of
-                              [] ->
-                                  not_found;
-                              _ ->
-                                  #addrid_nodes{nodes = Nodes} = lists:last(AddrId_Nodes),
-                                  {ok, Nodes}
-                          end
-                  end
-          end,
-
     Reply = case Tbl of
                 ?CUR_RING_TABLE ->
                     #ring_info{ring_group_list = RingGroupList} = Cur,
-                    Fun(RingGroupList);
+                    last_fun(RingGroupList);
                 ?PREV_RING_TABLE ->
                     #ring_info{ring_group_list = RingGroupList} = Prev,
-                    Fun(RingGroupList)
+                    last_fun(RingGroupList)
             end,
     {reply, Reply, State};
 
@@ -233,10 +199,17 @@ handle_call({force_sync, Tbl},_From, State) ->
                         N  = leo_misc:get_value(?PROP_N,  Options),
                         L2 = leo_misc:get_value(?PROP_L2, Options, 0),
 
-                        {ok, {Checksum, RingGroupList}} =
-                            gen_routing_table(TargetRing, N, L2, Members),
-                        State#state{cur = #ring_info{checksum = Checksum,
-                                                     ring_group_list = RingGroupList}};
+                        case gen_routing_table(TargetRing, N, L2, Members) of
+                            {ok, {Checksum, RingGroupList, FirstAddrId, LastAddrId}} ->
+                                State#state{
+                                  cur = #ring_info{checksum = Checksum,
+                                                   ring_group_list = RingGroupList,
+                                                   first_addr_id = FirstAddrId,
+                                                   last_addr_id  = LastAddrId
+                                                  }};
+                            _ ->
+                                State
+                        end;
                     _ ->
                         State
                 end;
@@ -356,14 +329,20 @@ maybe_sync_1_1(_TargetRing, OrgChecksum, CurChecksum,
     State;
 maybe_sync_1_1(TargetRing,_OrgChecksum,_CurChecksum,
                NumOfReplicas, NumOfAwarenessL2, Members, State) ->
-    {ok, {Checksum, RingGroupList}} =
-        gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members),
 
-    RingInfo = #ring_info{checksum = Checksum,
-                          ring_group_list = RingGroupList},
-    case TargetRing of
-        ?SYNC_MODE_CUR_RING  -> State#state{cur =  RingInfo};
-        ?SYNC_MODE_PREV_RING -> State#state{prev = RingInfo}
+    case gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members) of
+        {ok, {Checksum, RingGroupList, FirstAddrId, LastAddrId}} ->
+            RingInfo = #ring_info{checksum = Checksum,
+                                  ring_group_list = RingGroupList,
+                                  first_addr_id   = FirstAddrId,
+                                  last_addr_id    = LastAddrId
+                                 },
+            case TargetRing of
+                ?SYNC_MODE_CUR_RING  -> State#state{cur =  RingInfo};
+                ?SYNC_MODE_PREV_RING -> State#state{prev = RingInfo}
+            end;
+        _ ->
+            State
     end.
 
 
@@ -380,13 +359,14 @@ gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members) ->
               ?SYNC_MODE_CUR_RING  -> leo_redundant_manager_api:table_info(?VER_CURRENT);
               ?SYNC_MODE_PREV_RING -> leo_redundant_manager_api:table_info(?VER_PREV)
           end,
+
     {ok, CurRing} = leo_redundant_manager_api:get_ring(TargetRing),
     Checksum  = erlang:crc32(term_to_binary(CurRing)),
     RingSize  = length(CurRing),
     GroupSize = leo_math:ceiling(RingSize / ?DEF_NUM_OF_DIV),
 
     %% Retrieve redundancies by addr-id
-    {_,_,Ring,_,_} =
+    {_,_,RingGroup1,_,_} =
         lists:foldl(fun({AddrId, _Node},
                         {Id, GId, IdxAcc, TblAcc, StAddrId}) ->
                             Ret = redundancies(Tbl, AddrId,
@@ -394,17 +374,26 @@ gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members) ->
                             gen_routing_table_1(Ret, GroupSize,
                                                 Id, AddrId, GId, IdxAcc, TblAcc, StAddrId)
                     end, {0, 0, [], [], 0}, CurRing),
+    case RingGroup1 of
+        [] ->
+            {error, empty};
+        _ ->
+            RingGroup2   = lists:reverse(RingGroup1),
+            {ok, #addrid_nodes{addr_id_to = FirstAddrId}} = first_fun(RingGroup2),
+            {ok, #addrid_nodes{addr_id_to = LastAddrId}}  = last_fun(RingGroup2),
 
-    %% @TODO - debug (unnecessary-codes)
-    %% lists:foreach(fun(#ring_group{index_from = From,
-    %%                               index_to   = To,
-    %%                               addrid_nodes_list = List}) ->
-    %%                       ?debugVal({From, To}),
-    %%                       lists:foreach(fun(AddrId_Nodes) ->
-    %%                                             ?debugVal(AddrId_Nodes)
-    %%                                     end, List)
-    %%               end, lists:reverse(Ring)),
-    {ok, {Checksum, lists:reverse(Ring)}}.
+            ?debugVal({FirstAddrId, LastAddrId}),
+            %% @TODO - debug (unnecessary-codes)
+            %% lists:foreach(fun(#ring_group{index_from = From,
+            %%                               index_to   = To,
+            %%                               addrid_nodes_list = List}) ->
+            %%                       ?debugVal({From, To}),
+            %%                       lists:foreach(fun(AddrId_Nodes) ->
+            %%                                             ?debugVal(AddrId_Nodes)
+            %%                                     end, List)
+            %%               end, lists:reverse(Ring)),
+            {ok, {Checksum, RingGroup2, FirstAddrId, LastAddrId}}
+    end.
 
 
 gen_routing_table_1({ok, #redundancies{nodes = Nodes}},
@@ -581,14 +570,54 @@ get_redundancies([#member{node = Node0}|T], Node1, SetL2) when Node0 /= Node1 ->
     get_redundancies(T, Node1, SetL2).
 
 
+%% @doc Retrieve first record
+%% @private
+first_fun([]) ->
+    not_found;
+first_fun([#ring_group{addrid_nodes_list = AddrId_Nodes_List}|_]) ->
+    case AddrId_Nodes_List of
+        [] ->
+            not_found;
+        [Res|_] ->
+            {ok, Res}
+    end.
+
+
+%% @doc Retrieve last record
+%% @private
+last_fun([]) ->
+    not_found;
+last_fun(RingGroupList) ->
+    #ring_group{addrid_nodes_list = AddrId_Nodes_List} = lists:last(RingGroupList),
+    case AddrId_Nodes_List of
+        [] ->
+            not_found;
+        _ ->
+            {ok, lists:last(AddrId_Nodes_List)}
+    end.
+
+
+%% @doc Retrieve redundancies by vnode-id
+%% @private
+lookup_fun([],_FirstAddrId,_LastAddrId,_VNodeId) ->
+    not_found;
+lookup_fun(RingGroupList, FirstAddrId,_LastAddrId, VNodeId) when FirstAddrId >= VNodeId ->
+    first_fun(RingGroupList);
+lookup_fun(RingGroupList,_FirstAddrId, LastAddrId, VNodeId) when LastAddrId < VNodeId ->
+    first_fun(RingGroupList);
+lookup_fun(RingGroupList,_FirstAddrId,_LastAddrId, VNodeId) ->
+    find_redundancies_by_vnode_id(RingGroupList, VNodeId).
+
+
 %% @doc Find redundanciess by vnodeid
 %% @private
 find_redundancies_by_vnode_id([],_VNodeId) ->
     not_found;
-find_redundancies_by_vnode_id([#ring_group{index_from = From,
-                                           index_to   = To,
-                                           addrid_nodes_list = List}|_Rest], VNodeId) when From =< VNodeId,
-                                                                                           To   >= VNodeId ->
+find_redundancies_by_vnode_id(
+  [#ring_group{index_from = From,
+               index_to   = To,
+               addrid_nodes_list = List}|_Rest], VNodeId) when From =< VNodeId,
+                                                               To   >= VNodeId ->
     find_redundancies_by_vnode_id_1(List, VNodeId);
 find_redundancies_by_vnode_id([_|Rest], VNodeId) ->
     find_redundancies_by_vnode_id(Rest, VNodeId).
@@ -596,11 +625,11 @@ find_redundancies_by_vnode_id([_|Rest], VNodeId) ->
 
 find_redundancies_by_vnode_id_1([],_VNodeId) ->
     not_found;
-find_redundancies_by_vnode_id_1([#addrid_nodes{addr_id_from = From,
-                                               addr_id_to   = To,
-                                               nodes = Nodes}|_Rest], VNodeId) when From =< VNodeId,
-                                                                                    To   >=  VNodeId ->
-    {ok, Nodes};
+find_redundancies_by_vnode_id_1(
+  [#addrid_nodes{addr_id_from = From,
+                 addr_id_to   = To} = Res|_], VNodeId) when From =< VNodeId,
+                                                            To   >=  VNodeId ->
+    {ok, Res};
 find_redundancies_by_vnode_id_1([_|Rest], VNodeId) ->
     find_redundancies_by_vnode_id_1(Rest, VNodeId).
 
