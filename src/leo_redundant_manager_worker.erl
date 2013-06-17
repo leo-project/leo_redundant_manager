@@ -166,36 +166,10 @@ handle_call({force_sync, Tbl},_From, State) when Tbl /= ?CUR_RING_TABLE,
 
 handle_call({force_sync, Tbl},_From, State) ->
     TargetRing = case Tbl of
-                     ?CUR_RING_TABLE ->
-                         ?SYNC_MODE_CUR_RING;
-                     ?PREV_RING_TABLE ->
-                         ?SYNC_MODE_PREV_RING
+                     ?CUR_RING_TABLE  -> ?SYNC_MODE_CUR_RING;
+                     ?PREV_RING_TABLE -> ?SYNC_MODE_PREV_RING
                  end,
-    NewState =
-        case leo_redundant_manager_table_member:find_all() of
-            {ok, Members} ->
-                case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
-                    {ok, Options} ->
-                        N  = leo_misc:get_value(?PROP_N,  Options),
-                        L2 = leo_misc:get_value(?PROP_L2, Options, 0),
-
-                        case gen_routing_table(TargetRing, N, L2, Members) of
-                            {ok, {Checksum, RingGroupList, FirstAddrId, LastAddrId}} ->
-                                State#state{
-                                  cur = #ring_info{checksum = Checksum,
-                                                   ring_group_list = RingGroupList,
-                                                   first_vnode_id  = FirstAddrId,
-                                                   last_vnode_id   = LastAddrId
-                                                  }};
-                            _ ->
-                                State
-                        end;
-                    _ ->
-                        State
-                end;
-            _ ->
-                State
-        end,
+    NewState = force_sync_fun(TargetRing, State),
     {reply, ok, NewState};
 
 handle_call(_Handle, _From, State) ->
@@ -402,8 +376,8 @@ gen_routing_table_1(_,_GroupSize, AddrId, Id, GId, IdxAcc, TblAcc,_StAddrId) ->
 
 
 %% @doc get redundancies by key.
-%%x
--spec(redundancies(ring_table_info(), any(), pos_integer(), pos_integer(),list()) ->
+%% @private
+-spec(redundancies(ring_table_info(), any(), pos_integer(), pos_integer(), list()) ->
              {ok, any()} | {error, any()}).
 redundancies(_Table,_VNodeId, NumOfReplicas,_L2,_Members) when NumOfReplicas < ?DEF_MIN_REPLICAS;
                                                                NumOfReplicas > ?DEF_MAX_REPLICAS ->
@@ -509,6 +483,7 @@ redundancies_3(Table, NumOfReplicas, L2, Members,
             end
     end.
 
+
 %% @private
 get_node_by_vnodeid(Table, VNodeId) ->
     case leo_redundant_manager_table_ring:next(Table, VNodeId) of
@@ -583,7 +558,6 @@ first_fun(_) ->
     not_found.
 
 
-
 %% @doc Retrieve last record
 %% @private
 last_fun([]) ->
@@ -637,3 +611,30 @@ find_redundancies_by_addr_id_1(
 find_redundancies_by_addr_id_1([_|Rest], AddrId) ->
     find_redundancies_by_addr_id_1(Rest, AddrId).
 
+
+%% @doc Force sync
+%% @private
+force_sync_fun(TargetRing, State) ->
+    case leo_redundant_manager_table_member:find_all() of
+        {ok, Members} ->
+            case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
+                {ok, Options} ->
+                    N  = leo_misc:get_value(?PROP_N,  Options),
+                    L2 = leo_misc:get_value(?PROP_L2, Options, 0),
+
+                    case gen_routing_table(TargetRing, N, L2, Members) of
+                        {ok, {Checksum, RingGroupList, FirstAddrId, LastAddrId}} ->
+                            State#state{
+                              cur = #ring_info{checksum = Checksum,
+                                               ring_group_list = RingGroupList,
+                                               first_vnode_id  = FirstAddrId,
+                                               last_vnode_id   = LastAddrId}};
+                        _ ->
+                            State
+                    end;
+                _ ->
+                    State
+            end;
+        _ ->
+            State
+    end.

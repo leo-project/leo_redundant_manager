@@ -136,12 +136,9 @@ rebalance_1(_ServerRef,_Info, 0,  _AddrId, Acc) ->
     {ok, lists:reverse(Acc)};
 rebalance_1(ServerRef, Info, Size, AddrId, Acc) ->
     #rebalance{members  = Members,
-               src_tbl  = SrcTbl,
-               dest_tbl = DestTbl} = Info,
-    {_, SrcTbl_1 } = SrcTbl,
-    {_, DestTbl_1} = DestTbl,
-
-    {ok, #redundancies{vnode_id_to = AddrIdTo,
+               src_tbl  = {_, SrcTbl_1},
+               dest_tbl = {_, DestTbl_1}} = Info,
+    {ok, #redundancies{vnode_id_to = VNodeIdTo,
                        nodes = Nodes0}} =
         leo_redundant_manager_worker:lookup(ServerRef, SrcTbl_1,  AddrId),
     {ok, #redundancies{nodes = Nodes1}} =
@@ -158,11 +155,11 @@ rebalance_1(ServerRef, Info, Size, AddrId, Acc) ->
              end, [], Nodes0),
     case Res1 of
         [] ->
-            rebalance_1(ServerRef, Info, Size - 1, AddrIdTo + 1, Acc);
+            rebalance_1(ServerRef, Info, Size - 1, VNodeIdTo + 1, Acc);
         [{DestNode, _}|_] ->
             SrcNode  = active_node(Members, Nodes1),
-            rebalance_1(ServerRef, Info, Size - 1, AddrIdTo + 1,
-                        [[{vnode_id, AddrIdTo},
+            rebalance_1(ServerRef, Info, Size - 1, VNodeIdTo + 1,
+                        [[{vnode_id, VNodeIdTo},
                           {src, SrcNode},
                           {dest, DestNode}]|Acc])
     end.
@@ -234,7 +231,6 @@ import(Table, FileName) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
-
 %% @doc Retrieve range of vnodes.
 %% @private
 range_of_vnodes({_,Table}, VNodeId) ->
@@ -242,27 +238,29 @@ range_of_vnodes({_,Table}, VNodeId) ->
         {'EXIT', Cause} ->
             {error, Cause};
         ServerRef ->
-            Res1 =
-                case leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId) of
-                    not_found ->
-                        {error, not_found};
-                    {ok, #redundancies{vnode_id_from = From,
-                                       vnode_id_to   = To}} ->
-                        case From of
-                            0 ->
-                                case leo_redundant_manager_worker:last(ServerRef, Table) of
-                                    not_found ->
-                                        {ok, [{From, To}]};
-                                    {ok, #vnodeid_nodes{vnode_id_to = LastId}} ->
-                                        {ok, [{From, To},
-                                              {LastId + 1, leo_math:power(2, ?MD5)}]}
-                                end;
-                            _ ->
-                                {ok, [{From, To}]}
-                        end
-                end,
+            Res1 = range_of_vnodes_1(ServerRef, Table, VNodeId),
             _ = poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
             Res1
+    end.
+
+range_of_vnodes_1(ServerRef, Table, VNodeId) ->
+    case leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId) of
+        not_found ->
+            {error, not_found};
+        {ok, #redundancies{vnode_id_from = From,
+                           vnode_id_to   = To}} ->
+            case From of
+                0 ->
+                    case leo_redundant_manager_worker:last(ServerRef, Table) of
+                        not_found ->
+                            {ok, [{From, To}]};
+                        {ok, #vnodeid_nodes{vnode_id_to = LastId}} ->
+                            {ok, [{From, To},
+                                  {LastId + 1, leo_math:power(2, ?MD5)}]}
+                    end;
+                _ ->
+                    {ok, [{From, To}]}
+            end
     end.
 
 
