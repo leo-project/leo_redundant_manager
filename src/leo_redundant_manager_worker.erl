@@ -363,16 +363,16 @@ gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members) ->
             {ok, #addrid_nodes{addr_id_to = LastAddrId}}  = last_fun(RingGroup2),
 
             %% @TODO - debug (unnecessary-codes)
-            lists:foreach(fun(#ring_group{index_from = From,
-                                          index_to   = To,
-                                          addrid_nodes_list = List}) ->
-                                  ?debugVal({From, To}),
-                                  lists:foreach(fun(#addrid_nodes{id = Idx,
-                                                                  addr_id_from = F,
-                                                                  addr_id_to   = T}) ->
-                                                        ?debugVal({Idx, F, T})
-                                                end, List)
-                          end, RingGroup2),
+            %% lists:foreach(fun(#ring_group{index_from = From,
+            %%                               index_to   = To,
+            %%                               addrid_nodes_list = List}) ->
+            %%                       ?debugVal({From, To}),
+            %%                       lists:foreach(fun(#addrid_nodes{id = Idx,
+            %%                                                       addr_id_from = F,
+            %%                                                       addr_id_to   = T}) ->
+            %%                                             ?debugVal({Idx, F, T})
+            %%                                     end, List)
+            %%               end, RingGroup2),
             {ok, {Checksum, RingGroup2, FirstAddrId, LastAddrId}}
     end.
 

@@ -61,55 +61,41 @@ teardown(Pid) ->
 
 suite_(_) ->
     RingWorker1 = poolboy:checkout('ring_worker_pool'),
-    Res0 = leo_redundant_manager_worker:first(RingWorker1, {ets, 'leo_ring_cur'}),
+    {ok, #addrid_nodes{id = 1,
+                       addr_id_from = 0,
+                       nodes = N0}} = leo_redundant_manager_worker:first(RingWorker1, 'leo_ring_cur'),
+    {ok, #redundancies{nodes = N1}} = leo_redundant_manager_worker:lookup(
+                                        RingWorker1, 'leo_ring_cur', 0),
+    {ok, #redundancies{nodes = N2}} = leo_redundant_manager_worker:lookup(
+                                        RingWorker1, 'leo_ring_cur', 1264314306571079495751037749109419166),
+    {ok, #redundancies{nodes = N3}} = leo_redundant_manager_worker:lookup(
+                                        RingWorker1, 'leo_ring_cur', 3088066518744027498382227205172020754),
+    {ok, #redundancies{nodes = N4}} = leo_redundant_manager_worker:lookup(
+                                        RingWorker1, 'leo_ring_cur', 4870818527799149765629747665733758595),
+    {ok, #redundancies{nodes = N5}} = leo_redundant_manager_worker:lookup(
+                                        RingWorker1, 'leo_ring_cur', 5257965865843856950061366315134191522),
+    {ok, #redundancies{nodes = N6}} = leo_redundant_manager_worker:lookup(
+                                        RingWorker1, 'leo_ring_cur', 340282366920938463463374607431768211456),
+    {ok, #addrid_nodes{id = 840,                       
+                       nodes = N7}} = leo_redundant_manager_worker:last(RingWorker1, 'leo_ring_cur'),
 
-    Res1 = leo_redundant_manager_worker:next(
-             RingWorker1, {ets, 'leo_ring_cur'}, 0),
-    Res2 = leo_redundant_manager_worker:next(
-             RingWorker1, {ets, 'leo_ring_cur'}, 243058967694854461280959919528606475),
-    Res3 = leo_redundant_manager_worker:next(
-             RingWorker1, {ets, 'leo_ring_cur'}, 340282366920938463463374607431768211456),
+    ?assertEqual(3, length(N0)),
+    ?assertEqual(3, length(N1)),
+    ?assertEqual(3, length(N2)),
+    ?assertEqual(3, length(N3)),
+    ?assertEqual(3, length(N4)),
+    ?assertEqual(3, length(N5)),
+    ?assertEqual(3, length(N6)),
+    ?assertEqual(3, length(N7)),
 
-    Res4 = leo_redundant_manager_worker:lookup(
-             RingWorker1, {ets, 'leo_ring_cur'}, 0),
-    Res5 = leo_redundant_manager_worker:lookup(
-             RingWorker1, {ets, 'leo_ring_cur'}, 1264314306571079495751037749109419166),
-    Res6 = leo_redundant_manager_worker:lookup(
-             RingWorker1, {ets, 'leo_ring_cur'}, 3088066518744027498382227205172020754),
-    Res7 = leo_redundant_manager_worker:lookup(
-             RingWorker1, {ets, 'leo_ring_cur'}, 4870818527799149765629747665733758595),
-    Res8 = leo_redundant_manager_worker:lookup(
-             RingWorker1, {ets, 'leo_ring_cur'}, 5257965865843856950061366315134191522),
-    Res9 = leo_redundant_manager_worker:lookup(
-             RingWorker1, {ets, 'leo_ring_cur'}, 340282366920938463463374607431768211456),
-
-    Res10 = leo_redundant_manager_worker:last(RingWorker1, {ets, 'leo_ring_cur'}),
-    Res11 = leo_redundant_manager_worker:prev(
-              RingWorker1, {ets, 'leo_ring_cur'}, 5257965865843856950061366315134191522),
-    Res12 = leo_redundant_manager_worker:prev(
-              RingWorker1, {ets, 'leo_ring_cur'}, 0),
-    Res13 = leo_redundant_manager_worker:prev(
-              RingWorker1, {ets, 'leo_ring_cur'}, 340282366920938463463374607431768211456),
-    Res14 = leo_redundant_manager_worker:prev(
-              RingWorker1, {ets, 'leo_ring_cur'}, 5257965865843856950061366315134191523),
-
-    ?assertEqual(243058967694854461280959919528606474, Res0),
-    ?assertEqual(243058967694854461280959919528606474, Res1),
-    ?assertEqual(Res0, Res1),
-    ?assertEqual(643266634996242345494209403527351060, Res2),
-    ?assertEqual('$end_of_table', Res3),
-    ?assertEqual([], Res4),
-    ?assertEqual('node_2@127.0.0.1', Res5),
-    ?assertEqual('node_1@127.0.0.1', Res6),
-    ?assertEqual('node_1@127.0.0.1', Res7),
-    ?assertEqual('node_4@127.0.0.1', Res8),
-    ?assertEqual([], Res9),
-    ?assertEqual(340273463498854239912439946299330026060, Res10),
-    ?assertEqual(4870818527799149765629747665733758595,   Res11),
-    ?assertEqual('$end_of_table', Res12),
-    ?assertEqual(329347436126708067719614132431830616781, Res13),
-    ?assertEqual(5257965865843856950061366315134191522,   Res14),
-
+    Seq  = lists:seq(1, 100000),
+    St = leo_date:clock(),
+    lists:foreach(fun(Idx) ->
+                          {ok, _} = leo_redundant_manager_worker:lookup(
+                                      RingWorker1, 'leo_ring_cur', Idx)
+                  end, Seq),
+    End = leo_date:clock(),
+    ?debugVal((End - St) / 1000),
     poolboy:checkin('ring_worker_pool', RingWorker1),
     ok.
 
