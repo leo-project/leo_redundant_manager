@@ -45,6 +45,9 @@
 -define(PROP_L2, 'level_2').
 -define(PROP_RING_BIT, 'bit_of_ring').
 
+-define(DEF_MIN_REPLICAS, 1).
+-define(DEF_MAX_REPLICAS, 8).
+
 
 %% Ring related
 -define(TYPE_RING_TABLE_ETS,    'ets').
@@ -60,6 +63,8 @@
 -define(RING_WORKER_POOL_NAME, 'ring_worker_pool').
 -define(RING_WORKER_POOL_SIZE, 32).
 -define(RING_WORKER_POOL_BUF,  16).
+%% -define(RING_WORKER_POOL_SIZE, 1).
+%% -define(RING_WORKER_POOL_BUF,  0).
 
 
 %% Checksum
@@ -77,7 +82,7 @@
 -define(DEF_OPT_D, 1).
 -define(DEF_OPT_BIT_OF_RING, ?MD5).
 -ifdef(TEST).
--define(DEF_NUMBER_OF_VNODES, 128).
+-define(DEF_NUMBER_OF_VNODES, 168).
 -else.
 -define(DEF_NUMBER_OF_VNODES, 168).
 -endif.
@@ -149,6 +154,26 @@
 
 %% Record
 %%
+-record(vnodeid_nodes, {
+          id = 0            :: integer(),
+          vnode_id_from = 0 :: integer(),
+          vnode_id_to = 0   :: integer(),
+          nodes             :: list(atom())
+         }).
+
+-record(ring_group, {
+          index_from         :: integer(),
+          index_to           :: integer(),
+          vnodeid_nodes_list :: list(#vnodeid_nodes{})
+         }).
+
+-record(ring_info, {
+          checksum = -1     :: integer(),
+          first_vnode_id    :: integer(),
+          last_vnode_id     :: integer(),
+          ring_group_list   :: list(#ring_group{})
+         }).
+
 -record(node_state, {
           node                 :: atom(),        %% actual node-name
           state                :: atom(),        %% current-status
@@ -159,10 +184,12 @@
          }).
 
 -record(redundancies,
-        {id = -1               :: pos_integer(),
+        {id = -1               :: pos_integer(), %% ring's address
+         vnode_id_from = -1    :: pos_integer(), %% start of vnode_id
+         vnode_id_to = -1      :: pos_integer(), %% end   of vnode_id
          vnode_id = -1         :: pos_integer(), %% virtual-node-id
          temp_nodes = []       :: list(),        %% tempolary objects of redundant-nodes
-         temp_level_2          :: set(),         %% tempolary list of level-2's node
+         temp_level_2          :: list(),        %% tempolary list of level-2's node
          nodes = []            :: list(),        %% objects of redundant-nodes
          n = 0                 :: pos_integer(), %% # of replicas
          r = 0                 :: pos_integer(), %% # of successes of READ

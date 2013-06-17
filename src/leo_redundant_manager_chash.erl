@@ -31,7 +31,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -export([add/2, append/3, adjust/3, remove/2,
-         redundancies/5, range_of_vnodes/2, rebalance/4,
+         redundancies/3, range_of_vnodes/2, rebalance/2,
          checksum/1, vnode_id/1, vnode_id/2]).
 -export([export/2, import/2]).
 
@@ -99,141 +99,20 @@ remove(N, Table, #member{alias = Alias} = Member) ->
     remove(N + 1, Table, Member).
 
 
-%% @doc get redundancies by key.
-%%
--spec(redundancies(ring_table_info(), any(), pos_integer(), pos_integer(),list()) ->
-             {ok, any()} | {error, any()}).
-redundancies(_ReqInf,_VNodeId, NumOfReplicas,_L2,_Members) when NumOfReplicas < 1;
-                                                                NumOfReplicas > 8 ->
-    {error, out_of_renge};
-redundancies(_ReqInf,_VNodeId, NumOfReplicas, L2,_Members) when (NumOfReplicas - L2) < 1 ->
-    {error, invalid_level2};
-redundancies({ServerRef, Table} = ReqInf, VNodeId0, NumOfReplicas, L2, Members) ->
-    case leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId0) of
-        {error, Cause} ->
-            {error, Cause};
-        [] ->
-            case get_node_by_vnodeid(ReqInf, VNodeId0) of
-                {ok, VNodeId1} ->
-                    redundnacies_1(ReqInf, VNodeId0, VNodeId1,
-                                   NumOfReplicas, L2, Members);
-                {error, Cause} ->
-                    {error, Cause}
-            end;
-        Value ->
-            redundnacies_1(ReqInf, VNodeId0, VNodeId0, Members,
-                           NumOfReplicas, L2, Value)
-    end.
-
-%% @private
-redundnacies_1({ServerRef, Table} = ReqInf, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members) ->
-    case leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId_Hop) of
-        {error, Cause} ->
-            {error, Cause};
-        [] ->
-            case get_node_by_vnodeid(ReqInf, VNodeId_Hop) of
-                {ok, Value} ->
-                    redundnacies_1(ReqInf, VNodeId_Org, VNodeId_Hop,
-                                   NumOfReplicas, L2, Members, Value);
-                {error, Cause} ->
-                    {error, Cause}
-            end;
-        Value ->
-            redundnacies_1(ReqInf, VNodeId_Org, VNodeId_Hop,
-                           NumOfReplicas, L2, Members, Value)
-    end.
-
-redundnacies_1(ReqInf, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, Value) ->
-    {Node, State, SetsL2_1} = get_state(Members, Value, []),
-
-    redundancies_2(ReqInf, NumOfReplicas-1, L2, Members, VNodeId_Hop,
-                   #redundancies{id           = VNodeId_Org,
-                                 vnode_id     = VNodeId_Hop,
-                                 temp_nodes   = [Value],
-                                 temp_level_2 = SetsL2_1,
-                                 nodes        = [{Node, State}]}).
-
-%% @private
-redundancies_2(_ReqInf,_,_L2,_Members,-1,_R) ->
-    {error,  invalid_vnode};
-redundancies_2(_ReqInf, 0,_L2,_Members,_VNodeId, #redundancies{nodes = Acc} = R) ->
-    {ok, R#redundancies{temp_nodes   = [],
-                        temp_level_2 = [],
-                        nodes        = lists:reverse(Acc)}};
-redundancies_2({ServerRef, Table} = ReqInf, NumOfReplicas, L2, Members, VNodeId0, R) ->
-    case get_node_by_vnodeid(ReqInf, VNodeId0) of
-        {ok, VNodeId1} ->
-            case leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId1) of
-                {error, Cause} ->
-                    {error, Cause};
-                [] ->
-                    case get_node_by_vnodeid(ReqInf, VNodeId1) of
-                        {ok, Node} ->
-                            redundancies_3(ReqInf, NumOfReplicas, L2, Members, VNodeId1, Node, R);
-                        {error, Cause} ->
-                            {error, Cause}
-                    end;
-                Node ->
-                    redundancies_3(ReqInf, NumOfReplicas, L2, Members, VNodeId1, Node, R)
-            end;
-        _ ->
-            {error, out_of_range}
-    end.
-
-
-redundancies_3(ReqInf, NumOfReplicas, L2, Members,
-               VNodeId, Node1, #redundancies{temp_nodes   = AccTempNode,
-                                             temp_level_2 = AccLevel2,
-                                             nodes        = AccNodes} = R) ->
-    case lists:member(Node1, AccTempNode) of
-        true  ->
-            redundancies_2(ReqInf, NumOfReplicas, L2, Members, VNodeId, R);
-        false ->
-            case get_state(Members, Node1, AccLevel2) of
-                {null, false, undefined} ->
-                    {error, node_not_found};
-                {Node2, State, AccLevel2_1} ->
-                    AccNodesSize  = length(AccNodes),
-                    AccLevel2Size = length(AccLevel2_1),
-
-                    case (L2 /= 0 andalso L2 == AccNodesSize) of
-                        true when AccLevel2Size < (L2+1) ->
-                            redundancies_2(ReqInf, NumOfReplicas, L2, Members, VNodeId, R);
-                        _ ->
-                            redundancies_2(ReqInf, NumOfReplicas-1, L2, Members, VNodeId,
-                                           R#redundancies{temp_nodes   = [Node2|AccTempNode],
-                                                          temp_level_2 = AccLevel2_1,
-                                                          nodes        = [{Node2, State}|AccNodes]})
-                    end
-            end
-    end.
-
-
-%% @private
-get_node_by_vnodeid({ServerRef, Table}, VNodeId) ->
-    case leo_redundant_manager_worker:next(ServerRef, Table, VNodeId) of
-        '$end_of_table' ->
-            case leo_redundant_manager_worker:first(ServerRef, Table) of
-                '$end_of_table' ->
-                    {error, no_entry};
-                Value ->
-                    {ok, Value}
-            end;
-        Value ->
-            {ok, Value}
-    end.
+%% %% @doc get redundancies by key.
+%% %%
+redundancies(ServerRef, {_,Table}, VNodeId) ->
+    leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId).
 
 
 %% @doc Do rebalance
 %% @private
--spec(rebalance(tuple(), pos_integer(), pos_integer(), list()) ->
+-spec(rebalance(tuple(), list()) ->
              {ok, list()} | {error, any()}).
-rebalance(Tables, NumOfReplicas, L2, Members) ->
+rebalance(Tables, Members) ->
     %% {SrcTbl, DestTbl} = {?CUR_RING_TABLE, ?PREV_RING_TABLE},
     {SrcTbl, DestTbl} = Tables,
-    Info = #rebalance{n        = NumOfReplicas,
-                      level_2  = L2,
-                      members  = Members,
+    Info = #rebalance{members  = Members,
                       src_tbl  = SrcTbl,
                       dest_tbl = DestTbl},
     Size = leo_redundant_manager_table_ring:size(SrcTbl),
@@ -242,8 +121,10 @@ rebalance(Tables, NumOfReplicas, L2, Members) ->
         {'EXIT', Cause} ->
             {error, Cause};
         ServerRef ->
-            ok = leo_redundant_manager_worker:force_sync(ServerRef, SrcTbl),
-            ok = leo_redundant_manager_worker:force_sync(ServerRef, DestTbl),
+            {_, SrcTbl_1 } = SrcTbl,
+            {_, DestTbl_1} = DestTbl,
+            ok = leo_redundant_manager_worker:force_sync(ServerRef, SrcTbl_1),
+            ok = leo_redundant_manager_worker:force_sync(ServerRef, DestTbl_1),
 
             Ret = rebalance_1(ServerRef, Info, Size, 0, []),
             _ = poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
@@ -251,19 +132,20 @@ rebalance(Tables, NumOfReplicas, L2, Members) ->
     end.
 
 %% @private
-rebalance_1(_ServerRef,_Info, 0,   _AddrId, Acc) ->
+rebalance_1(_ServerRef,_Info, 0,  _AddrId, Acc) ->
     {ok, lists:reverse(Acc)};
 rebalance_1(ServerRef, Info, Size, AddrId, Acc) ->
-    #rebalance{n        = NumOfReplicas,
-               level_2  = L2,
-               members  = Members,
-               src_tbl  = SrcTable,
-               dest_tbl = DestTable} = Info,
-    {ok, #redundancies{vnode_id = VNodeId0,
-                       nodes    = Nodes0}} =
-        redundancies({ServerRef, SrcTable},  AddrId, NumOfReplicas, L2, Members),
-    {ok, #redundancies{nodes    = Nodes1}} =
-        redundancies({ServerRef, DestTable}, AddrId, NumOfReplicas, L2, Members),
+    #rebalance{members  = Members,
+               src_tbl  = SrcTbl,
+               dest_tbl = DestTbl} = Info,
+    {_, SrcTbl_1 } = SrcTbl,
+    {_, DestTbl_1} = DestTbl,
+
+    {ok, #redundancies{vnode_id_to = AddrIdTo,
+                       nodes = Nodes0}} =
+        leo_redundant_manager_worker:lookup(ServerRef, SrcTbl_1,  AddrId),
+    {ok, #redundancies{nodes = Nodes1}} =
+        leo_redundant_manager_worker:lookup(ServerRef, DestTbl_1, AddrId),
 
     Res1 = lists:foldl(
              fun(N0, Acc0) ->
@@ -276,11 +158,11 @@ rebalance_1(ServerRef, Info, Size, AddrId, Acc) ->
              end, [], Nodes0),
     case Res1 of
         [] ->
-            rebalance_1(ServerRef, Info, Size - 1, VNodeId0 + 1, Acc);
+            rebalance_1(ServerRef, Info, Size - 1, AddrIdTo + 1, Acc);
         [{DestNode, _}|_] ->
             SrcNode  = active_node(Members, Nodes1),
-            rebalance_1(ServerRef, Info, Size - 1, VNodeId0 + 1,
-                        [[{vnode_id, VNodeId0},
+            rebalance_1(ServerRef, Info, Size - 1, AddrIdTo + 1,
+                        [[{vnode_id, AddrIdTo},
                           {src, SrcNode},
                           {dest, DestNode}]|Acc])
     end.
@@ -352,69 +234,36 @@ import(Table, FileName) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
-%% @doc Retrieve a member from an argument.
-%% @private
-get_state([],_Node1,_) ->
-    error_logger:error_msg("~p,~p,~p,~p~n",
-                           [{module, ?MODULE_STRING}, {function, "get_state/3"},
-                            {line, ?LINE}, {body, 'not_match'}]),
-    {null, false, undefined};
-get_state([#member{node        = Node0,
-                   state       = State,
-                   grp_level_2 = L2}|_], Node1, SetL2) when Node0 == Node1  ->
-    case lists:member(L2, SetL2) of
-        false ->
-            {Node0, (State == ?STATE_RUNNING), [L2|SetL2]};
-        _ ->
-            {Node0, (State == ?STATE_RUNNING), SetL2}
-    end;
-get_state([#member{node = Node0}|T], Node1, SetL2) when Node0 /= Node1 ->
-    get_state(T, Node1, SetL2).
-
 
 %% @doc Retrieve range of vnodes.
 %% @private
-range_of_vnodes(Table, VNodeId0) ->
+range_of_vnodes({_,Table}, VNodeId) ->
     case catch poolboy:checkout(?RING_WORKER_POOL_NAME) of
         {'EXIT', Cause} ->
             {error, Cause};
         ServerRef ->
-            Res1 = case leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId0) of
-                       {error, Cause} ->
-                           {error, Cause};
-                       [] ->
-                           get_node_by_vnodeid({ServerRef, Table}, VNodeId0);
-                       _  ->
-                           {ok, VNodeId0}
-                   end,
-            Res2 = range_of_vnodes_1({ServerRef, Table}, Res1),
+            Res1 =
+                case leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId) of
+                    not_found ->
+                        {error, not_found};
+                    {ok, #redundancies{vnode_id_from = From,
+                                       vnode_id_to   = To}} ->
+                        case From of
+                            0 ->
+                                case leo_redundant_manager_worker:last(ServerRef, Table) of
+                                    not_found ->
+                                        {ok, [{From, To}]};
+                                    {ok, #vnodeid_nodes{vnode_id_to = LastId}} ->
+                                        {ok, [{From, To},
+                                              {LastId + 1, leo_math:power(2, ?MD5)}]}
+                                end;
+                            _ ->
+                                {ok, [{From, To}]}
+                        end
+                end,
             _ = poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
-            Res2
+            Res1
     end.
-
-range_of_vnodes_1(_,{error, _} = Error) ->
-    Error;
-range_of_vnodes_1({ServerRef, Table}, {ok, ToVNodeId}) ->
-    Res = case leo_redundant_manager_worker:lookup(ServerRef, Table, ToVNodeId) of
-              {error, Cause} ->
-                  {error, Cause};
-              [] ->
-                  {error, no_entry};
-              _  ->
-                  case leo_redundant_manager_worker:prev(ServerRef, Table, ToVNodeId) of
-                      '$end_of_table' ->
-                          case leo_redundant_manager_worker:last(ServerRef, Table) of
-                              '$end_of_table' ->
-                                  {error, no_entry};
-                              VNodeId1 ->
-                                  {ok, [{VNodeId1 + 1, leo_math:power(2, ?MD5)},
-                                        {0, ToVNodeId}]}
-                          end;
-                      VNodeId1 ->
-                          {ok, [{VNodeId1 + 1, ToVNodeId}]}
-                  end
-          end,
-    Res.
 
 
 %% @doc Retrieve active nodes.
