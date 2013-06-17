@@ -382,7 +382,6 @@ gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members) ->
             {ok, #addrid_nodes{addr_id_to = FirstAddrId}} = first_fun(RingGroup2),
             {ok, #addrid_nodes{addr_id_to = LastAddrId}}  = last_fun(RingGroup2),
 
-            ?debugVal({FirstAddrId, LastAddrId}),
             %% @TODO - debug (unnecessary-codes)
             %% lists:foreach(fun(#ring_group{index_from = From,
             %%                               index_to   = To,
@@ -570,6 +569,30 @@ get_redundancies([#member{node = Node0}|T], Node1, SetL2) when Node0 /= Node1 ->
     get_redundancies(T, Node1, SetL2).
 
 
+%% @doc Reply redundancies
+%% @private
+reply_redundancies(not_found,_) ->
+    not_found;
+reply_redundancies({ok, #addrid_nodes{addr_id_to = AddrId,
+                                      nodes = Nodes}}, VNodeId) ->
+    reply_redundancies_1(AddrId, VNodeId, Nodes, []).
+
+
+reply_redundancies_1(AddrId, VNodeId, [], Acc) ->
+    {ok, #redundancies{id       = AddrId,
+                       vnode_id = VNodeId,
+                       nodes    = lists:reverse(Acc)}};
+reply_redundancies_1(AddrId, VNodeId, [Node|Rest], Acc) ->
+    case leo_redundant_manager_table_member:lookup(Node) of
+        {ok, #member{state = ?STATE_RUNNING}} ->
+            reply_redundancies_1(AddrId, VNodeId, Rest, [{Node, true}|Acc]);
+        {ok, #member{state = _State}} ->
+            reply_redundancies_1(AddrId, VNodeId, Rest, [{Node, false}|Acc]);
+        _ ->
+            reply_redundancies_1(AddrId, VNodeId, Rest, Acc)
+    end.
+
+
 %% @doc Retrieve first record
 %% @private
 first_fun([]) ->
@@ -602,11 +625,14 @@ last_fun(RingGroupList) ->
 lookup_fun([],_FirstAddrId,_LastAddrId,_VNodeId) ->
     not_found;
 lookup_fun(RingGroupList, FirstAddrId,_LastAddrId, VNodeId) when FirstAddrId >= VNodeId ->
-    first_fun(RingGroupList);
+    Ret = first_fun(RingGroupList),
+    reply_redundancies(Ret, VNodeId);
 lookup_fun(RingGroupList,_FirstAddrId, LastAddrId, VNodeId) when LastAddrId < VNodeId ->
-    first_fun(RingGroupList);
+    Ret = first_fun(RingGroupList),
+    reply_redundancies(Ret, VNodeId);
 lookup_fun(RingGroupList,_FirstAddrId,_LastAddrId, VNodeId) ->
-    find_redundancies_by_vnode_id(RingGroupList, VNodeId).
+    Ret = find_redundancies_by_vnode_id(RingGroupList, VNodeId),
+    reply_redundancies(Ret, VNodeId).
 
 
 %% @doc Find redundanciess by vnodeid
