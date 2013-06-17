@@ -121,8 +121,10 @@ rebalance(Tables, Members) ->
         {'EXIT', Cause} ->
             {error, Cause};
         ServerRef ->
-            ok = leo_redundant_manager_worker:force_sync(ServerRef, SrcTbl),
-            ok = leo_redundant_manager_worker:force_sync(ServerRef, DestTbl),
+            {_, SrcTbl_1 } = SrcTbl,
+            {_, DestTbl_1} = DestTbl,
+            ok = leo_redundant_manager_worker:force_sync(ServerRef, SrcTbl_1),
+            ok = leo_redundant_manager_worker:force_sync(ServerRef, DestTbl_1),
 
             Ret = rebalance_1(ServerRef, Info, Size, 0, []),
             _ = poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
@@ -134,14 +136,16 @@ rebalance_1(_ServerRef,_Info, 0,  _AddrId, Acc) ->
     {ok, lists:reverse(Acc)};
 rebalance_1(ServerRef, Info, Size, AddrId, Acc) ->
     #rebalance{members  = Members,
-               src_tbl  = SrcTable,
-               dest_tbl = DestTable} = Info,
+               src_tbl  = SrcTbl,
+               dest_tbl = DestTbl} = Info,
+    {_, SrcTbl_1 } = SrcTbl,
+    {_, DestTbl_1} = DestTbl,
 
-    {ok, #redundancies{addr_id_to = AddrIdTo,
+    {ok, #redundancies{vnode_id_to = AddrIdTo,
                        nodes = Nodes0}} =
-        leo_redundant_manager_worker:lookup(ServerRef, SrcTable,  AddrId),
+        leo_redundant_manager_worker:lookup(ServerRef, SrcTbl_1,  AddrId),
     {ok, #redundancies{nodes = Nodes1}} =
-        leo_redundant_manager_worker:lookup(ServerRef, DestTable, AddrId),
+        leo_redundant_manager_worker:lookup(ServerRef, DestTbl_1, AddrId),
 
     Res1 = lists:foldl(
              fun(N0, Acc0) ->
@@ -233,7 +237,7 @@ import(Table, FileName) ->
 
 %% @doc Retrieve range of vnodes.
 %% @private
-range_of_vnodes(Table, VNodeId) ->
+range_of_vnodes({_,Table}, VNodeId) ->
     case catch poolboy:checkout(?RING_WORKER_POOL_NAME) of
         {'EXIT', Cause} ->
             {error, Cause};
@@ -242,14 +246,14 @@ range_of_vnodes(Table, VNodeId) ->
                 case leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId) of
                     not_found ->
                         {error, not_found};
-                    {ok, #redundancies{addr_id_from = From,
-                                       addr_id_to   = To}} ->
+                    {ok, #redundancies{vnode_id_from = From,
+                                       vnode_id_to   = To}} ->
                         case From of
                             0 ->
                                 case leo_redundant_manager_worker:last(ServerRef, Table) of
                                     not_found ->
                                         {ok, [{From, To}]};
-                                    {ok, #addrid_nodes{addr_id_to = LastId}} ->
+                                    {ok, #vnodeid_nodes{vnode_id_to = LastId}} ->
                                         {ok, [{From, To},
                                               {LastId + 1, leo_math:power(2, ?MD5)}]}
                                 end;

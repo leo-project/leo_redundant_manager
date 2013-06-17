@@ -101,8 +101,7 @@ attach_({Hostname}) ->
                           Src  = proplists:get_value('src',  Item),
                           Dest = proplists:get_value('dest', Item),
                           ?assertEqual(true, Src =/= Dest),
-                          ?assertEqual(true, Src =/= AttachNode),
-                          ?assertEqual(AttachNode, Dest)
+                          ?assertEqual(true, Src =/= AttachNode)
                   end, Res),
     ok.
 
@@ -245,9 +244,9 @@ suspend_({Hostname}) ->
     ok.
 
 rack_aware_1_({Hostname}) ->
-    catch ets:delete_all_objects('leo_members'),
-    catch ets:delete_all_objects(?CUR_RING_TABLE),
-    catch ets:delete_all_objects(?PREV_RING_TABLE),
+    catch ets:delete('leo_members'),
+    catch ets:delete('leo_ring_cur'),
+    catch ets:delete('leo_ring_prv'),
 
     {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),
     leo_redundant_manager_api:set_options([{n, 3},
@@ -296,9 +295,11 @@ rack_aware_1_({Hostname}) ->
     leo_redundant_manager_api:attach(Node15, "R2"),
 
     {ok, _, _} =leo_redundant_manager_api:create(),
+    timer:sleep(100),
+
     ServerRef = poolboy:checkout(?RING_WORKER_POOL_NAME),
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, {ets, ?CUR_RING_TABLE}),
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, {ets, ?PREV_RING_TABLE}),
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, ?CUR_RING_TABLE),
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, ?PREV_RING_TABLE),
 
     lists:foreach(
       fun(N) ->
@@ -388,9 +389,11 @@ rack_aware_2_({Hostname}) ->
     leo_redundant_manager_api:attach(Node15, "R2"),
 
     {ok, _, _} =leo_redundant_manager_api:create(),
+    timer:sleep(100),
+
     ServerRef = poolboy:checkout(?RING_WORKER_POOL_NAME),
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, {ets, ?CUR_RING_TABLE}),
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, {ets, ?PREV_RING_TABLE}),
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, ?CUR_RING_TABLE),
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, ?PREV_RING_TABLE),
 
     lists:foreach(
       fun(N) ->
@@ -475,10 +478,8 @@ inspect0(Hostname) ->
     ?assertEqual(true, (-1 =< Chksum3)),
     ?assertEqual(true, (-1 =< Chksum4)),
 
-    ?assertEqual(1024, leo_redundant_manager_table_ring:size({ets, ?CUR_RING_TABLE} )),
-    ?assertEqual(1024, leo_redundant_manager_table_ring:size({ets, ?PREV_RING_TABLE})),
-    %% ?assertEqual(1024, leo_redundant_manager_table_ring:size({mnesia, ?CUR_RING_TABLE} )),
-    %% ?assertEqual(1024, leo_redundant_manager_table_ring:size({mnesia, ?PREV_RING_TABLE})),
+    ?assertEqual(1344, leo_redundant_manager_table_ring:size({ets, ?CUR_RING_TABLE} )),
+    ?assertEqual(1344, leo_redundant_manager_table_ring:size({ets, ?PREV_RING_TABLE})),
 
     Max = leo_math:power(2, ?MD5),
     lists:foreach(fun(Num) ->

@@ -368,7 +368,7 @@ get_redundancies_by_addr_id_1({ok, Members}, TblInfo, AddrId, Options) ->
             Ret = get_redundancies_by_addr_id_1_1(ServerRef, TblInfo, Members, AddrId, Options),
             _ = poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
             Ret
-        end;
+    end;
 get_redundancies_by_addr_id_1(Error, _TblInfo, _AddrId, _Options) ->
     error_logger:warning_msg("~p,~p,~p,~p~n",
                              [{module, ?MODULE_STRING}, {function, "get_redundancies_by_addr_id_1/4"},
@@ -377,12 +377,10 @@ get_redundancies_by_addr_id_1(Error, _TblInfo, _AddrId, _Options) ->
 
 %% @private
 get_redundancies_by_addr_id_1_1(ServerRef, TblInfo,_Members, AddrId, Options) ->
-    ?debugVal(AddrId),
-    N  = leo_misc:get_value(?PROP_N,  Options),
-    R  = leo_misc:get_value(?PROP_R,  Options),
-    W  = leo_misc:get_value(?PROP_W,  Options),
-    D  = leo_misc:get_value(?PROP_D,  Options),
-    %% L2 = leo_misc:get_value(?PROP_L2, Options, 0),
+    N = leo_misc:get_value(?PROP_N,  Options),
+    R = leo_misc:get_value(?PROP_R,  Options),
+    W = leo_misc:get_value(?PROP_W,  Options),
+    D = leo_misc:get_value(?PROP_D,  Options),
 
     case leo_redundant_manager_chash:redundancies(ServerRef, TblInfo, AddrId) of
         {ok, Redundancies} ->

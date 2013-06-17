@@ -67,7 +67,6 @@ start_link(ServerType, Managers, MQStoragePath) ->
 start_link(ServerType0, Managers, MQStoragePath, Options) ->
     %% initialize
     Res = start_link_sub(ServerType0),
-
     ServerType1 = server_type(ServerType0),
     ok = leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ServerType1),
 

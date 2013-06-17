@@ -154,23 +154,23 @@
 
 %% Record
 %%
--record(addrid_nodes, {
+-record(vnodeid_nodes, {
           id = 0            :: integer(),
-          addr_id_from = 0  :: integer(),
-          addr_id_to = 0    :: integer(),
+          vnode_id_from = 0 :: integer(),
+          vnode_id_to = 0   :: integer(),
           nodes             :: list(atom())
          }).
 
 -record(ring_group, {
-          index_from        :: integer(),
-          index_to          :: integer(),
-          addrid_nodes_list :: list(#addrid_nodes{})
+          index_from         :: integer(),
+          index_to           :: integer(),
+          vnodeid_nodes_list :: list(#vnodeid_nodes{})
          }).
 
 -record(ring_info, {
           checksum = -1     :: integer(),
-          first_addr_id     :: integer(),
-          last_addr_id      :: integer(),
+          first_vnode_id    :: integer(),
+          last_vnode_id     :: integer(),
           ring_group_list   :: list(#ring_group{})
          }).
 
@@ -184,12 +184,12 @@
          }).
 
 -record(redundancies,
-        {id = -1               :: pos_integer(),
-         addr_id_from          :: pos_integer(),
-         addr_id_to            :: pos_integer(),
+        {id = -1               :: pos_integer(), %% ring's address
+         vnode_id_from = -1    :: pos_integer(), %% start of vnode_id
+         vnode_id_to = -1      :: pos_integer(), %% end   of vnode_id
          vnode_id = -1         :: pos_integer(), %% virtual-node-id
          temp_nodes = []       :: list(),        %% tempolary objects of redundant-nodes
-         temp_level_2          :: set(),         %% tempolary list of level-2's node
+         temp_level_2          :: list(),        %% tempolary list of level-2's node
          nodes = []            :: list(),        %% objects of redundant-nodes
          n = 0                 :: pos_integer(), %% # of replicas
          r = 0                 :: pos_integer(), %% # of successes of READ
