@@ -219,12 +219,12 @@ handle_call({force_sync, Tbl},_From, State) when Tbl /= ?CUR_RING_TABLE,
     {reply, {error, invalid_table}, State};
 
 handle_call({force_sync, Tbl},_From, State) ->
-    Version = case Tbl of
-                  ?CUR_RING_TABLE ->
-                      ?SYNC_MODE_CUR_RING;
-                  ?PREV_RING_TABLE ->
-                      ?SYNC_MODE_PREV_RING
-              end,
+    TargetRing = case Tbl of
+                     ?CUR_RING_TABLE ->
+                         ?SYNC_MODE_CUR_RING;
+                     ?PREV_RING_TABLE ->
+                         ?SYNC_MODE_PREV_RING
+                 end,
     NewState =
         case leo_redundant_manager_table_member:find_all() of
             {ok, Members} ->
@@ -234,7 +234,7 @@ handle_call({force_sync, Tbl},_From, State) ->
                         L2 = leo_misc:get_value(?PROP_L2, Options, 0),
 
                         {ok, {Checksum, RingGroupList}} =
-                            gen_routing_table(Version, N, L2, Members),
+                            gen_routing_table(TargetRing, N, L2, Members),
                         State#state{cur = #ring_info{checksum = Checksum,
                                                      ring_group_list = RingGroupList}};
                     _ ->
@@ -369,23 +369,27 @@ maybe_sync_1_1(TargetRing,_OrgChecksum,_CurChecksum,
 
 %% @doc Generate RING for this process
 %% @private
-gen_routing_table(Version, NumOfReplicas, NumOfAwarenessL2, Members) ->
+gen_routing_table(TargetRing,_NumOfReplicas,_NumOfAwarenessL2,_Members) when TargetRing /= ?SYNC_MODE_CUR_RING,
+                                                                             TargetRing /= ?SYNC_MODE_PREV_RING ->
+    {error, invalid_target_ring};
+gen_routing_table(_TargetRing,_NumOfReplicas,_NumOfAwarenessL2,[]) ->
+    {error, member_empty};
+gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members) ->
     %% Retrieve ring from local's master [etc|mnesia]
-    ETS_Tbl = case Version of
-                  ?SYNC_MODE_CUR_RING  -> {ets, ?CUR_RING_TABLE};
-                  ?SYNC_MODE_PREV_RING -> {ets, ?PREV_RING_TABLE};
-                  _ ->
-                      {ets, ?PREV_RING_TABLE}
-              end,
-    {ok, CurRing} = leo_redundant_manager_api:get_ring(Version),
+    Tbl = case TargetRing of
+              ?SYNC_MODE_CUR_RING  -> leo_redundant_manager_api:table_info(?VER_CURRENT);
+              ?SYNC_MODE_PREV_RING -> leo_redundant_manager_api:table_info(?VER_PREV)
+          end,
+    {ok, CurRing} = leo_redundant_manager_api:get_ring(TargetRing),
     Checksum  = erlang:crc32(term_to_binary(CurRing)),
     RingSize  = length(CurRing),
     GroupSize = leo_math:ceiling(RingSize / ?DEF_NUM_OF_DIV),
 
+    %% Retrieve redundancies by addr-id
     {_,_,Ring,_,_} =
         lists:foldl(fun({AddrId, _Node},
                         {Id, GId, IdxAcc, TblAcc, StAddrId}) ->
-                            Ret = redundancies(ETS_Tbl, AddrId,
+                            Ret = redundancies(Tbl, AddrId,
                                                NumOfReplicas, NumOfAwarenessL2, Members),
                             gen_routing_table_1(Ret, GroupSize,
                                                 Id, AddrId, GId, IdxAcc, TblAcc, StAddrId)
@@ -421,8 +425,8 @@ gen_routing_table_1({ok, #redundancies{nodes = Nodes}},
                             end,
 
             {Id1, 0, [#ring_group{index_from = FirstAddrId_1,
-                             index_to   = AddrId,
-                             addrid_nodes_list = lists:reverse(RingGroup)}|IdxAcc],
+                                  index_to   = AddrId,
+                                  addrid_nodes_list = lists:reverse(RingGroup)}|IdxAcc],
              [], AddrId + 1};
         false ->
             {Id1, GId + 1, IdxAcc,
