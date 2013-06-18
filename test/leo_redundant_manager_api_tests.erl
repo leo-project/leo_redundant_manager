@@ -34,21 +34,21 @@ redundant_manager_test_() ->
     {timeout, 300,
      {foreach, fun setup/0, fun teardown/1,
       [{with, [T]} || T <- [fun redundant_manager_0_/1,
-                           fun redundant_manager_1_/1,
-                           fun attach_/1,
-                           fun detach_/1,
+                            fun redundant_manager_1_/1,
+                            fun attach_/1,
+                            fun detach_/1,
 
-                           fun members_table_/1,
-                           fun synchronize_0_/1,
-                           fun synchronize_1_/1,
-                           fun synchronize_2_/1,
-                           fun adjust_/1,
-                           fun append_/1,
-                           fun suspend_/1,
+                            fun members_table_/1,
+                            fun synchronize_0_/1,
+                            fun synchronize_1_/1,
+                            fun synchronize_2_/1,
+                            fun adjust_/1,
+                            fun append_/1,
+                            fun suspend_/1,
 
-                           fun rack_aware_1_/1,
-                           fun rack_aware_2_/1
-                          ]]}}.
+                            fun rack_aware_1_/1,
+                            fun rack_aware_2_/1
+                           ]]}}.
 
 
 setup() ->
@@ -541,6 +541,10 @@ inspect0(Hostname) ->
     ?debugVal("***** ok *****"),
     {ok, Res3} = leo_redundant_manager_api:range_of_vnodes(0),
     inspect1(0, Res3),
+
+    Max1 = leo_math:power(2,128) - 1,
+    {ok, Res4} = leo_redundant_manager_api:range_of_vnodes(Max1),
+    ?assertEqual(2, length(Res4)),
     ok.
 
 
