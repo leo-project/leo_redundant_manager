@@ -227,6 +227,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% @doc Retrieve current time
 %% @private
+-spec(timestamp() ->
+             pos_integer()).
 timestamp() ->
     leo_math:floor(leo_date:clock() / 1000).
 
@@ -240,7 +242,8 @@ sync() ->
                         ) + ?DEF_SYNC_MIN_INTERVAL,
     catch timer:apply_after(Time, gen_server, cast, [self(), sync]).
 
-%% @doc Heatbeat
+
+%% @doc Heatbeat and synchronize with master's ring-table
 %% @private
 -spec(maybe_sync(#state{}) ->
              #state{}).
@@ -270,6 +273,8 @@ maybe_sync(#state{cur  = #ring_info{checksum = CurHash},
     end.
 
 %% @private
+-spec(maybe_sync_1(#state{}, {pos_integer(), pos_integer()}, {pos_integer(), pos_integer()}) ->
+             #state{}).
 maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
     case leo_redundant_manager_table_member:find_all() of
         {ok, Members} ->
@@ -312,6 +317,8 @@ maybe_sync_1_1(TargetRing,_OrgChecksum,_CurChecksum,
 
 %% @doc Generate RING for this process
 %% @private
+-spec(gen_routing_table(?SYNC_MODE_CUR_RING|?SYNC_MODE_PREV_RING, pos_integer(), pos_integer(), list(#member{})) ->
+             {ok, {pos_integer(), list(#ring_group{}), pos_integer(), pos_integer()}} | {error, atom()}).
 gen_routing_table(TargetRing,_NumOfReplicas,_NumOfAwarenessL2,_Members) when TargetRing /= ?SYNC_MODE_CUR_RING,
                                                                              TargetRing /= ?SYNC_MODE_PREV_RING ->
     {error, invalid_target_ring};
@@ -347,7 +354,6 @@ gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members) ->
             {ok, #redundancies{vnode_id_to = LastAddrId}}  = last_fun(RingGroup2),
             {ok, {Checksum, RingGroup2, FirstAddrId, LastAddrId}}
     end.
-
 
 gen_routing_table_1({ok, #redundancies{nodes = Nodes}},
                     GroupSize, Id, AddrId, GId, IdxAcc, TblAcc, StAddrId) ->
@@ -433,7 +439,6 @@ redundnacies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, Valu
     redundancies_2(Table, NumOfReplicas-1, L2, Members, VNodeId_Hop,
                    #redundancies{id           = VNodeId_Org,
                                  vnode_id_to  = VNodeId_Hop,
-                                 %% vnode_id     = VNodeId_Hop,
                                  temp_nodes   = [Value],
                                  temp_level_2 = SetsL2_1,
                                  nodes        = [Node]}).
@@ -493,7 +498,10 @@ redundancies_3(Table, NumOfReplicas, L2, Members,
     end.
 
 
+%% @doc Retrieve virtual-node by vnode-id
 %% @private
+-spec(get_node_by_vnodeid({ets|mnesia, ?CUR_RING_TABLE|?PREV_RING_TABLE}, pos_integer()) ->
+             {ok, pos_integer()} | {error, no_entry}).
 get_node_by_vnodeid(Table, VNodeId) ->
     case leo_redundant_manager_table_ring:next(Table, VNodeId) of
         '$end_of_table' ->
@@ -510,9 +518,11 @@ get_node_by_vnodeid(Table, VNodeId) ->
 
 %% @doc Retrieve a member from an argument.
 %% @private
+-spec(get_redundancies(list(#member{}), atom(), list(atom())) ->
+             {atom, list(atom())}).
 get_redundancies([],_Node1,_) ->
     not_found;
-get_redundancies([#member{node        = Node0,
+get_redundancies([#member{node = Node0,
                           grp_level_2 = L2}|_], Node1, SetL2) when Node0 == Node1  ->
     case lists:member(L2, SetL2) of
         false ->
@@ -526,6 +536,8 @@ get_redundancies([#member{node = Node0}|T], Node1, SetL2) when Node0 /= Node1 ->
 
 %% @doc Reply redundancies
 %% @private
+-spec(reply_redundancies(not_found | {ok, #redundancies{}}, pos_integer()) ->
+             not_found | {ok, #redundancies{}}).
 reply_redundancies(not_found,_) ->
     not_found;
 reply_redundancies({ok, #redundancies{nodes = Nodes} =Redundancies}, AddrId) ->
@@ -548,6 +560,8 @@ reply_redundancies_1(Redundancies, AddrId, [Node|Rest], Acc) ->
 
 %% @doc Retrieve first record
 %% @private
+-spec(first_fun(list(#ring_group{})) ->
+             not_found | {ok, #redundancies{}}).
 first_fun([]) ->
     not_found;
 first_fun([#ring_group{vnodeid_nodes_list = AddrId_Nodes_List}|_]) ->
@@ -568,6 +582,8 @@ first_fun(_) ->
 
 %% @doc Retrieve last record
 %% @private
+-spec(last_fun(list(#ring_group{})) ->
+             not_found | {ok, #redundancies{}}).
 last_fun([]) ->
     not_found;
 last_fun(RingGroupList) ->
@@ -588,6 +604,8 @@ last_fun(RingGroupList) ->
 
 %% @doc Retrieve redundancies by vnode-id
 %% @private
+-spec(lookup_fun(list(#ring_group{}), pos_integer(), pos_integer(), pos_integer()) ->
+             not_found | {ok, #redundancies{}}).
 lookup_fun([],_FirstVNodeId,_LastVNodeId,_AddrId) ->
     not_found;
 lookup_fun(RingGroupList, FirstVNodeId,_LastVNodeId, AddrId) when FirstVNodeId >= AddrId ->
@@ -603,6 +621,8 @@ lookup_fun(RingGroupList,_FirstVNodeId,_LastVNodeId, AddrId) ->
 
 %% @doc Find redundanciess by vnodeid
 %% @private
+-spec(find_redundancies_by_addr_id(list(#ring_group{}), pos_integer()) ->
+             not_found | {ok, #redundancies{}}).
 find_redundancies_by_addr_id([],_AddrId) ->
     not_found;
 find_redundancies_by_addr_id(
@@ -631,6 +651,8 @@ find_redundancies_by_addr_id_1([_|Rest], AddrId) ->
 
 %% @doc Force sync
 %% @private
+-spec(force_sync_fun(?SYNC_MODE_CUR_RING|?SYNC_MODE_PREV_RING, #state{}) ->
+             #state{}).
 force_sync_fun(TargetRing, State) ->
     case leo_redundant_manager_table_member:find_all() of
         {ok, Members} ->
