@@ -123,6 +123,7 @@ rebalance(Tables, Members) ->
         ServerRef ->
             {_, SrcTbl_1 } = SrcTbl,
             {_, DestTbl_1} = DestTbl,
+
             ok = leo_redundant_manager_worker:force_sync(ServerRef, SrcTbl_1),
             ok = leo_redundant_manager_worker:force_sync(ServerRef, DestTbl_1),
 

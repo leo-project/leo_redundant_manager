@@ -78,7 +78,7 @@
                    gen_routing_table/4, gen_routing_table_1/8,
                    redundancies/5, redundnacies_1/6, redundnacies_1/7,
                    redundancies_2/6, redundancies_3/7, get_node_by_vnodeid/2,
-                   get_redundancies/3
+                   get_redundancies/3, force_sync_fun/2, force_sync_fun_1/3
                   ]}).
 
 %%--------------------------------------------------------------------
@@ -282,7 +282,6 @@ maybe_sync_1_1(_TargetRing, OrgChecksum, CurChecksum,
     State;
 maybe_sync_1_1(TargetRing,_OrgChecksum,_CurChecksum,
                NumOfReplicas, NumOfAwarenessL2, Members, State) ->
-
     case gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members) of
         {ok, {Checksum, RingGroupList, FirstAddrId, LastAddrId}} ->
             RingInfo = #ring_info{checksum = Checksum,
@@ -333,7 +332,7 @@ gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members) ->
         [] ->
             {error, empty};
         _ ->
-            RingGroup2   = lists:reverse(RingGroup1),
+            RingGroup2 = lists:reverse(RingGroup1),
             {ok, #redundancies{vnode_id_to = FirstAddrId}} = first_fun(RingGroup2),
             {ok, #redundancies{vnode_id_to = LastAddrId}}  = last_fun(RingGroup2),
             {ok, {Checksum, RingGroup2, FirstAddrId, LastAddrId}}
@@ -645,22 +644,27 @@ force_sync_fun(TargetRing, State) ->
                     N  = leo_misc:get_value(?PROP_N,  Options),
                     L2 = leo_misc:get_value(?PROP_L2, Options, 0),
 
-                    case gen_routing_table(TargetRing, N, L2, Members) of
-                        {ok, {Checksum, RingGroupList, FirstAddrId, LastAddrId}} ->
-                            State#state{
-                              cur = #ring_info{checksum = Checksum,
-                                               ring_group_list = RingGroupList,
-                                               first_vnode_id  = FirstAddrId,
-                                               last_vnode_id   = LastAddrId}};
-                        _ ->
-                            State
-                    end;
+                    Ret = gen_routing_table(TargetRing, N, L2, Members),
+                    force_sync_fun_1(Ret, TargetRing, State);
                 _ ->
                     State
             end;
         _ ->
             State
     end.
+
+force_sync_fun_1({ok, {Checksum, RingGroupList, FirstAddrId, LastAddrId}}, ?SYNC_MODE_CUR_RING, State) ->
+    State#state{cur  = #ring_info{checksum = Checksum,
+                                  ring_group_list = RingGroupList,
+                                  first_vnode_id  = FirstAddrId,
+                                  last_vnode_id   = LastAddrId}};
+force_sync_fun_1({ok, {Checksum, RingGroupList, FirstAddrId, LastAddrId}}, ?SYNC_MODE_PREV_RING, State) ->
+    State#state{prev = #ring_info{checksum = Checksum,
+                                  ring_group_list = RingGroupList,
+                                  first_vnode_id  = FirstAddrId,
+                                  last_vnode_id   = LastAddrId}};
+force_sync_fun_1(_,_,State) ->
+    State.
 
 
 %% @doc Retrieve ring-info
