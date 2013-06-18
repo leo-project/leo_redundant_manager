@@ -73,6 +73,13 @@
                                   {line, Line}, {body, Msg}])).
 -endif.
 
+-compile({inline, [lookup_fun/4, find_redundancies_by_addr_id/2,
+                   reply_redundancies/2,first_fun/1, last_fun/1,
+                   gen_routing_table/4, gen_routing_table_1/8,
+                   redundancies/5, redundnacies_1/6, redundnacies_1/7,
+                   redundancies_2/6, redundancies_3/7, get_node_by_vnodeid/2,
+                   get_redundancies/3
+                  ]}).
 
 %%--------------------------------------------------------------------
 %% API
@@ -121,52 +128,29 @@ handle_call({lookup, Tbl,_AddrId},_From, State) when Tbl /= ?CUR_RING_TABLE,
                                                      Tbl /= ?PREV_RING_TABLE ->
     {reply, {error, invalid_table}, State};
 
-handle_call({lookup, Tbl, AddrId},_From, #state{cur  = Cur,
-                                                prev = Prev} = State) ->
-    Reply = case Tbl of
-                ?CUR_RING_TABLE ->
-                    #ring_info{ring_group_list = RingGroupList,
-                               first_vnode_id  = FirstVNodeId,
-                               last_vnode_id   = LastVNodeId} = Cur,
-                    lookup_fun(RingGroupList, FirstVNodeId, LastVNodeId, AddrId);
-                ?PREV_RING_TABLE ->
-                    #ring_info{ring_group_list = RingGroupList,
-                               first_vnode_id  = FirstVNodeId,
-                               last_vnode_id   = LastVNodeId} = Prev,
-                    lookup_fun(RingGroupList, FirstVNodeId, LastVNodeId, AddrId)
-            end,
+handle_call({lookup, Tbl, AddrId},_From, State) ->
+    #ring_info{ring_group_list = RingGroupList,
+               first_vnode_id  = FirstVNodeId,
+               last_vnode_id   = LastVNodeId} = ring_info(Tbl, State),
+    Reply = lookup_fun(RingGroupList, FirstVNodeId, LastVNodeId, AddrId),
     {reply, Reply, State};
 
 
 handle_call({first, Tbl},_From, State) when Tbl /= ?CUR_RING_TABLE,
                                             Tbl /= ?PREV_RING_TABLE ->
     {reply, {error, invalid_table}, State};
-handle_call({first, Tbl},_From, #state{cur  = Cur,
-                                       prev = Prev} = State) ->
-    Reply = case Tbl of
-                ?CUR_RING_TABLE ->
-                    #ring_info{ring_group_list = RingGroupList} = Cur,
-                    first_fun(RingGroupList);
-                ?PREV_RING_TABLE ->
-                    #ring_info{ring_group_list = RingGroupList} = Prev,
-                    first_fun(RingGroupList)
-            end,
+handle_call({first, Tbl},_From, State) ->
+    #ring_info{ring_group_list = RingGroupList} = ring_info(Tbl, State),
+    Reply = first_fun(RingGroupList),
     {reply, Reply, State};
 
 
 handle_call({last, Tbl},_From, State) when Tbl /= ?CUR_RING_TABLE,
                                            Tbl /= ?PREV_RING_TABLE ->
     {reply, {error, invalid_table}, State};
-handle_call({last, Tbl},_From, #state{cur  = Cur,
-                                      prev = Prev} = State) ->
-    Reply = case Tbl of
-                ?CUR_RING_TABLE ->
-                    #ring_info{ring_group_list = RingGroupList} = Cur,
-                    last_fun(RingGroupList);
-                ?PREV_RING_TABLE ->
-                    #ring_info{ring_group_list = RingGroupList} = Prev,
-                    last_fun(RingGroupList)
-            end,
+handle_call({last, Tbl},_From, State) ->
+    #ring_info{ring_group_list = RingGroupList} = ring_info(Tbl, State),
+    Reply = last_fun(RingGroupList),
     {reply, Reply, State};
 
 
@@ -677,3 +661,15 @@ force_sync_fun(TargetRing, State) ->
         _ ->
             State
     end.
+
+
+%% @doc Retrieve ring-info
+%% @private
+-spec(ring_info(?CUR_RING_TABLE|?PREV_RING_TABLE, #state{}) ->
+             #ring_info{}).
+ring_info(?CUR_RING_TABLE, State) ->
+    State#state.cur;
+ring_info(?PREV_RING_TABLE, State) ->
+    State#state.prev;
+ring_info(_,_) ->
+    {error, invalid_table}.
