@@ -64,6 +64,16 @@
           timestamp = 0 :: pos_integer()
          }).
 
+-ifdef(TEST).
+-define(output_error_log(Line, Fun, Msg), void).
+-else.
+-define(output_error_log(Line, Fun, Msg),
+        error_logger:warning_msg("~p,~p,~p,~p~n",
+                                 [{module, ?MODULE_STRING}, {function, Fun},
+                                  {line, Line}, {body, Msg}])).
+-endif.
+
+
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
@@ -369,9 +379,7 @@ gen_routing_table_1({ok, #redundancies{nodes = Nodes}},
     end;
 
 gen_routing_table_1(_,_GroupSize, AddrId, Id, GId, IdxAcc, TblAcc,_StAddrId) ->
-    error_logger:warning_msg("~p,~p,~p,~p~n",
-                             [{module, ?MODULE_STRING}, {function, "gen_routing_table_1/8"},
-                              {line, ?LINE}, {body, "Could not get redundancies"}]),
+    ?output_error_log(?LINE, "gen_routing_table_1/8", "Could not get redundancies"),
     {Id + 1, GId + 1, IdxAcc, [#vnodeid_nodes{}|TblAcc], AddrId + 1}.
 
 

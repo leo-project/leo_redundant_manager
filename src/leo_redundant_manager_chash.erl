@@ -99,7 +99,7 @@ remove(N, Table, #member{alias = Alias} = Member) ->
     remove(N + 1, Table, Member).
 
 
-%% %% @doc get redundancies by key.
+%% %% @doc Retrieve redundancies by vnode-id.
 %% %%
 redundancies(ServerRef, {_,Table}, VNodeId) ->
     leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId).
@@ -132,17 +132,17 @@ rebalance(Tables, Members) ->
     end.
 
 %% @private
-rebalance_1(_ServerRef,_Info, 0,  _AddrId, Acc) ->
+rebalance_1(_ServerRef,_Info, 0,  _VNodeId, Acc) ->
     {ok, lists:reverse(Acc)};
-rebalance_1(ServerRef, Info, Size, AddrId, Acc) ->
+rebalance_1(ServerRef, Info, Size, VNodeId, Acc) ->
     #rebalance{members  = Members,
                src_tbl  = {_, SrcTbl_1},
                dest_tbl = {_, DestTbl_1}} = Info,
     {ok, #redundancies{vnode_id_to = VNodeIdTo,
                        nodes = Nodes0}} =
-        leo_redundant_manager_worker:lookup(ServerRef, SrcTbl_1,  AddrId),
+        leo_redundant_manager_worker:lookup(ServerRef, SrcTbl_1,  VNodeId),
     {ok, #redundancies{nodes = Nodes1}} =
-        leo_redundant_manager_worker:lookup(ServerRef, DestTbl_1, AddrId),
+        leo_redundant_manager_worker:lookup(ServerRef, DestTbl_1, VNodeId),
 
     Res1 = lists:foldl(
              fun(N0, Acc0) ->
@@ -160,7 +160,7 @@ rebalance_1(ServerRef, Info, Size, AddrId, Acc) ->
             SrcNode  = active_node(Members, Nodes1),
             rebalance_1(ServerRef, Info, Size - 1, VNodeIdTo + 1,
                         [[{vnode_id, VNodeIdTo},
-                          {src, SrcNode},
+                          {src,  SrcNode},
                           {dest, DestNode}]|Acc])
     end.
 
