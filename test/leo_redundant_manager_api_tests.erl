@@ -483,9 +483,9 @@ inspect0(Hostname) ->
 
     Max = leo_math:power(2, ?MD5),
     lists:foreach(fun(Num) ->
-                          {ok, #redundancies{id       = _Id0,
-                                             vnode_id = _VNodeId0,
-                                             nodes    = Nodes0,
+                          {ok, #redundancies{id = _Id0,
+                                             vnode_id_to = _VNodeId0,
+                                             nodes = Nodes0,
                                              n = 3,
                                              r = 1,
                                              w = 2,
@@ -501,9 +501,9 @@ inspect0(Hostname) ->
                   end, lists:seq(0, 10)),
     lists:foreach(fun(_) ->
                           Id = random:uniform(Max),
-                          {ok, #redundancies{id       = _Id0,
-                                             vnode_id = _VNodeId0,
-                                             nodes    = Nodes0,
+                          {ok, #redundancies{id = _Id0,
+                                             vnode_id_to = _VNodeId0,
+                                             nodes = Nodes0,
                                              n = 3,
                                              r = 1,
                                              w = 2,
@@ -523,9 +523,9 @@ inspect0(Hostname) ->
     ?assertEqual(3, length(N0)),
     ?assertEqual(3, length(N1)),
 
-    {ok, #redundancies{id       = Id,
-                       vnode_id = VNodeId1,
-                       nodes    = Nodes1,
+    {ok, #redundancies{id = Id,
+                       vnode_id_to = VNodeId1,
+                       nodes = Nodes1,
                        n = 3,
                        r = 1,
                        w = 2,

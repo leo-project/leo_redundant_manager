@@ -188,8 +188,7 @@
 -record(redundancies,
         {id = -1               :: pos_integer(), %% ring's address
          vnode_id_from = -1    :: pos_integer(), %% start of vnode_id
-         vnode_id_to = -1      :: pos_integer(), %% end   of vnode_id
-         vnode_id = -1         :: pos_integer(), %% virtual-node-id
+         vnode_id_to = -1      :: pos_integer(), %% end   of vnode_id (ex. vnode_id)
          temp_nodes = []       :: list(),        %% tempolary objects of redundant-nodes
          temp_level_2 = []     :: list(),        %% tempolary list of level-2's node
          nodes = []            :: list(),        %% objects of redundant-nodes
@@ -199,7 +198,7 @@
          d = 0                 :: pos_integer(), %% # of successes of DELETE
          level_1 = 0           :: pos_integer(), %% # of dc-awareness's replicas
          level_2 = 0           :: pos_integer(), %% # of rack-awareness's replicas
-         ring_hash             :: pos_integer()  %% ring-hash when writing an object
+         ring_hash = -1        :: pos_integer()  %% ring-hash when writing an object
         }).
 
 -record(ring,

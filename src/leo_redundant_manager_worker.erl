@@ -343,8 +343,8 @@ gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members) ->
             {error, empty};
         _ ->
             RingGroup2   = lists:reverse(RingGroup1),
-            {ok, #vnodeid_nodes{vnode_id_to = FirstAddrId}} = first_fun(RingGroup2),
-            {ok, #vnodeid_nodes{vnode_id_to = LastAddrId}}  = last_fun(RingGroup2),
+            {ok, #redundancies{vnode_id_to = FirstAddrId}} = first_fun(RingGroup2),
+            {ok, #redundancies{vnode_id_to = LastAddrId}}  = last_fun(RingGroup2),
             {ok, {Checksum, RingGroup2, FirstAddrId, LastAddrId}}
     end.
 
@@ -432,7 +432,8 @@ redundnacies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, Valu
 
     redundancies_2(Table, NumOfReplicas-1, L2, Members, VNodeId_Hop,
                    #redundancies{id           = VNodeId_Org,
-                                 vnode_id     = VNodeId_Hop,
+                                 vnode_id_to  = VNodeId_Hop,
+                                 %% vnode_id     = VNodeId_Hop,
                                  temp_nodes   = [Value],
                                  temp_level_2 = SetsL2_1,
                                  nodes        = [Node]}).
@@ -527,27 +528,21 @@ get_redundancies([#member{node = Node0}|T], Node1, SetL2) when Node0 /= Node1 ->
 %% @private
 reply_redundancies(not_found,_) ->
     not_found;
-reply_redundancies({ok, #vnodeid_nodes{vnode_id_from = VNodeIdFrom,
-                                       vnode_id_to   = VNodeIdTo,
-                                       nodes = Nodes}}, AddrId) ->
-    reply_redundancies_1(VNodeIdFrom, VNodeIdTo, AddrId, Nodes, []).
+reply_redundancies({ok, #redundancies{nodes = Nodes} =Redundancies}, AddrId) ->
+    reply_redundancies_1(Redundancies, AddrId, Nodes, []).
 
+reply_redundancies_1(Redundancies, AddrId, [], Acc) ->
+    {ok, Redundancies#redundancies{id = AddrId,
+                                   nodes = lists:reverse(Acc)}};
 
-reply_redundancies_1(VNodeIdFrom, VNodeIdTo, AddrId, [], Acc) ->
-    {ok, #redundancies{id            = AddrId,
-                       vnode_id_from = VNodeIdFrom,
-                       vnode_id_to   = VNodeIdTo,
-                       vnode_id      = VNodeIdTo,
-                       nodes         = lists:reverse(Acc)}};
-
-reply_redundancies_1(VNodeIdFrom, VNodeIdTo, AddrId, [Node|Rest], Acc) ->
+reply_redundancies_1(Redundancies, AddrId, [Node|Rest], Acc) ->
     case leo_redundant_manager_table_member:lookup(Node) of
         {ok, #member{state = ?STATE_RUNNING}} ->
-            reply_redundancies_1(VNodeIdFrom, VNodeIdTo, AddrId, Rest, [{Node, true}|Acc]);
+            reply_redundancies_1(Redundancies, AddrId, Rest, [{Node, true}|Acc]);
         {ok, #member{state = _State}} ->
-            reply_redundancies_1(VNodeIdFrom, VNodeIdTo, AddrId, Rest, [{Node, false}|Acc]);
+            reply_redundancies_1(Redundancies, AddrId, Rest, [{Node, false}|Acc]);
         _ ->
-            reply_redundancies_1(VNodeIdFrom, VNodeIdTo, AddrId, Rest, Acc)
+            reply_redundancies_1(Redundancies, AddrId, Rest, Acc)
     end.
 
 
@@ -559,8 +554,13 @@ first_fun([#ring_group{vnodeid_nodes_list = AddrId_Nodes_List}|_]) ->
     case AddrId_Nodes_List of
         [] ->
             not_found;
-        [Res|_] ->
-            {ok, Res}
+        [#vnodeid_nodes{vnode_id_from = From,
+                        vnode_id_to   = To,
+                        nodes = Nodes}|_] ->
+            {ok, #redundancies{id = From,
+                               vnode_id_from = From,
+                               vnode_id_to   = To,
+                               nodes = Nodes}}
     end;
 first_fun(_) ->
     not_found.
@@ -576,7 +576,13 @@ last_fun(RingGroupList) ->
         [] ->
             not_found;
         _ ->
-            {ok, lists:last(AddrId_Nodes_List)}
+            #vnodeid_nodes{vnode_id_from = From,
+                           vnode_id_to   = To,
+                           nodes = Nodes} = lists:last(AddrId_Nodes_List),
+            {ok, #redundancies{id = From,
+                               vnode_id_from = From,
+                               vnode_id_to   = To,
+                               nodes = Nodes}}
     end.
 
 
@@ -613,9 +619,12 @@ find_redundancies_by_addr_id_1([],_AddrId) ->
     not_found;
 find_redundancies_by_addr_id_1(
   [#vnodeid_nodes{vnode_id_from = From,
-                  vnode_id_to   = To} = Res|_], AddrId) when From =< AddrId,
-                                                             To   >= AddrId ->
-    {ok, Res};
+                  vnode_id_to   = To,
+                  nodes = Nodes}|_], AddrId) when From =< AddrId,
+                                                  To   >= AddrId ->
+    {ok, #redundancies{vnode_id_from = From,
+                       vnode_id_to   = To,
+                       nodes = Nodes}};
 find_redundancies_by_addr_id_1([_|Rest], AddrId) ->
     find_redundancies_by_addr_id_1(Rest, AddrId).
 

@@ -254,7 +254,7 @@ range_of_vnodes_1(ServerRef, Table, VNodeId) ->
                     case leo_redundant_manager_worker:last(ServerRef, Table) of
                         not_found ->
                             {ok, [{From, To}]};
-                        {ok, #vnodeid_nodes{vnode_id_to = LastId}} ->
+                        {ok, #redundancies{vnode_id_to = LastId}} ->
                             {ok, [{From, To},
                                   {LastId + 1, leo_math:power(2, ?MD5)}]}
                     end;

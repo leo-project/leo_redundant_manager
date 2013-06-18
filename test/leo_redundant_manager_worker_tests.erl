@@ -64,9 +64,8 @@ teardown(Pid) ->
 
 suite_(_) ->
     RingWorker1 = poolboy:checkout('ring_worker_pool'),
-    {ok, #vnodeid_nodes{id = 1,
-                        vnode_id_from = 0,
-                        nodes = N0}} = leo_redundant_manager_worker:first(RingWorker1, 'leo_ring_cur'),
+    {ok, #redundancies{vnode_id_from = 0,
+                       nodes = N0}} = leo_redundant_manager_worker:first(RingWorker1, 'leo_ring_cur'),
     {ok, #redundancies{nodes = N1}} = leo_redundant_manager_worker:lookup(
                                         RingWorker1, 'leo_ring_cur', 0),
     {ok, #redundancies{nodes = N2}} = leo_redundant_manager_worker:lookup(
@@ -79,8 +78,7 @@ suite_(_) ->
                                         RingWorker1, 'leo_ring_cur', 5257965865843856950061366315134191522),
     {ok, #redundancies{nodes = N6}} = leo_redundant_manager_worker:lookup(
                                         RingWorker1, 'leo_ring_cur', 340282366920938463463374607431768211456),
-    {ok, #vnodeid_nodes{id = 840,
-                        nodes = N7}} = leo_redundant_manager_worker:last(RingWorker1, 'leo_ring_cur'),
+    {ok, #redundancies{nodes = N7}} = leo_redundant_manager_worker:last(RingWorker1, 'leo_ring_cur'),
 
     ?assertEqual(3, length(N0)),
     ?assertEqual(3, length(N1)),
