@@ -133,17 +133,22 @@ rebalance(Tables, Members) ->
     end.
 
 %% @private
-rebalance_1(_ServerRef,_Info, 0,  _VNodeId, Acc) ->
-    {ok, lists:reverse(Acc)};
-rebalance_1(ServerRef, Info, Size, VNodeId, Acc) ->
+rebalance_1(_ServerRef,_Info, 0,  _AddrId, Acc) ->
+    Acc1 = lists:reverse(Acc),
+    %% lists:foldl(fun(Item, Index) ->
+    %%                     ?debugVal({Index, Item}),
+    %%                     Index+1
+    %%             end, 0, Acc1),
+    {ok, Acc1};
+rebalance_1(ServerRef, Info, Size, AddrId, Acc) ->
     #rebalance{members  = Members,
                src_tbl  = {_, SrcTbl_1},
                dest_tbl = {_, DestTbl_1}} = Info,
     {ok, #redundancies{vnode_id_to = VNodeIdTo,
                        nodes = Nodes0}} =
-        leo_redundant_manager_worker:lookup(ServerRef, SrcTbl_1,  VNodeId),
+        leo_redundant_manager_worker:lookup(ServerRef, SrcTbl_1,  AddrId),
     {ok, #redundancies{nodes = Nodes1}} =
-        leo_redundant_manager_worker:lookup(ServerRef, DestTbl_1, VNodeId),
+        leo_redundant_manager_worker:lookup(ServerRef, DestTbl_1, AddrId),
 
     Res1 = lists:foldl(
              fun(N0, Acc0) ->

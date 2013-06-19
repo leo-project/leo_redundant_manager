@@ -75,7 +75,7 @@
 
 -compile({inline, [lookup_fun/4, find_redundancies_by_addr_id/2,
                    reply_redundancies/2,first_fun/1, last_fun/1,
-                   gen_routing_table/4, gen_routing_table_1/8,
+                   gen_routing_table/4, gen_routing_table_1/9,
                    redundancies/5, redundnacies_1/6, redundnacies_1/7,
                    redundancies_2/6, redundancies_3/7, get_node_by_vnodeid/2,
                    get_redundancies/3, force_sync_fun/2, force_sync_fun_1/3
@@ -325,7 +325,7 @@ gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members) ->
                         {Id, GId, IdxAcc, TblAcc, StAddrId}) ->
                             Ret = redundancies(Tbl, AddrId,
                                                NumOfReplicas, NumOfAwarenessL2, Members),
-                            gen_routing_table_1(Ret, GroupSize,
+                            gen_routing_table_1(Ret, RingSize, GroupSize,
                                                 Id, AddrId, GId, IdxAcc, TblAcc, StAddrId)
                     end, {0, 0, [], [], 0}, CurRing),
     case RingGroup1 of
@@ -339,35 +339,39 @@ gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members) ->
     end.
 
 gen_routing_table_1({ok, #redundancies{nodes = Nodes}},
-                    GroupSize, Id, AddrId, GId, IdxAcc, TblAcc, StAddrId) ->
+                    RingSize, GroupSize,
+                    Id, AddrId, GId, IdxAcc, TblAcc, StAddrId) ->
     Id1 = Id + 1,
-    case (GId == GroupSize) of
+    VNodeId_Nodes = #vnodeid_nodes{id = Id1,
+                                   vnode_id_from = StAddrId,
+                                   vnode_id_to   = AddrId,
+                                   nodes = Nodes},
+
+    case (GId == GroupSize orelse (RingSize - Id1) < GroupSize) of
         true ->
-            RingGroup = [#vnodeid_nodes{id = Id1,
-                                        vnode_id_to   = AddrId,
-                                        vnode_id_from = StAddrId,
-                                        nodes = Nodes}|TblAcc],
+            FirstAddrId_1 =
+                case TblAcc of
+                    [] ->
+                        StAddrId;
+                    _ ->
+                        case lists:last(TblAcc) of
+                            #vnodeid_nodes{id = 1} -> 0;
+                            #vnodeid_nodes{vnode_id_from = FirstAddrId} ->
+                                FirstAddrId
+                        end
+                end,
 
-            #vnodeid_nodes{id = FirstId,
-                           vnode_id_from = FirstAddrId} = lists:last(TblAcc),
-            FirstAddrId_1 = case FirstId of
-                                1 -> 0;
-                                _ -> FirstAddrId
-                            end,
-
+            RingGroup = lists:reverse([VNodeId_Nodes|TblAcc]),
             {Id1, 0, [#ring_group{index_from = FirstAddrId_1,
                                   index_to   = AddrId,
-                                  vnodeid_nodes_list = lists:reverse(RingGroup)}|IdxAcc],
+                                  vnodeid_nodes_list = RingGroup}|IdxAcc],
              [], AddrId + 1};
         false ->
             {Id1, GId + 1, IdxAcc,
-             [#vnodeid_nodes{id = Id1,
-                             vnode_id_from = StAddrId,
-                             vnode_id_to   = AddrId,
-                             nodes = Nodes}|TblAcc], AddrId + 1}
+             [VNodeId_Nodes|TblAcc], AddrId + 1}
     end;
 
-gen_routing_table_1(_,_GroupSize, AddrId, Id, GId, IdxAcc, TblAcc,_StAddrId) ->
+gen_routing_table_1(_,_RingSize,_GroupSize, AddrId, Id, GId, IdxAcc, TblAcc,_StAddrId) ->
     ?output_error_log(?LINE, "gen_routing_table_1/8", "Could not get redundancies"),
     {Id + 1, GId + 1, IdxAcc, [#vnodeid_nodes{}|TblAcc], AddrId + 1}.
 
