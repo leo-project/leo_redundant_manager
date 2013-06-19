@@ -58,7 +58,7 @@
 %%
 -spec(create_members() -> ok).
 create_members() ->
-    catch ets:new(?TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
+    catch ets:new(?TABLE, [named_table, set, public, {read_concurrency, true}]),
     ok.
 
 -spec(create_members(mnesia_copies()) -> ok).

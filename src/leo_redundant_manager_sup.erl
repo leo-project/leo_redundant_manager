@@ -30,6 +30,7 @@
 -behaviour(supervisor).
 
 -include("leo_redundant_manager.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 %% External API
 -export([start_link/0, start_link/1, start_link/3, start_link/4, stop/0]).
@@ -46,6 +47,11 @@
 -define(MODULE_SET_ENV_1(), void).
 -define(MODULE_SET_ENV_2(), void).
 -endif.
+
+-define(SHUTDOWN_WAITING_TIME, 2000).
+-define(MAX_RESTART,              5).
+-define(MAX_TIME,                60).
+
 
 %%-----------------------------------------------------------------------
 %% External API
@@ -66,7 +72,6 @@ start_link(ServerType, Managers, MQStoragePath) ->
 start_link(ServerType0, Managers, MQStoragePath, Options) ->
     %% initialize
     Res = start_link_sub(ServerType0),
-
     ServerType1 = server_type(ServerType0),
     ok = leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ServerType1),
 
@@ -142,6 +147,7 @@ stop() ->
 %% @end
 %% @private
 init([]) ->
+    %% Redundant Manager Server
     Children = [
                 {leo_redundant_manager,
                  {leo_redundant_manager, start_link, []},
@@ -150,7 +156,18 @@ init([]) ->
                  worker,
                  [leo_redundant_manager]}
                ],
-    {ok, {_SupFlags = {one_for_one, 5, 60}, Children}}.
+
+    %% Redundant Manager Worker Pool
+    WorkerSpecs =
+        lists:map(
+          fun(Index) ->
+                  Id = list_to_atom(lists:append([?WORKER_POOL_NAME_PREFIX,
+                                                  integer_to_list(Index)])),
+                  {Id, {leo_redundant_manager_worker, start_link, [Id]},
+                   permanent, ?SHUTDOWN_WAITING_TIME, worker, [leo_redundant_manager_worker]}
+          end, lists:seq(0, (?RING_WORKER_POOL_SIZE -1))),
+
+    {ok, {_SupFlags = {one_for_one, 5, 60}, Children ++ WorkerSpecs}}.
 
 
 %% ---------------------------------------------------------------------
@@ -161,19 +178,18 @@ init([]) ->
 -spec(after_proc({ok, pid()} | {error, any()}) ->
              {ok, pid()} | {error, any()}).
 after_proc({ok, RefSup}) ->
-    RefMqSup =
-        case whereis(leo_mq_sup) of
-            undefined ->
-                ChildSpec = {leo_mq_sup,
-                             {leo_mq_sup, start_link, []},
-                             permanent, 2000, supervisor, [leo_mq_sup]},
-                {ok, Pid} = supervisor:start_child(RefSup, ChildSpec),
-                Pid;
-            Pid ->
-                Pid
-        end,
-
-    ok = application:set_env(leo_redundant_manager, mq_sup_ref, RefMqSup),
+    %% MQ
+    MQPid = case whereis(leo_mq_sup) of
+                undefined ->
+                    ChildSpec = {leo_mq_sup,
+                                 {leo_mq_sup, start_link, []},
+                                 permanent, 2000, supervisor, [leo_mq_sup]},
+                    {ok, Pid} = supervisor:start_child(RefSup, ChildSpec),
+                    Pid;
+                Pid ->
+                    Pid
+            end,
+    ok = application:set_env(leo_redundant_manager, mq_sup_ref, MQPid),
     {ok, RefSup};
 
 after_proc(Error) ->

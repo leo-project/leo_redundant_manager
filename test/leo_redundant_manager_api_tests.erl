@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012
+%% Copyright (c) 2012-2013 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -18,13 +18,9 @@
 %% specific language governing permissions and limitations
 %% under the License.
 %%
-%% ---------------------------------------------------------------------
-%% Leo Redundant Manager - EUnit
-%% @doc
-%% @end
 %%======================================================================
 -module(leo_redundant_manager_api_tests).
--author('yosuke hara').
+-author('Yosuke Hara').
 
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -35,23 +31,24 @@
 -ifdef(EUNIT).
 
 redundant_manager_test_() ->
-    {foreach, fun setup/0, fun teardown/1,
-     [{with, [T]} || T <- [fun redundant_manager_0_/1,
-                           fun redundant_manager_1_/1,
-                           fun attach_/1,
-                           fun detach_/1,
+    {timeout, 300,
+     {foreach, fun setup/0, fun teardown/1,
+      [{with, [T]} || T <- [fun redundant_manager_0_/1,
+                            fun redundant_manager_1_/1,
+                            fun attach_/1,
+                            fun detach_/1,
 
-                           fun members_table_/1,
-                           fun synchronize_0_/1,
-                           fun synchronize_1_/1,
-                           fun synchronize_2_/1,
-                           fun adjust_/1,
-                           fun append_/1,
-                           fun suspend_/1,
+                            fun members_table_/1,
+                            fun synchronize_0_/1,
+                            fun synchronize_1_/1,
+                            fun synchronize_2_/1,
+                            fun adjust_/1,
+                            fun append_/1,
+                            fun suspend_/1,
 
-                           fun rack_aware_1_/1,
-                           fun rack_aware_2_/1
-                          ]]}.
+                            fun rack_aware_1_/1,
+                            fun rack_aware_2_/1
+                           ]]}}.
 
 
 setup() ->
@@ -68,11 +65,11 @@ setup() ->
     {Hostname}.
 
 teardown(_) ->
-    application:stop(leo_mq),
-    application:stop(leo_backend_db),
+    catch application:stop(leo_mq),
+    catch application:stop(leo_backend_db),
 
     catch leo_redundant_manager_sup:stop(),
-    application:stop(leo_redundant_manager),
+    catch application:stop(leo_redundant_manager),
     timer:sleep(200),
 
     os:cmd("rm -rf queue"),
@@ -97,13 +94,14 @@ attach_({Hostname}) ->
     AttachNode = list_to_atom("node_8@" ++ Hostname),
     ok = leo_redundant_manager_api:attach(AttachNode),
     leo_redundant_manager_api:dump(?CHECKSUM_RING),
+
+    %% execute
     {ok, Res} = leo_redundant_manager_api:rebalance(),
     lists:foreach(fun(Item) ->
                           Src  = proplists:get_value('src',  Item),
                           Dest = proplists:get_value('dest', Item),
                           ?assertEqual(true, Src =/= Dest),
-                          ?assertEqual(true, Src =/= AttachNode),
-                          ?assertEqual(AttachNode, Dest)
+                          ?assertEqual(true, Src =/= AttachNode)
                   end, Res),
     ok.
 
@@ -115,6 +113,8 @@ detach_({Hostname}) ->
     DetachNode = list_to_atom("node_0@" ++ Hostname),
     ok = leo_redundant_manager_api:detach(DetachNode),
     leo_redundant_manager_api:dump(?CHECKSUM_RING),
+
+    %% execute
     {ok, Res} = leo_redundant_manager_api:rebalance(),
     lists:foreach(fun(Item) ->
                           Src  = proplists:get_value('src',  Item),
@@ -123,14 +123,6 @@ detach_({Hostname}) ->
                           ?assertEqual(true, Src  =/= DetachNode),
                           ?assertEqual(true, Dest =/= DetachNode)
                   end, Res),
-
-    %% 2. attach a node
-    AttachNode = list_to_atom("node_8@" ++ Hostname),
-    ok = leo_redundant_manager_api:attach(AttachNode),
-
-    {ok, M1} = leo_redundant_manager_table_member:lookup(DetachNode),
-    {ok, M2} = leo_redundant_manager_table_member:lookup(AttachNode),
-    ?assertEqual(true, M1#member.alias == M2#member.alias),
     ok.
 
 
@@ -252,9 +244,11 @@ suspend_({Hostname}) ->
     ok.
 
 rack_aware_1_({Hostname}) ->
-    {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),
-    %% ok = leo_redundant_manager_table_member:create_members(),
+    catch ets:delete('leo_members'),
+    catch ets:delete('leo_ring_cur'),
+    catch ets:delete('leo_ring_prv'),
 
+    {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),
     leo_redundant_manager_api:set_options([{n, 3},
                                            {r, 1},
                                            {w ,2},
@@ -301,6 +295,13 @@ rack_aware_1_({Hostname}) ->
     leo_redundant_manager_api:attach(Node15, "R2"),
 
     {ok, _, _} =leo_redundant_manager_api:create(),
+    timer:sleep(100),
+
+    %% ServerRef = poolboy:checkout(?RING_WORKER_POOL_NAME),
+    ServerRef = leo_redundant_manager_api:get_server_id(),
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, ?CUR_RING_TABLE),
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, ?PREV_RING_TABLE),
+
     lists:foreach(
       fun(N) ->
               {ok, #redundancies{nodes = Nodes}} =
@@ -335,19 +336,17 @@ rack_aware_1_({Hostname}) ->
                             false -> SumR2_2
                         end,
               ?assertEqual(false, (SumR1_3 == 0 orelse SumR2_3 == 0))
-              %% case (SumR1_3 == 0 orelse SumR2_3 == 0) of
-              %%     true ->
-              %%         ?debugVal({N1,N2,N3,SumR1_3,SumR2_3});
-              %%     false ->
-              %%         void
-              %% end
-      end, lists:seq(1, 3000)),
+      end, lists:seq(1, 300)),
+    ?debugVal(ok),
+    %% poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
     ok.
 
 rack_aware_2_({Hostname}) ->
-    {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),
-    %% ok = leo_redundant_manager_table_member:create_members(),
+    catch ets:delete_all_objects('leo_members'),
+    catch ets:delete_all_objects(?CUR_RING_TABLE),
+    catch ets:delete_all_objects(?PREV_RING_TABLE),
 
+    {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),
     leo_redundant_manager_api:set_options([{n, 5},
                                            {r, 1},
                                            {w ,2},
@@ -372,9 +371,6 @@ rack_aware_2_({Hostname}) ->
     Node14 = list_to_atom("node_14@" ++ Hostname),
     Node15 = list_to_atom("node_15@" ++ Hostname),
 
-    %% R1 = [Node0, Node1, Node2,  Node3,  Node4,  Node5,  Node6,  Node7],
-    %% R2 = [Node8, Node9, Node10, Node11, Node12, Node13, Node14, Node15],
-
     leo_redundant_manager_api:attach(Node0, "R1"),
     leo_redundant_manager_api:attach(Node1, "R1"),
     leo_redundant_manager_api:attach(Node2, "R1"),
@@ -394,13 +390,23 @@ rack_aware_2_({Hostname}) ->
     leo_redundant_manager_api:attach(Node15, "R2"),
 
     {ok, _, _} =leo_redundant_manager_api:create(),
+    timer:sleep(100),
+
+    ServerRef = leo_redundant_manager_api:get_server_id(),
+    %% ServerRef = poolboy:checkout(?RING_WORKER_POOL_NAME),
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, ?CUR_RING_TABLE),
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, ?PREV_RING_TABLE),
+
     lists:foreach(
       fun(N) ->
               {ok, #redundancies{nodes = Nodes}} =
                   leo_redundant_manager_api:get_redundancies_by_key(
                     lists:append(["LEOFS_", integer_to_list(N)])),
               ?assertEqual(5, length(Nodes))
-      end, lists:seq(1, 3000)),
+      end, lists:seq(1, 300)),
+
+    ?debugVal(ok),
+    %% poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
     ok.
 
 
@@ -408,6 +414,10 @@ rack_aware_2_({Hostname}) ->
 %% INNER FUNCTION
 %% -------------------------------------------------------------------
 prepare(Hostname, ServerType) ->
+    catch ets:delete('leo_members'),
+    catch ets:delete('leo_ring_cur'),
+    catch ets:delete('leo_ring_prv'),
+
     case ServerType of
         master ->
             leo_redundant_manager_table_ring:create_ring_current(ram_copies, [node()]),
@@ -432,6 +442,8 @@ prepare(Hostname, ServerType) ->
     leo_redundant_manager_api:attach(list_to_atom("node_6@" ++ Hostname)),
     leo_redundant_manager_api:attach(list_to_atom("node_7@" ++ Hostname)),
     ?debugVal(leo_redundant_manager_table_member:size()),
+
+    timer:sleep(500),
     ok.
 
 
@@ -468,16 +480,14 @@ inspect0(Hostname) ->
     ?assertEqual(true, (-1 =< Chksum3)),
     ?assertEqual(true, (-1 =< Chksum4)),
 
-    ?assertEqual(1024, leo_redundant_manager_table_ring:size({ets, ?CUR_RING_TABLE} )),
-    ?assertEqual(1024, leo_redundant_manager_table_ring:size({ets, ?PREV_RING_TABLE})),
-    %% ?assertEqual(1024, leo_redundant_manager_table_ring:size({mnesia, ?CUR_RING_TABLE} )),
-    %% ?assertEqual(1024, leo_redundant_manager_table_ring:size({mnesia, ?PREV_RING_TABLE})),
+    ?assertEqual(1344, leo_redundant_manager_table_ring:size({ets, ?CUR_RING_TABLE} )),
+    ?assertEqual(1344, leo_redundant_manager_table_ring:size({ets, ?PREV_RING_TABLE})),
 
     Max = leo_math:power(2, ?MD5),
     lists:foreach(fun(Num) ->
-                          {ok, #redundancies{id       = _Id0,
-                                             vnode_id = _VNodeId0,
-                                             nodes    = Nodes0,
+                          {ok, #redundancies{id = _Id0,
+                                             vnode_id_to = _VNodeId0,
+                                             nodes = Nodes0,
                                              n = 3,
                                              r = 1,
                                              w = 2,
@@ -490,12 +500,12 @@ inspect0(Hostname) ->
                                                               end, Nodes0a)
                                         end, Nodes0),
                           ?assertEqual(3, length(Nodes0))
-                  end, lists:seq(0, 300)),
+                  end, lists:seq(0, 10)),
     lists:foreach(fun(_) ->
                           Id = random:uniform(Max),
-                          {ok, #redundancies{id       = _Id0,
-                                             vnode_id = _VNodeId0,
-                                             nodes    = Nodes0,
+                          {ok, #redundancies{id = _Id0,
+                                             vnode_id_to = _VNodeId0,
+                                             nodes = Nodes0,
                                              n = 3,
                                              r = 1,
                                              w = 2,
@@ -508,11 +518,16 @@ inspect0(Hostname) ->
                                                               end, Nodes0a)
                                         end, Nodes0),
                           ?assertEqual(3, length(Nodes0))
-                  end, lists:seq(0, 300)),
+                  end, lists:seq(0, 10)),
 
-    {ok, #redundancies{id       = Id,
-                       vnode_id = VNodeId1,
-                       nodes    = Nodes1,
+    {ok, #redundancies{nodes = N0}} = leo_redundant_manager_api:get_redundancies_by_addr_id(put, 0),
+    {ok, #redundancies{nodes = N1}} = leo_redundant_manager_api:get_redundancies_by_addr_id(put, leo_math:power(2, 128)),
+    ?assertEqual(3, length(N0)),
+    ?assertEqual(3, length(N1)),
+
+    {ok, #redundancies{id = Id,
+                       vnode_id_to = VNodeId1,
+                       nodes = Nodes1,
                        n = 3,
                        r = 1,
                        w = 2,
@@ -524,10 +539,14 @@ inspect0(Hostname) ->
                           Id2 = random:uniform(Max),
                           {ok, Res2} = leo_redundant_manager_api:range_of_vnodes(Id2),
                           inspect1(Id2, Res2)
-                  end, lists:seq(0, 3000)),
+                  end, lists:seq(0, 300)),
     ?debugVal("***** ok *****"),
     {ok, Res3} = leo_redundant_manager_api:range_of_vnodes(0),
     inspect1(0, Res3),
+
+    Max1 = leo_math:power(2,128) - 1,
+    {ok, Res4} = leo_redundant_manager_api:range_of_vnodes(Max1),
+    ?assertEqual(2, length(Res4)),
     ok.
 
 
@@ -547,5 +566,87 @@ inspect1(Id, VNodes) ->
                     ?assertEqual(true, ((From0 =< Max) andalso (To0 =< Max)))
             end
     end.
+
+
+redundant_test_() ->
+    {timeout, 300, ?_assertEqual(ok, redundant(false))}.
+
+redundant(false) ->
+    ok;
+redundant(true) ->
+    %% prepare-1
+    [] = os:cmd("epmd -daemon"),
+    {ok, Hostname} = inet:gethostname(),
+
+    leo_misc:init_env(),
+    leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
+    leo_redundant_manager_table_member:create_members(),
+
+    %% prepare-2
+    {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),
+    leo_redundant_manager_api:set_options([{n, 3},
+                                           {r, 1},
+                                           {w ,2},
+                                           {d, 2},
+                                           {bit_of_ring, 128},
+                                           {level_2, 0}
+                                          ]),
+    Node0  = list_to_atom("node_0@"  ++ Hostname),
+    Node1  = list_to_atom("node_1@"  ++ Hostname),
+    Node2  = list_to_atom("node_2@"  ++ Hostname),
+    Node3  = list_to_atom("node_3@"  ++ Hostname),
+    Node4  = list_to_atom("node_4@"  ++ Hostname),
+    Node5  = list_to_atom("node_5@"  ++ Hostname),
+    Node6  = list_to_atom("node_6@"  ++ Hostname),
+    Node7  = list_to_atom("node_7@"  ++ Hostname),
+    Members = [Node0, Node1, Node2, Node3,
+               Node4, Node5, Node6, Node7],
+
+    leo_redundant_manager_api:attach(Node0),
+    leo_redundant_manager_api:attach(Node1),
+    leo_redundant_manager_api:attach(Node2),
+    leo_redundant_manager_api:attach(Node3),
+    leo_redundant_manager_api:attach(Node4),
+    leo_redundant_manager_api:attach(Node5),
+    leo_redundant_manager_api:attach(Node6),
+    leo_redundant_manager_api:attach(Node7),
+    {ok, _, _} =leo_redundant_manager_api:create(),
+
+    %% execute
+    ok = redundant_1(Members,       0,  250000),
+    ok = redundant_1(Members,  250001,  500000),
+    ok = redundant_1(Members,  500001,  750000),
+    ok = redundant_1(Members,  750001, 1000000),
+    ok = redundant_1(Members, 1000001, 1250000),
+    ok = redundant_1(Members, 1250001, 1500000),
+    ok = redundant_1(Members, 1500001, 1750000),
+    ok = redundant_1(Members, 1750001, 2000000),
+    ok = redundant_1(Members, 2000001, 2250000),
+    ok = redundant_1(Members, 2250001, 2500000),
+    ok = redundant_1(Members, 2500001, 2750000),
+    ok = redundant_1(Members, 2750001, 3000000),
+
+    %% terminate
+    timer:sleep(200),
+    os:cmd("rm -rf queue"),
+    os:cmd("rm ring_*"),
+    ok.
+
+
+redundant_1(_, End, End) ->
+    ?debugVal({done, End}),
+    ok;
+redundant_1(Members, St, End) ->
+    case leo_redundant_manager_api:get_redundancies_by_key(
+           lists:append(["LEOFS_", integer_to_list(St)])) of
+        {ok, #redundancies{nodes = Nodes}} ->
+            ?assertEqual(3, length(Nodes)),
+            lists:foreach(fun({N, _}) ->
+                                  ?assertEqual(true, lists:member(N, Members))
+                          end, Nodes);
+        _Error ->
+            ?debugVal(_Error)
+    end,
+    redundant_1(Members, St+1, End).
 
 -endif.

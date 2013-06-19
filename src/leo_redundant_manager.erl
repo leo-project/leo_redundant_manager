@@ -50,6 +50,7 @@
 	       terminate/2,
          code_change/3]).
 
+-undef(DEF_TIMEOUT).
 -define(DEF_TIMEOUT, 30000).
 
 %%--------------------------------------------------------------------
