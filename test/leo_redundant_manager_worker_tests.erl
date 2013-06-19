@@ -63,22 +63,23 @@ teardown(Pid) ->
     ok.
 
 suite_(_) ->
-    RingWorker1 = poolboy:checkout('ring_worker_pool'),
+    ServerRef = leo_redundant_manager_api:get_server_id(),
+    %% ServerRef = poolboy:checkout('ring_worker_pool'),
     {ok, #redundancies{vnode_id_from = 0,
-                       nodes = N0}} = leo_redundant_manager_worker:first(RingWorker1, 'leo_ring_cur'),
+                       nodes = N0}} = leo_redundant_manager_worker:first(ServerRef, 'leo_ring_cur'),
     {ok, #redundancies{nodes = N1}} = leo_redundant_manager_worker:lookup(
-                                        RingWorker1, 'leo_ring_cur', 0),
+                                        ServerRef, 'leo_ring_cur', 0),
     {ok, #redundancies{nodes = N2}} = leo_redundant_manager_worker:lookup(
-                                        RingWorker1, 'leo_ring_cur', 1264314306571079495751037749109419166),
+                                        ServerRef, 'leo_ring_cur', 1264314306571079495751037749109419166),
     {ok, #redundancies{nodes = N3}} = leo_redundant_manager_worker:lookup(
-                                        RingWorker1, 'leo_ring_cur', 3088066518744027498382227205172020754),
+                                        ServerRef, 'leo_ring_cur', 3088066518744027498382227205172020754),
     {ok, #redundancies{nodes = N4}} = leo_redundant_manager_worker:lookup(
-                                        RingWorker1, 'leo_ring_cur', 4870818527799149765629747665733758595),
+                                        ServerRef, 'leo_ring_cur', 4870818527799149765629747665733758595),
     {ok, #redundancies{nodes = N5}} = leo_redundant_manager_worker:lookup(
-                                        RingWorker1, 'leo_ring_cur', 5257965865843856950061366315134191522),
+                                        ServerRef, 'leo_ring_cur', 5257965865843856950061366315134191522),
     {ok, #redundancies{nodes = N6}} = leo_redundant_manager_worker:lookup(
-                                        RingWorker1, 'leo_ring_cur', 340282366920938463463374607431768211456),
-    {ok, #redundancies{nodes = N7}} = leo_redundant_manager_worker:last(RingWorker1, 'leo_ring_cur'),
+                                        ServerRef, 'leo_ring_cur', 340282366920938463463374607431768211456),
+    {ok, #redundancies{nodes = N7}} = leo_redundant_manager_worker:last(ServerRef, 'leo_ring_cur'),
 
     ?assertEqual(3, length(N0)),
     ?assertEqual(3, length(N1)),
@@ -95,12 +96,12 @@ suite_(_) ->
                           AddrId = leo_redundant_manager_chash:vnode_id(128, crypto:rand_bytes(64)),
                           {ok, #redundancies{nodes = N8}} =
                               leo_redundant_manager_worker:lookup(
-                                RingWorker1, 'leo_ring_cur', AddrId),
+                                ServerRef, 'leo_ring_cur', AddrId),
                           ?assertEqual(3, length(N8))
                   end, Seq),
     End = leo_date:clock(),
     ?debugVal((End - St) / 1000),
-    poolboy:checkin('ring_worker_pool', RingWorker1),
+    %% poolboy:checkin('ring_worker_pool', ServerRef),
     ok.
 
 -endif.

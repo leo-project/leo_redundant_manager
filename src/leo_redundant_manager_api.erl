@@ -51,6 +51,8 @@
          delete_member_by_node/1, get_ring/1, is_alive/0, table_info/1
         ]).
 
+-export([get_server_id/0, get_server_id/1]).
+
 -type(method() :: put | get | delete | head).
 
 %%--------------------------------------------------------------------
@@ -359,21 +361,18 @@ get_redundancies_by_addr_id(_ServerType, TblInfo, AddrId, Options) ->
     Ret = leo_redundant_manager_table_member:find_all(),
     get_redundancies_by_addr_id_1(Ret, TblInfo, AddrId, Options).
 
+
+%% @private
 get_redundancies_by_addr_id_1({ok, Members}, TblInfo, AddrId, Options) ->
-    %% checkout worker's ref from the pool
-    case catch poolboy:checkout(?RING_WORKER_POOL_NAME) of
-        {'EXIT', Cause} ->
-            {error, Cause};
-        ServerRef ->
-            Ret = get_redundancies_by_addr_id_1_1(ServerRef, TblInfo, Members, AddrId, Options),
-            _ = poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
-            Ret
-    end;
+    ServerRef = get_server_id(AddrId),
+    get_redundancies_by_addr_id_1_1(ServerRef, TblInfo, Members, AddrId, Options);
+
 get_redundancies_by_addr_id_1(Error, _TblInfo, _AddrId, _Options) ->
     error_logger:warning_msg("~p,~p,~p,~p~n",
                              [{module, ?MODULE_STRING}, {function, "get_redundancies_by_addr_id_1/4"},
                               {line, ?LINE}, {body, Error}]),
     {error, not_found}.
+
 
 %% @private
 get_redundancies_by_addr_id_1_1(ServerRef, TblInfo,_Members, AddrId, Options) ->
@@ -589,6 +588,16 @@ table_info(?VER_PREV) ->
     end.
 -endif.
 
+
+%% @doc Retrieve a srever id
+%% @private
+get_server_id() ->
+    get_server_id(leo_date:clock()).
+get_server_id(AddrId) ->
+    Procs = ?RING_WORKER_POOL_SIZE,
+    Index = erlang:phash2(AddrId, Procs),
+    list_to_atom(lists:append([?WORKER_POOL_NAME_PREFIX,
+                               integer_to_list(Index)])).
 
 %%--------------------------------------------------------------------
 %% INNTERNAL FUNCTIONS

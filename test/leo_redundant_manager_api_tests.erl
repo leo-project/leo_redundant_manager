@@ -297,7 +297,8 @@ rack_aware_1_({Hostname}) ->
     {ok, _, _} =leo_redundant_manager_api:create(),
     timer:sleep(100),
 
-    ServerRef = poolboy:checkout(?RING_WORKER_POOL_NAME),
+    %% ServerRef = poolboy:checkout(?RING_WORKER_POOL_NAME),
+    ServerRef = leo_redundant_manager_api:get_server_id(),
     ok = leo_redundant_manager_worker:force_sync(ServerRef, ?CUR_RING_TABLE),
     ok = leo_redundant_manager_worker:force_sync(ServerRef, ?PREV_RING_TABLE),
 
@@ -337,7 +338,7 @@ rack_aware_1_({Hostname}) ->
               ?assertEqual(false, (SumR1_3 == 0 orelse SumR2_3 == 0))
       end, lists:seq(1, 300)),
     ?debugVal(ok),
-    poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
+    %% poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
     ok.
 
 rack_aware_2_({Hostname}) ->
@@ -391,7 +392,8 @@ rack_aware_2_({Hostname}) ->
     {ok, _, _} =leo_redundant_manager_api:create(),
     timer:sleep(100),
 
-    ServerRef = poolboy:checkout(?RING_WORKER_POOL_NAME),
+    ServerRef = leo_redundant_manager_api:get_server_id(),
+    %% ServerRef = poolboy:checkout(?RING_WORKER_POOL_NAME),
     ok = leo_redundant_manager_worker:force_sync(ServerRef, ?CUR_RING_TABLE),
     ok = leo_redundant_manager_worker:force_sync(ServerRef, ?PREV_RING_TABLE),
 
@@ -404,7 +406,7 @@ rack_aware_2_({Hostname}) ->
       end, lists:seq(1, 300)),
 
     ?debugVal(ok),
-    poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
+    %% poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
     ok.
 
 

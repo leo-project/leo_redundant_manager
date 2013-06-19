@@ -48,6 +48,11 @@
 -define(MODULE_SET_ENV_2(), void).
 -endif.
 
+-define(SHUTDOWN_WAITING_TIME, 2000).
+-define(MAX_RESTART,              5).
+-define(MAX_TIME,                60).
+
+
 %%-----------------------------------------------------------------------
 %% External API
 %%-----------------------------------------------------------------------
@@ -153,14 +158,16 @@ init([]) ->
                ],
 
     %% Redundant Manager Worker Pool
-    PoolArgs  = [{name, {local, ?RING_WORKER_POOL_NAME}},
-                 {worker_module, leo_redundant_manager_worker},
-                 [{size,         ?RING_WORKER_POOL_SIZE},
-                  {max_overflow, ?RING_WORKER_POOL_BUF}]
-                ],
-    WorkerSpec = poolboy:child_spec(?RING_WORKER_POOL_NAME, PoolArgs, []),
+    WorkerSpecs =
+        lists:map(
+          fun(Index) ->
+                  Id = list_to_atom(lists:append([?WORKER_POOL_NAME_PREFIX,
+                                                  integer_to_list(Index)])),
+                  {Id, {leo_redundant_manager_worker, start_link, [Id]},
+                   permanent, ?SHUTDOWN_WAITING_TIME, worker, [leo_redundant_manager_worker]}
+          end, lists:seq(0, (?RING_WORKER_POOL_SIZE -1))),
 
-    {ok, {_SupFlags = {one_for_one, 5, 60}, Children ++ [WorkerSpec]}}.
+    {ok, {_SupFlags = {one_for_one, 5, 60}, Children ++ WorkerSpecs}}.
 
 
 %% ---------------------------------------------------------------------

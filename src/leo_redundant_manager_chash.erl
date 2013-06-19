@@ -116,21 +116,13 @@ rebalance(Tables, Members) ->
                       src_tbl  = SrcTbl,
                       dest_tbl = DestTbl},
     Size = leo_redundant_manager_table_ring:size(SrcTbl),
+    ServerRef = leo_redundant_manager_api:get_server_id(),
 
-    case catch poolboy:checkout(?RING_WORKER_POOL_NAME) of
-        {'EXIT', Cause} ->
-            {error, Cause};
-        ServerRef ->
-            {_, SrcTbl_1 } = SrcTbl,
-            {_, DestTbl_1} = DestTbl,
-
-            ok = leo_redundant_manager_worker:force_sync(ServerRef, SrcTbl_1),
-            ok = leo_redundant_manager_worker:force_sync(ServerRef, DestTbl_1),
-
-            Ret = rebalance_1(ServerRef, Info, Size, 0, []),
-            _ = poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
-            Ret
-    end.
+    {_, SrcTbl_1 } = SrcTbl,
+    {_, DestTbl_1} = DestTbl,
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, SrcTbl_1),
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, DestTbl_1),
+    rebalance_1(ServerRef, Info, Size, 0, []).
 
 %% @private
 rebalance_1(_ServerRef,_Info, 0,  _AddrId, Acc) ->
@@ -240,14 +232,8 @@ import(Table, FileName) ->
 %% @doc Retrieve range of vnodes.
 %% @private
 range_of_vnodes({_,Table}, VNodeId) ->
-    case catch poolboy:checkout(?RING_WORKER_POOL_NAME) of
-        {'EXIT', Cause} ->
-            {error, Cause};
-        ServerRef ->
-            Res1 = range_of_vnodes_1(ServerRef, Table, VNodeId),
-            _ = poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
-            Res1
-    end.
+    ServerRef = leo_redundant_manager_api:get_server_id(),
+    range_of_vnodes_1(ServerRef, Table, VNodeId).
 
 range_of_vnodes_1(ServerRef, Table, VNodeId) ->
     case leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId) of

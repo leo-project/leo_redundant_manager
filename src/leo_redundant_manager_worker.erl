@@ -29,7 +29,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %% API
--export([start_link/0, start_link/1, stop/0]).
+-export([start_link/1, stop/1]).
 -export([lookup/3, first/2, last/2, force_sync/2]).
 
 %% gen_server callbacks
@@ -57,6 +57,7 @@
 -define(DEF_NUM_OF_DIV, 32).
 
 -record(state, {
+          id :: atom(),
           cur  = #ring_info{} :: #ring_info{},
           prev = #ring_info{} :: #ring_info{},
           min_interval = ?DEF_SYNC_MIN_INTERVAL :: pos_integer(),
@@ -86,24 +87,30 @@
 %%--------------------------------------------------------------------
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
-start_link() ->
-    gen_server:start_link(?MODULE, [], []).
-start_link([]) ->
-    gen_server:start_link(?MODULE, [], []).
+start_link(Id) ->
+    gen_server:start_link({local, Id}, ?MODULE, [Id], []).
 
-stop() ->
-    gen_server:call(?MODULE, stop, ?DEF_TIMEOUT).
+stop(Id) ->
+    gen_server:call(Id, stop, ?DEF_TIMEOUT).
 
 
+-spec(lookup(atom(), atom(), pos_integer()) ->
+             {ok, #redundancies{}} | not_found).
 lookup(ServerRef, Table, AddrId) ->
     gen_server:call(ServerRef, {lookup, Table, AddrId}, ?DEF_TIMEOUT).
 
+-spec(first(atom(), atom()) ->
+             {ok, #redundancies{}} | not_found).
 first(ServerRef, Table) ->
     gen_server:call(ServerRef, {first, Table}, ?DEF_TIMEOUT).
 
+-spec(last(atom(), atom()) ->
+             {ok, #redundancies{}} | not_found).
 last(ServerRef, Table) ->
     gen_server:call(ServerRef, {last, Table}, ?DEF_TIMEOUT).
 
+-spec(force_sync(atom(), atom()) ->
+             {ok, #redundancies{}} | not_found).
 force_sync(ServerRef, Table) ->
     gen_server:call(ServerRef, {force_sync, Table}, ?DEF_TIMEOUT).
 
@@ -116,9 +123,10 @@ force_sync(ServerRef, Table) ->
 %%                         ignore               |
 %%                         {stop, Reason}
 %% Description: Initiates the server
-init([]) ->
+init([Id]) ->
     sync(),
-    {ok, #state{timestamp = timestamp()}}.
+    {ok, #state{id = Id,
+                timestamp = timestamp()}}.
 
 handle_call(stop,_From,State) ->
     {stop, normal, ok, State};
@@ -290,7 +298,7 @@ maybe_sync_1_1(TargetRing,_OrgChecksum,_CurChecksum,
                                   last_vnode_id   = LastAddrId
                                  },
             case TargetRing of
-                ?SYNC_MODE_CUR_RING  -> State#state{cur =  RingInfo};
+                ?SYNC_MODE_CUR_RING  -> State#state{cur  = RingInfo};
                 ?SYNC_MODE_PREV_RING -> State#state{prev = RingInfo}
             end;
         _ ->
