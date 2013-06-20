@@ -66,7 +66,12 @@ suite_(_) ->
     ServerRef = leo_redundant_manager_api:get_server_id(),
     %% ServerRef = poolboy:checkout('ring_worker_pool'),
     {ok, #redundancies{vnode_id_from = 0,
+                       vnode_id_to   = VNodeIdTo1,
                        nodes = N0}} = leo_redundant_manager_worker:first(ServerRef, 'leo_ring_cur'),
+    {ok, #redundancies{vnode_id_from = 0,
+                       vnode_id_to   = VNodeIdTo2,
+                       nodes = N0}} = leo_redundant_manager_worker:first(ServerRef, 'leo_ring_prv'),
+
     {ok, #redundancies{nodes = N1}} = leo_redundant_manager_worker:lookup(
                                         ServerRef, 'leo_ring_cur', 0),
     {ok, #redundancies{nodes = N2}} = leo_redundant_manager_worker:lookup(
@@ -80,6 +85,11 @@ suite_(_) ->
     {ok, #redundancies{nodes = N6}} = leo_redundant_manager_worker:lookup(
                                         ServerRef, 'leo_ring_cur', 340282366920938463463374607431768211456),
     {ok, #redundancies{nodes = N7}} = leo_redundant_manager_worker:last(ServerRef, 'leo_ring_cur'),
+
+    Size1 = collect_redundancies(ServerRef, 'leo_ring_cur', 1, VNodeIdTo1 + 1, []),
+    Size2 = collect_redundancies(ServerRef, 'leo_ring_prv', 1, VNodeIdTo2 + 1, []),
+    ?assertEqual((?DEF_NUMBER_OF_VNODES * 5), Size1),
+    ?assertEqual((?DEF_NUMBER_OF_VNODES * 5), Size2),
 
     ?assertEqual(3, length(N0)),
     ?assertEqual(3, length(N1)),
@@ -103,5 +113,13 @@ suite_(_) ->
     ?debugVal((End - St) / 1000),
     %% poolboy:checkin('ring_worker_pool', ServerRef),
     ok.
+
+collect_redundancies(_ServerRef,_Tbl,0,_To,Acc) ->
+    length(Acc);
+collect_redundancies(ServerRef, Tbl,_From, To, Acc) ->
+    {ok, Ret} = leo_redundant_manager_worker:lookup(ServerRef, Tbl, To),
+    From = Ret#redundancies.vnode_id_from,
+    To1  = Ret#redundancies.vnode_id_to + 1,
+    collect_redundancies(ServerRef, Tbl, From, To1, [Ret|Acc]).
 
 -endif.
