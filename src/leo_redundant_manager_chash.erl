@@ -186,7 +186,7 @@ vnode_id(Key) ->
     vnode_id(?MD5, Key).
 
 vnode_id(?MD5, Key) ->
-    leo_hex:raw_binary_to_integer(crypto:md5(Key));
+    leo_hex:raw_binary_to_integer(crypto:hash(md5, Key));
 vnode_id(_, _) ->
     {error, badarg}.
 
