@@ -543,7 +543,7 @@ alias(Node) ->
         not_found ->
             PartOfAlias = string:substr(
                             leo_hex:binary_to_hex(
-                              erlang:md5(lists:append([atom_to_list(Node)]))),1,8),
+                              crypto:hash(md5, lists:append([atom_to_list(Node)]))),1,8),
             {ok, lists:append([?NODE_ALIAS_PREFIX, PartOfAlias])};
         {ok, [M|_]} ->
             {ok, M#member.alias};
