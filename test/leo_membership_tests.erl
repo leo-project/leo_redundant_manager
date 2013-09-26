@@ -126,6 +126,7 @@ membership_manager_({Hostname, _, _, Node0, Node1, Node2}) ->
     leo_redundant_manager_api:attach(list_to_atom("node_0@" ++ Hostname)),
     leo_redundant_manager_api:attach(list_to_atom("node_1@" ++ Hostname)),
     leo_redundant_manager_api:attach(list_to_atom("node_2@" ++ Hostname)),
+
     {ok, _Members, _Chksums} = leo_redundant_manager_api:create(),
     timer:sleep(1500),
     ok.
@@ -177,7 +178,7 @@ membership_storage_({Hostname, Mgr0, Mgr1, Node0, Node1, Node2}) ->
     leo_redundant_manager_api:attach(list_to_atom("node_1@" ++ Hostname)),
     leo_redundant_manager_api:attach(list_to_atom("node_2@" ++ Hostname)),
     {ok, _Members, _Chksums} = leo_redundant_manager_api:create(),
-    timer:sleep(4000),
+    timer:sleep(1500),
 
     History0 = rpc:call(Mgr0, meck, history, [leo_manager_api]),
     ?debugVal(History0),

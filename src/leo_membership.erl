@@ -236,7 +236,7 @@ exec(?SERVER_MANAGER = ServerType, Managers) ->
                 lists:map(fun(#member{node = Node, state = State}) ->
                                   {storage, Node ,State}
                           end, Members);
-            _Error ->
+            _ ->
                 []
         end,
     exec1(ServerType, Managers, ClusterNodes);
@@ -254,7 +254,7 @@ exec(ServerType, Managers) ->
                                       {storage, Node, State}
                               end, Redundancies),
             exec1(ServerType, Managers, Nodes);
-        _ ->
+        _Other ->
             void
     end.
 

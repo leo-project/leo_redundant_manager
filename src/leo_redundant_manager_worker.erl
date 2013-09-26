@@ -44,13 +44,14 @@
 
 -ifdef(TEST).
 -define(CURRENT_TIME, 65432100000).
--define(DEF_SYNC_MIN_INTERVAL,  5).
--define(DEF_SYNC_MAX_INTERVAL, 10).
--define(DEF_TIMEOUT,         1000).
+-define(DEF_SYNC_MIN_INTERVAL,    1).
+-define(DEF_SYNC_MAX_INTERVAL,   10).
+-define(DEF_TIMEOUT,           1000).
 -else.
 -define(CURRENT_TIME, leo_date:now()).
 -define(DEF_SYNC_MIN_INTERVAL,  250).
 -define(DEF_SYNC_MAX_INTERVAL, 1500).
+
 -define(DEF_TIMEOUT,           3000).
 -endif.
 
@@ -243,27 +244,28 @@ maybe_sync(#state{cur  = #ring_info{checksum = CurHash},
                   prev = #ring_info{checksum = PrevHash},
                   min_interval = MinInterval,
                   timestamp    = Timestamp} = State) ->
-
-    {ok, {R1, R2}}= leo_redundant_manager_api:checksum(?CHECKSUM_RING),
+    {ok, {R1, R2}} = leo_redundant_manager_api:checksum(?CHECKSUM_RING),
     ThisTime = timestamp(),
+    sync(),
 
     case ((ThisTime - Timestamp) < MinInterval) of
         true ->
-            State;
+            State#state{timestamp = ThisTime};
         false ->
-            NewState = case (R1 == -1 orelse R2 == -1) of
+            NewState = case (R1 == -1 orelse
+                             R2 == -1) of
                            true ->
                                State;
-                           false when R1 == CurHash andalso
+                           false when R1 == CurHash  andalso
                                       R2 == PrevHash ->
                                State;
                            false ->
                                maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash})
                        end,
-            sync(),
             NewState#state{timestamp = ThisTime}
     end.
 
+%% @doc Fix prev-ring or current-ring inconsistency
 %% @private
 -spec(maybe_sync_1(#state{}, {pos_integer(), pos_integer()}, {pos_integer(), pos_integer()}) ->
              #state{}).
@@ -535,7 +537,7 @@ get_redundancies([#member{node = Node0}|T], Node1, SetL2) when Node0 /= Node1 ->
              not_found | {ok, #redundancies{}}).
 reply_redundancies(not_found,_) ->
     not_found;
-reply_redundancies({ok, #redundancies{nodes = Nodes} =Redundancies}, AddrId) ->
+reply_redundancies({ok, #redundancies{nodes = Nodes} = Redundancies}, AddrId) ->
     reply_redundancies_1(Redundancies, AddrId, Nodes, []).
 
 reply_redundancies_1(Redundancies, AddrId, [], Acc) ->

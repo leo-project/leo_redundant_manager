@@ -328,7 +328,7 @@ get_redundancies_by_key(Method, Key) ->
             BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
             AddrId = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
 
-            get_redundancies_by_addr_id(ring_table(Method), AddrId, Options);
+            get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options);
         _ ->
             {error, not_found}
     end.
@@ -344,42 +344,19 @@ get_redundancies_by_addr_id(AddrId) ->
 get_redundancies_by_addr_id(Method, AddrId) ->
     case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         {ok, Options} ->
-            get_redundancies_by_addr_id(ring_table(Method), AddrId, Options);
+            get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options);
         _ ->
             {error, not_found}
     end.
 
-get_redundancies_by_addr_id(TblInfo, AddrId, Options) ->
-    {ok, ServerType} = leo_misc:get_env(?APP, ?PROP_SERVER_TYPE),
-    get_redundancies_by_addr_id(ServerType, TblInfo, AddrId, Options).
-
-get_redundancies_by_addr_id(?SERVER_MANAGER, TblInfo, AddrId, Options) ->
-    Ret = leo_redundant_manager_table_member:find_all(),
-    get_redundancies_by_addr_id_1(Ret, TblInfo, AddrId, Options);
-
-get_redundancies_by_addr_id(_ServerType, TblInfo, AddrId, Options) ->
-    Ret = leo_redundant_manager_table_member:find_all(),
-    get_redundancies_by_addr_id_1(Ret, TblInfo, AddrId, Options).
-
 
 %% @private
-get_redundancies_by_addr_id_1({ok, Members}, TblInfo, AddrId, Options) ->
+get_redundancies_by_addr_id_1(TblInfo, AddrId, Options) ->
     ServerRef = get_server_id(AddrId),
-    get_redundancies_by_addr_id_1_1(ServerRef, TblInfo, Members, AddrId, Options);
-
-get_redundancies_by_addr_id_1(Error, _TblInfo, _AddrId, _Options) ->
-    error_logger:warning_msg("~p,~p,~p,~p~n",
-                             [{module, ?MODULE_STRING}, {function, "get_redundancies_by_addr_id_1/4"},
-                              {line, ?LINE}, {body, Error}]),
-    {error, not_found}.
-
-
-%% @private
-get_redundancies_by_addr_id_1_1(ServerRef, TblInfo,_Members, AddrId, Options) ->
-    N = leo_misc:get_value(?PROP_N,  Options),
-    R = leo_misc:get_value(?PROP_R,  Options),
-    W = leo_misc:get_value(?PROP_W,  Options),
-    D = leo_misc:get_value(?PROP_D,  Options),
+    N = leo_misc:get_value(?PROP_N, Options),
+    R = leo_misc:get_value(?PROP_R, Options),
+    W = leo_misc:get_value(?PROP_W, Options),
+    D = leo_misc:get_value(?PROP_D, Options),
 
     case leo_redundant_manager_chash:redundancies(ServerRef, TblInfo, AddrId) of
         {ok, Redundancies} ->

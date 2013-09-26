@@ -337,7 +337,6 @@ rack_aware_1_({Hostname}) ->
                         end,
               ?assertEqual(false, (SumR1_3 == 0 orelse SumR2_3 == 0))
       end, lists:seq(1, 300)),
-    ?debugVal(ok),
     %% poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
     ok.
 
@@ -405,7 +404,6 @@ rack_aware_2_({Hostname}) ->
               ?assertEqual(5, length(Nodes))
       end, lists:seq(1, 300)),
 
-    ?debugVal(ok),
     %% poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
     ok.
 
