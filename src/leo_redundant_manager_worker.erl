@@ -44,13 +44,14 @@
 
 -ifdef(TEST).
 -define(CURRENT_TIME, 65432100000).
--define(DEF_SYNC_MIN_INTERVAL,  5).
--define(DEF_SYNC_MAX_INTERVAL, 10).
--define(DEF_TIMEOUT,         1000).
+-define(DEF_SYNC_MIN_INTERVAL,    1).
+-define(DEF_SYNC_MAX_INTERVAL,   10).
+-define(DEF_TIMEOUT,           1000).
 -else.
 -define(CURRENT_TIME, leo_date:now()).
 -define(DEF_SYNC_MIN_INTERVAL,  250).
 -define(DEF_SYNC_MAX_INTERVAL, 1500).
+
 -define(DEF_TIMEOUT,           3000).
 -endif.
 

@@ -64,7 +64,6 @@ teardown(Pid) ->
 
 suite_(_) ->
     ServerRef = leo_redundant_manager_api:get_server_id(),
-    %% ServerRef = poolboy:checkout('ring_worker_pool'),
     {ok, #redundancies{vnode_id_from = 0,
                        vnode_id_to   = VNodeIdTo1,
                        nodes = N0}} = leo_redundant_manager_worker:first(ServerRef, 'leo_ring_cur'),
@@ -111,7 +110,6 @@ suite_(_) ->
                   end, Seq),
     End = leo_date:clock(),
     ?debugVal((End - St) / 1000),
-    %% poolboy:checkin('ring_worker_pool', ServerRef),
     ok.
 
 collect_redundancies(_ServerRef,_Tbl,0,_To,Acc) ->
