@@ -66,6 +66,27 @@
           timestamp = 0 :: pos_integer()
          }).
 
+-record(sync_info, {
+          target       :: ?VER_CURRENT | ?VER_PREV,
+          members = [] :: list(#member{}),
+          org_checksum = 0 :: pos_integer(),
+          cur_checksum = 0 :: pos_integer(),
+          num_of_replicas = 0       :: pos_integer(),
+          num_of_rack_awareness = 0 :: pos_integer()
+         }).
+
+-record(ring_conf, {
+          id = 0 :: pos_integer(),
+          ring_size    = 0  :: pos_integer(),
+          group_size   = 0  :: pos_integer(),
+          group_id     = 0  :: pos_integer(),
+          addr_id      = 0  :: pos_integer(),
+          from_addr_id = [] :: string(),
+          index_list   = [] :: list(),
+          table_list   = [] :: list()
+         }).
+
+
 -ifdef(TEST).
 -define(output_error_log(Line, Fun, Msg), void).
 -else.
@@ -77,7 +98,7 @@
 
 -compile({inline, [lookup_fun/4, find_redundancies_by_addr_id/2,
                    reply_redundancies/2,first_fun/1, last_fun/1,
-                   gen_routing_table/4, gen_routing_table_1/9,
+                   gen_routing_table/4, gen_routing_table_1/2,
                    redundancies/5, redundnacies_1/6, redundnacies_1/7,
                    redundancies_2/6, redundancies_3/7, get_node_by_vnodeid/2,
                    get_redundancies/3, force_sync_fun/2, force_sync_fun_1/3
@@ -277,8 +298,20 @@ maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
                     N  = leo_misc:get_value(?PROP_N,  Options),
                     L2 = leo_misc:get_value(?PROP_L2, Options, 0),
 
-                    State1 = maybe_sync_1_1(?SYNC_MODE_CUR_RING,  R1, CurHash,  N, L2, Members, State),
-                    State2 = maybe_sync_1_1(?SYNC_MODE_PREV_RING, R2, PrevHash, N, L2, Members, State1),
+                    CurSyncInfo  = #sync_info{target = ?SYNC_MODE_CUR_RING,
+                                              org_checksum = R1,
+                                              cur_checksum = CurHash,
+                                              num_of_replicas = N,
+                                              num_of_rack_awareness = L2,
+                                              members = Members},
+                    PrevSyncInfo = #sync_info{target = ?SYNC_MODE_PREV_RING,
+                                              org_checksum = R2,
+                                              cur_checksum = PrevHash,
+                                              num_of_replicas = N,
+                                              num_of_rack_awareness = L2,
+                                              members = Members},
+                    State1 = maybe_sync_1_1(CurSyncInfo,  State),
+                    State2 = maybe_sync_1_1(PrevSyncInfo, State1),
                     State2;
                 _ ->
                     State
@@ -287,11 +320,13 @@ maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
             State
     end.
 
-maybe_sync_1_1(_TargetRing, OrgChecksum, CurChecksum,
-               _NumOfReplicas,_NumOfAwarenessL2,_Members, State) when OrgChecksum == CurChecksum ->
+maybe_sync_1_1(#sync_info{org_checksum = OrgChecksum,
+                          cur_checksum = CurChecksum}, State) when OrgChecksum == CurChecksum ->
     State;
-maybe_sync_1_1(TargetRing,_OrgChecksum,_CurChecksum,
-               NumOfReplicas, NumOfAwarenessL2, Members, State) ->
+maybe_sync_1_1(#sync_info{target = TargetRing,
+                          num_of_replicas = NumOfReplicas,
+                          num_of_rack_awareness = NumOfAwarenessL2,
+                          members = Members}, State) ->
     case gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members) of
         {ok, {Checksum, RingGroupList, FirstAddrId, LastAddrId}} ->
             RingInfo = #ring_info{checksum = Checksum,
@@ -332,11 +367,24 @@ gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members) ->
     %% Retrieve redundancies by addr-id
     {_,_,RingGroup1,_,_} =
         lists:foldl(fun({AddrId, _Node},
-                        {Id, GId, IdxAcc, TblAcc, StAddrId}) ->
+                        {Id, GId, IdxAcc, TblAcc, FromAddrId}) ->
                             Ret = redundancies(Tbl, AddrId,
                                                NumOfReplicas, NumOfAwarenessL2, Members),
-                            gen_routing_table_1(Ret, RingSize, GroupSize,
-                                                Id, AddrId, GId, IdxAcc, TblAcc, StAddrId)
+                            RingConf = #ring_conf{id = Id,
+                                                  ring_size    = RingSize,
+                                                  group_size   = GroupSize,
+                                                  group_id     = GId,
+                                                  addr_id      = AddrId,
+                                                  from_addr_id = FromAddrId,
+                                                  index_list   = IdxAcc,
+                                                  table_list   = TblAcc},
+                            #ring_conf{id = Id_1,
+                                       group_id = GId_1,
+                                       from_addr_id = FromAddrId_1,
+                                       index_list = IdxAcc_1,
+                                       table_list = TblAcc_1
+                                      } = gen_routing_table_1(Ret, RingConf),
+                            {Id_1, GId_1, IdxAcc_1, TblAcc_1, FromAddrId_1}
                     end, {0, 0, [], [], 0}, CurRing),
     case RingGroup1 of
         [] ->
@@ -348,12 +396,18 @@ gen_routing_table(TargetRing, NumOfReplicas, NumOfAwarenessL2, Members) ->
             {ok, {Checksum, RingGroup2, FirstAddrId, LastAddrId}}
     end.
 
-gen_routing_table_1({ok, #redundancies{nodes = Nodes}},
-                    RingSize, GroupSize,
-                    Id, AddrId, GId, IdxAcc, TblAcc, StAddrId) ->
+gen_routing_table_1(
+  {ok, #redundancies{nodes = Nodes}}, #ring_conf{id = Id,
+                                                 ring_size    = RingSize,
+                                                 group_size   = GroupSize,
+                                                 group_id     = GId,
+                                                 addr_id      = AddrId,
+                                                 from_addr_id = FromAddrId,
+                                                 index_list   = IdxAcc,
+                                                 table_list   = TblAcc} = RingConf) ->
     Id1 = Id + 1,
     VNodeId_Nodes = #vnodeid_nodes{id = Id1,
-                                   vnode_id_from = StAddrId,
+                                   vnode_id_from = FromAddrId,
                                    vnode_id_to   = AddrId,
                                    nodes = Nodes},
 
@@ -362,7 +416,7 @@ gen_routing_table_1({ok, #redundancies{nodes = Nodes}},
             FirstAddrId_1 =
                 case TblAcc of
                     [] ->
-                        StAddrId;
+                        FromAddrId;
                     _ ->
                         case lists:last(TblAcc) of
                             #vnodeid_nodes{id = 1} -> 0;
@@ -372,18 +426,29 @@ gen_routing_table_1({ok, #redundancies{nodes = Nodes}},
                 end,
 
             RingGroup = lists:reverse([VNodeId_Nodes|TblAcc]),
-            {Id1, 0, [#ring_group{index_from = FirstAddrId_1,
-                                  index_to   = AddrId,
-                                  vnodeid_nodes_list = RingGroup}|IdxAcc],
-             [], AddrId + 1};
+            RingConf#ring_conf{id = Id1,
+                               group_id = 0,
+                               from_addr_id = AddrId + 1,
+                               index_list = [#ring_group{index_from = FirstAddrId_1,
+                                                         index_to   = AddrId,
+                                                         vnodeid_nodes_list = RingGroup}|IdxAcc],
+                               table_list = []};
         false ->
-            {Id1, GId + 1, IdxAcc,
-             [VNodeId_Nodes|TblAcc], AddrId + 1}
+            RingConf#ring_conf{id = Id1,
+                               group_id = GId + 1,
+                               from_addr_id = AddrId + 1,
+                               table_list = [VNodeId_Nodes|TblAcc]}
     end;
 
-gen_routing_table_1(_,_RingSize,_GroupSize, AddrId, Id, GId, IdxAcc, TblAcc,_StAddrId) ->
-    ?output_error_log(?LINE, "gen_routing_table_1/8", "Could not get redundancies"),
-    {Id + 1, GId + 1, IdxAcc, [#vnodeid_nodes{}|TblAcc], AddrId + 1}.
+gen_routing_table_1(_, #ring_conf{id = Id,
+                                  group_id     = GId,
+                                  addr_id      = AddrId,
+                                  table_list   = TblAcc} = RingConf) ->
+    ?output_error_log(?LINE, "gen_routing_table_1/2", "Could not get redundancies"),
+    RingConf#ring_conf{id       = Id + 1,
+                       group_id = GId + 1,
+                       from_addr_id = AddrId + 1,
+                       table_list   = [#vnodeid_nodes{}|TblAcc]}.
 
 
 %% @doc get redundancies by key.
