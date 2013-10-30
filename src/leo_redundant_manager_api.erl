@@ -465,7 +465,7 @@ get_member_by_node(Node) ->
 -spec(get_members_count() ->
              integer() | {error, any()}).
 get_members_count() ->
-    leo_redundant_manager_table_member:size().
+    leo_redundant_manager_table_member:table_size().
 
 
 %% @doc get members by status

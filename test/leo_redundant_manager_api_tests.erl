@@ -61,7 +61,8 @@ setup() ->
 
     leo_misc:init_env(),
     leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
-    leo_redundant_manager_table_member:create_members(),
+    leo_redundant_manager_table_member:create_members(?MEMBER_TBL_CUR),
+    leo_redundant_manager_table_member:create_members(?MEMBER_TBL_PREV),
     {Hostname}.
 
 teardown(_) ->
@@ -132,7 +133,7 @@ detach_({Hostname}) ->
 members_table_(_Arg) ->
     %% create -> get -> not-found.
     not_found = leo_redundant_manager_table_member:find_all(),
-    ?assertEqual(0, leo_redundant_manager_table_member:size()),
+    ?assertEqual(0, leo_redundant_manager_table_member:table_size()),
     ?assertEqual(not_found, leo_redundant_manager_table_member:lookup('node_0@127.0.0.1')),
 
     %% insert.
@@ -147,7 +148,7 @@ members_table_(_Arg) ->
 
     %% get.
     {ok, Members} = leo_redundant_manager_table_member:find_all(),
-    ?assertEqual(3, leo_redundant_manager_table_member:size()),
+    ?assertEqual(3, leo_redundant_manager_table_member:table_size()),
     ?assertEqual(3, length(Members)),
 
     ?assertEqual({ok, lists:nth(1,?TEST_MEMBERS)},
@@ -156,7 +157,7 @@ members_table_(_Arg) ->
     %% delete.
     #member{node = Node} = lists:nth(1, ?TEST_MEMBERS),
     leo_redundant_manager_table_member:delete(Node),
-    ?assertEqual(2, leo_redundant_manager_table_member:size()),
+    ?assertEqual(2, leo_redundant_manager_table_member:table_size()),
     ok.
 
 
@@ -412,7 +413,8 @@ rack_aware_2_({Hostname}) ->
 %% INNER FUNCTION
 %% -------------------------------------------------------------------
 prepare(Hostname, ServerType) ->
-    catch ets:delete('leo_members'),
+    catch ets:delete(?MEMBER_TBL_CUR),
+    catch ets:delete(?MEMBER_TBL_PREV),
     catch ets:delete('leo_ring_cur'),
     catch ets:delete('leo_ring_prv'),
 
@@ -430,7 +432,7 @@ prepare(Hostname, ServerType) ->
                                            {w ,2},
                                            {d, 2},
                                            {bit_of_ring, 128}]),
-    ?debugVal(leo_redundant_manager_table_member:size()),
+    ?debugVal(leo_redundant_manager_table_member:table_size()),
     leo_redundant_manager_api:attach(list_to_atom("node_0@" ++ Hostname)),
     leo_redundant_manager_api:attach(list_to_atom("node_1@" ++ Hostname)),
     leo_redundant_manager_api:attach(list_to_atom("node_2@" ++ Hostname)),
@@ -439,7 +441,7 @@ prepare(Hostname, ServerType) ->
     leo_redundant_manager_api:attach(list_to_atom("node_5@" ++ Hostname)),
     leo_redundant_manager_api:attach(list_to_atom("node_6@" ++ Hostname)),
     leo_redundant_manager_api:attach(list_to_atom("node_7@" ++ Hostname)),
-    ?debugVal(leo_redundant_manager_table_member:size()),
+    ?debugVal(leo_redundant_manager_table_member:table_size()),
 
     timer:sleep(500),
     ok.
@@ -578,7 +580,8 @@ redundant(true) ->
 
     leo_misc:init_env(),
     leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
-    leo_redundant_manager_table_member:create_members(),
+    leo_redundant_manager_table_member:create_members(?MEMBER_TBL_CUR),
+    leo_redundant_manager_table_member:create_members(?MEMBER_TBL_PREV),
 
     %% prepare-2
     {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),

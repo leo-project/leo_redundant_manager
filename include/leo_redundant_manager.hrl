@@ -49,6 +49,12 @@
 -define(DEF_MAX_REPLICAS, 8).
 
 
+%% Member tables
+-define(MEMBER_TBL_CUR,  'leo_members_cur').
+-define(MEMBER_TBL_PREV, 'leo_members_prev').
+-type(member_table() :: ?MEMBER_TBL_CUR | ?MEMBER_TBL_PREV).
+
+
 %% Ring related
 -define(TYPE_RING_TABLE_ETS,    'ets').
 -define(TYPE_RING_TABLE_MNESIA, 'mnesia').
