@@ -38,9 +38,10 @@ redundant_manager_test_() ->
 setup() ->
     application:start(crypto),
 
-    catch ets:delete('leo_members'),
-    catch ets:delete('leo_ring_cur'),
-    catch ets:delete('leo_ring_prv'),
+    catch ets:delete_all_objects(?MEMBER_TBL_CUR),
+    catch ets:delete_all_objects(?MEMBER_TBL_PREV),
+    catch ets:delete_all_objects('leo_ring_cur'),
+    catch ets:delete_all_objects('leo_ring_prv'),
 
     leo_misc:init_env(),
     leo_misc:set_env(leo_redundant_manager, 'server_type', 'gateway'),

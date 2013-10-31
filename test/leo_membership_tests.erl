@@ -47,9 +47,10 @@ setup() ->
     Me = list_to_atom("test_0@" ++ Hostname),
     net_kernel:start([Me, shortnames]),
 
-    catch ets:delete('leo_members'),
-    catch ets:delete('leo_ring_cur'),
-    catch ets:delete('leo_ring_prv'),
+    catch ets:delete_all_objects(?MEMBER_TBL_CUR),
+    catch ets:delete_all_objects(?MEMBER_TBL_PREV),
+    catch ets:delete_all_objects('leo_ring_cur'),
+    catch ets:delete_all_objects('leo_ring_prv'),
 
     {ok, Node0} = slave:start_link(list_to_atom(Hostname), 'node_0'),
     {ok, Node1} = slave:start_link(list_to_atom(Hostname), 'node_1'),
@@ -62,7 +63,6 @@ setup() ->
     true = rpc:call(Node2, code, add_path, ["../deps/meck/ebin"]),
     true = rpc:call(Mgr0,  code, add_path, ["../deps/meck/ebin"]),
     true = rpc:call(Mgr1,  code, add_path, ["../deps/meck/ebin"]),
-
     timer:sleep(100),
 
     %% start applications
@@ -90,7 +90,7 @@ teardown({_, Mgr0, Mgr1, Node0, Node1, Node2}) ->
     slave:stop(Node1),
     slave:stop(Node2),
 
-    Path = Path = filename:absname("") ++ "db",
+    Path = filename:absname("") ++ "db",
     os:cmd("rm -rf " ++ Path),
     ok.
 

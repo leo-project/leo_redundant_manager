@@ -55,7 +55,7 @@
 membership_test_() ->
     {foreach, fun setup/0, fun teardown/1,
      [{with, [T]} || T <- [
-                           %% fun suite_mnesia_/1,
+                           fun suite_mnesia_/1,
                            fun suite_ets_/1
                           ]]}.
 
@@ -67,16 +67,16 @@ setup() ->
 teardown(_) ->
     ok.
 
-%% suite_mnesia_(_) ->
-%%     _ =application:start(mnesia),
-%%     _ = leo_redundant_manager_table_member:create_members('ram_copies', [node()], ?MEMBER_TBL_CUR),
-%%     _ = leo_redundant_manager_table_member:create_members('ram_copies', [node()], ?MEMBER_TBL_PREV),
-%%     ok = inspect(?MNESIA),
-%%     R1 = mnesia:delete_table(?MEMBER_TBL_CUR),
-%%     R2 = mnesia:delete_table(?MEMBER_TBL_PREV),
-%%     ?debugVal({R1, R2}),
-%%     _ = application:stop(mnesia),
-%%     ok.
+suite_mnesia_(_) ->
+    %% ok = application:start(mnesia),
+    %% ok = leo_redundant_manager_table_member:create_members('ram_copies', [node()], ?MEMBER_TBL_CUR),
+    %% ok = leo_redundant_manager_table_member:create_members('ram_copies', [node()], ?MEMBER_TBL_PREV),
+    %% ?debugVal(mnesia:table_info(?MEMBER_TBL_CUR,  all)),
+    %% ?debugVal(mnesia:table_info(?MEMBER_TBL_PREV, all)),
+    %% ok = inspect(?MNESIA),
+    %% _ = application:stop(mnesia),
+    %% net_kernel:stop(),
+    ok.
 
 suite_ets_(_) ->
     ok = leo_redundant_manager_table_member:create_members(?MEMBER_TBL_CUR),

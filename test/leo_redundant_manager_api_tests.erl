@@ -55,7 +55,8 @@ setup() ->
     [] = os:cmd("epmd -daemon"),
     {ok, Hostname} = inet:gethostname(),
 
-    catch ets:delete_all_objects('leo_members'),
+    catch ets:delete_all_objects(?MEMBER_TBL_CUR),
+    catch ets:delete_all_objects(?MEMBER_TBL_PREV),
     catch ets:delete_all_objects(?CUR_RING_TABLE),
     catch ets:delete_all_objects(?PREV_RING_TABLE),
 
