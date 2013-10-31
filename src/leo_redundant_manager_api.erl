@@ -404,12 +404,38 @@ rebalance(_) ->
     rebalance_1(Ret).
 
 rebalance_1({ok, Members}) ->
-    TblInfo0 = table_info(?VER_CURRENT),
-    TblInfo1 = table_info(?VER_PREV),
-
-    leo_redundant_manager_chash:rebalance({TblInfo0, TblInfo1}, Members);
+    case leo_redundant_manager_table_member:delete_all(?MEMBER_TBL_PREV) of
+        ok ->
+            case rebalance_1_1(Members) of
+                ok ->
+                    TblInfo0 = table_info(?VER_CURRENT),
+                    TblInfo1 = table_info(?VER_PREV),
+                    leo_redundant_manager_chash:rebalance({TblInfo0, TblInfo1}, Members);
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end;
 rebalance_1(Error) ->
     Error.
+
+rebalance_1_1([]) ->
+    ok;
+rebalance_1_1([#member{state = ?STATE_ATTACHED}|Rest]) ->
+    rebalance_1_1(Rest);
+rebalance_1_1([#member{state = ?STATE_DETACHED}|Rest]) ->
+    rebalance_1_1(Rest);
+rebalance_1_1([#member{state = ?STATE_RESERVED}|Rest]) ->
+    rebalance_1_1(Rest);
+rebalance_1_1([Member|Rest]) ->
+    #member{node = Node} = Member,
+    case leo_redundant_manager_table_member:insert(?MEMBER_TBL_PREV, {Node, Member}) of
+        ok ->
+            rebalance_1_1(Rest);
+        Error ->
+            Error
+    end.
 
 
 %%--------------------------------------------------------------------

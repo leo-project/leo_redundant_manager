@@ -345,10 +345,13 @@ maybe_sync_1_1(#sync_info{target = TargetRing,
 
 %% @doc Generate RING for this process
 %% @private
--spec(gen_routing_table(?SYNC_MODE_CUR_RING|?SYNC_MODE_PREV_RING, pos_integer(), pos_integer(), list(#member{})) ->
-             {ok, {pos_integer(), list(#ring_group{}), pos_integer(), pos_integer()}} | {error, atom()}).
-gen_routing_table(TargetRing,_NumOfReplicas,_NumOfAwarenessL2,_Members) when TargetRing /= ?SYNC_MODE_CUR_RING,
-                                                                             TargetRing /= ?SYNC_MODE_PREV_RING ->
+-spec(gen_routing_table(?SYNC_MODE_CUR_RING|?SYNC_MODE_PREV_RING,
+                        pos_integer(), pos_integer(), list(#member{})) ->
+             {ok, {pos_integer(), list(#ring_group{}),
+                   pos_integer(), pos_integer()}} | {error, atom()}).
+gen_routing_table(TargetRing,_NumOfReplicas,
+                  _NumOfAwarenessL2,_Members) when TargetRing /= ?SYNC_MODE_CUR_RING,
+                                                   TargetRing /= ?SYNC_MODE_PREV_RING ->
     {error, invalid_target_ring};
 gen_routing_table(_TargetRing,_NumOfReplicas,_NumOfAwarenessL2,[]) ->
     {error, member_empty};

@@ -380,7 +380,12 @@ delete_all(?DB_MNESIA = DB, Table) ->
             Error
     end;
 delete_all(?DB_ETS, Table) ->
-    ets:delete_all_objects(Table);
+    case catch ets:delete_all_objects(Table) of
+        {'EXIT', Cause} ->
+            {error, Cause};
+        true ->
+            ok
+    end;
 delete_all(_,_) ->
     {error, invalid_db}.
 

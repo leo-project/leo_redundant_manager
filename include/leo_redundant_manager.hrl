@@ -102,7 +102,6 @@
 
 %% Node State
 %%
--define(STATE_IDLING,    'idling').
 -define(STATE_ATTACHED,  'attached').
 -define(STATE_DETACHED,  'detached').
 -define(STATE_SUSPEND,   'suspend').
@@ -111,8 +110,7 @@
 -define(STATE_RESTARTED, 'restarted').
 -define(STATE_RESERVED,  'reserved').
 
--type(node_state() :: ?STATE_IDLING   |
-                      ?STATE_ATTACHED |
+-type(node_state() :: ?STATE_ATTACHED |
                       ?STATE_DETACHED |
                       ?STATE_SUSPEND  |
                       ?STATE_RUNNING  |
