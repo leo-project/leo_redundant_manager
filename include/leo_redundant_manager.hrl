@@ -48,6 +48,8 @@
 -define(DEF_MIN_REPLICAS, 1).
 -define(DEF_MAX_REPLICAS, 8).
 
+-define(DB_ETS,    'ets').
+-define(DB_MNESIA, 'mnesia').
 
 %% Member tables
 -define(MEMBER_TBL_CUR,  'leo_members_cur').

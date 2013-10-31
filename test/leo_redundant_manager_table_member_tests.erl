@@ -54,7 +54,9 @@
 
 membership_test_() ->
     {foreach, fun setup/0, fun teardown/1,
-     [{with, [T]} || T <- [fun suite_ets_/1
+     [{with, [T]} || T <- [
+                           %% fun suite_mnesia_/1,
+                           fun suite_ets_/1
                           ]]}.
 
 setup() ->
@@ -67,8 +69,12 @@ teardown(_) ->
 
 %% suite_mnesia_(_) ->
 %%     _ =application:start(mnesia),
-%%     _ = leo_redundant_manager_table_member:create_members('ram_copies', [node()]),
+%%     _ = leo_redundant_manager_table_member:create_members('ram_copies', [node()], ?MEMBER_TBL_CUR),
+%%     _ = leo_redundant_manager_table_member:create_members('ram_copies', [node()], ?MEMBER_TBL_PREV),
 %%     ok = inspect(?MNESIA),
+%%     R1 = mnesia:delete_table(?MEMBER_TBL_CUR),
+%%     R2 = mnesia:delete_table(?MEMBER_TBL_PREV),
+%%     ?debugVal({R1, R2}),
 %%     _ = application:stop(mnesia),
 %%     ok.
 
@@ -145,7 +151,7 @@ inspect(TableType) ->
     ?assertEqual(not_found, Ret14),
 
 
-    {ok, Ret15_2} = leo_redundant_manager_table_member:find_all(),
+    {ok, Ret15} = leo_redundant_manager_table_member:find_all(),
     lists:foreach(fun(#member{alias = Alias,
                               grp_level_2 = L2
                              }) ->
@@ -153,7 +159,16 @@ inspect(TableType) ->
                           ?assertEqual(false, undefined == Alias),
                           ?assertEqual(false, [] == L2),
                           ?assertEqual(false, undefined == L2)
-                  end, Ret15_2),
+                  end, Ret15),
+
+    %% TEST overwrite records - cur to prev
+    not_found = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV),
+    ok = leo_redundant_manager_table_member:overwrite(?MEMBER_TBL_CUR, ?MEMBER_TBL_PREV),
+
+    {ok, Ret17} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV),
+    ?assertEqual(3, length(Ret17)),
+    ?assertEqual(Ret15, Ret17),
+    ?debugVal(Ret17),
     ok.
 
 -endif.
