@@ -137,30 +137,38 @@ rebalance_1(ServerRef, Info, Size, AddrId, Acc) ->
                src_tbl  = {_, SrcTbl_1},
                dest_tbl = {_, DestTbl_1}} = Info,
     {ok, #redundancies{vnode_id_to = VNodeIdTo,
-                       nodes = Nodes0}} =
+                       nodes = Nodes_0}} =
         leo_redundant_manager_worker:lookup(ServerRef, SrcTbl_1,  AddrId),
-    {ok, #redundancies{nodes = Nodes1}} =
+    {ok, #redundancies{nodes = Nodes_1}} =
         leo_redundant_manager_worker:lookup(ServerRef, DestTbl_1, AddrId),
 
     Res1 = lists:foldl(
              fun(N0, Acc0) ->
                      case lists:foldl(fun(N1,_Acc1) when N0 == N1 -> true;
                                          (N1, Acc1) when N0 /= N1 -> Acc1
-                                      end, false, Nodes1) of
+                                      end, false, Nodes_1) of
                          true  -> Acc0;
                          false -> [N0|Acc0]
                      end
-             end, [], Nodes0),
+             end, [], Nodes_0),
     case Res1 of
         [] ->
             rebalance_1(ServerRef, Info, Size - 1, VNodeIdTo + 1, Acc);
-        [{DestNode, _}|_] ->
-            SrcNode  = active_node(Members, Nodes1),
-            rebalance_1(ServerRef, Info, Size - 1, VNodeIdTo + 1,
-                        [[{vnode_id, VNodeIdTo},
-                          {src,  SrcNode},
-                          {dest, DestNode}]|Acc])
+        DestNodeList ->
+            %% set one or plural target node(s)
+            SrcNode = active_node(Members, Nodes_1),
+            NewAcc  = rebalance_1_1(VNodeIdTo, SrcNode, DestNodeList, Acc),
+            rebalance_1(ServerRef, Info, Size - 1, VNodeIdTo + 1, NewAcc)
     end.
+
+%% @private
+rebalance_1_1(_VNodeIdTo,_SrcNode, [], Acc) ->
+    Acc;
+rebalance_1_1(VNodeIdTo, SrcNode, [DestNode|Rest], Acc) ->
+    NewAcc = [[{vnode_id, VNodeIdTo},
+               {src,  SrcNode},
+               {dest, DestNode}]|Acc],
+    rebalance_1_1(VNodeIdTo, SrcNode, Rest, NewAcc).
 
 
 %% @doc Retrieve ring-checksum

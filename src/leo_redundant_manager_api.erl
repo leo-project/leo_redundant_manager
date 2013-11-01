@@ -403,6 +403,7 @@ rebalance(_) ->
     Ret = leo_redundant_manager_table_member:find_all(),
     rebalance_1(Ret).
 
+%% @private
 rebalance_1({ok, Members}) ->
     case leo_redundant_manager_table_member:delete_all(?MEMBER_TBL_PREV) of
         ok ->
