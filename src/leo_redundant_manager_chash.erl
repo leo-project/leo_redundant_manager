@@ -2,8 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012 Rakuten, Inc.
-%%
+%% Copyright (c) 2012 Rakuten, Inc.%%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
 %% except in compliance with the License.  You may obtain
@@ -25,7 +24,7 @@
 %%======================================================================
 -module(leo_redundant_manager_chash).
 
--author('yosuke hara').
+-author('Yosuke Hara').
 
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -35,11 +34,10 @@
          checksum/1, vnode_id/1, vnode_id/2]).
 -export([export/2, import/2]).
 
--record(rebalance, {n            :: pos_integer(),
-                    level_2 = 0  :: pos_integer(),
-                    members = [] :: list(),
-                    src_tbl      :: ?CUR_RING_TABLE | ?PREV_RING_TABLE,
-                    dest_tbl     :: ?CUR_RING_TABLE | ?PREV_RING_TABLE}).
+-record(rebalance, {members = []  :: list(),
+                    cur_tbl  :: atom(),
+                    prec_tbl :: atom()
+                   }).
 
 
 %%====================================================================
@@ -110,19 +108,17 @@ redundancies(ServerRef, {_,Table}, VNodeId) ->
 -spec(rebalance(tuple(), list()) ->
              {ok, list()} | {error, any()}).
 rebalance(Tables, Members) ->
-    %% {SrcTbl, DestTbl} = {?CUR_RING_TABLE, ?PREV_RING_TABLE},
-    {SrcTbl, DestTbl} = Tables,
+    %% {{$DB,?CUR_RING_TABLE}, {$DB,?PREV_RING_TABLE}} = Tables,
+    {{_,CurTbl} = CurTblInfo, {_,PrevTbl}} = Tables,
     Info = #rebalance{members  = Members,
-                      src_tbl  = SrcTbl,
-                      dest_tbl = DestTbl},
-    Size = leo_redundant_manager_table_ring:size(SrcTbl),
+                      cur_tbl  = CurTbl,
+                      prec_tbl = PrevTbl},
+    RingSize  = leo_redundant_manager_table_ring:size(CurTblInfo),
     ServerRef = leo_redundant_manager_api:get_server_id(),
 
-    {_, SrcTbl_1 } = SrcTbl,
-    {_, DestTbl_1} = DestTbl,
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, SrcTbl_1),
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, DestTbl_1),
-    rebalance_1(ServerRef, Info, Size, 0, []).
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, CurTbl),
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, PrevTbl),
+    rebalance_1(ServerRef, Info, RingSize, 0, []).
 
 %% @private
 rebalance_1(_ServerRef,_Info, 0,  _AddrId, Acc) ->
@@ -132,15 +128,15 @@ rebalance_1(_ServerRef,_Info, 0,  _AddrId, Acc) ->
     %%                     Index+1
     %%             end, 0, Acc1),
     {ok, Acc1};
-rebalance_1(ServerRef, Info, Size, AddrId, Acc) ->
+rebalance_1(ServerRef, Info, RingSize, AddrId, Acc) ->
     #rebalance{members  = Members,
-               src_tbl  = {_, SrcTbl_1},
-               dest_tbl = {_, DestTbl_1}} = Info,
+               cur_tbl  = CurTbl,
+               prec_tbl = PrevTbl} = Info,
     {ok, #redundancies{vnode_id_to = VNodeIdTo,
                        nodes = Nodes_0}} =
-        leo_redundant_manager_worker:lookup(ServerRef, SrcTbl_1,  AddrId),
+        leo_redundant_manager_worker:lookup(ServerRef, CurTbl,  AddrId),
     {ok, #redundancies{nodes = Nodes_1}} =
-        leo_redundant_manager_worker:lookup(ServerRef, DestTbl_1, AddrId),
+        leo_redundant_manager_worker:lookup(ServerRef, PrevTbl, AddrId),
 
     Res1 = lists:foldl(
              fun(N0, Acc0) ->
@@ -153,12 +149,12 @@ rebalance_1(ServerRef, Info, Size, AddrId, Acc) ->
              end, [], Nodes_0),
     case Res1 of
         [] ->
-            rebalance_1(ServerRef, Info, Size - 1, VNodeIdTo + 1, Acc);
+            rebalance_1(ServerRef, Info, RingSize - 1, VNodeIdTo + 1, Acc);
         DestNodeList ->
             %% set one or plural target node(s)
             SrcNode = active_node(Members, Nodes_1),
             NewAcc  = rebalance_1_1(VNodeIdTo, SrcNode, DestNodeList, Acc),
-            rebalance_1(ServerRef, Info, Size - 1, VNodeIdTo + 1, NewAcc)
+            rebalance_1(ServerRef, Info, RingSize - 1, VNodeIdTo + 1, NewAcc)
     end.
 
 %% @private

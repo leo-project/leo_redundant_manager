@@ -405,10 +405,13 @@ rebalance(_) ->
 
 %% @private
 rebalance_1({ok, Members}) ->
+    %% Remove all previous members,
+    %% Then insert new members from current members
     case leo_redundant_manager_table_member:delete_all(?MEMBER_TBL_PREV) of
         ok ->
             case rebalance_1_1(Members) of
                 ok ->
+                    %% Retrieve rebalance-info
                     TblInfo0 = table_info(?VER_CURRENT),
                     TblInfo1 = table_info(?VER_PREV),
                     leo_redundant_manager_chash:rebalance({TblInfo0, TblInfo1}, Members);
