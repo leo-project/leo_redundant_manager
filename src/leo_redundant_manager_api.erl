@@ -78,18 +78,18 @@ create() ->
 
 -spec(create(list()) ->
              {ok, list(), list()} | {error, any()}).
-create([]) ->
-    create();
-create([#member{node = Node, clock = Clock}|T]) ->
-    ok = attach(Node, Clock),
-    create(T).
+create(Members) ->
+    create(Members, []).
 
 -spec(create(list(), list()) ->
              {ok, list(), list()} | {error, any()}).
+create([], []) ->
+    create();
 create([], Options) ->
     ok = set_options(Options),
     create();
-create([#member{node = Node, clock = Clock}|T], Options) ->
+create([#member{node  = Node,
+                clock = Clock}|T], Options) ->
     ok = attach(Node, Clock),
     create(T, Options).
 
