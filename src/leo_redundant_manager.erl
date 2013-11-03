@@ -35,7 +35,7 @@
 %% API
 -export([start_link/0, stop/0]).
 
--export([create/0, checksum/1, has_member/1, get_members/0, get_members/1,
+-export([create/1, checksum/1, has_member/1, get_members/0, get_members/1,
          get_member_by_node/1, get_members_by_status/1,
          update_member/1, update_members/1, update_member_by_node/3,
          delete_member_by_node/1, synchronize/3, adjust/3, dump/1]).
@@ -67,10 +67,10 @@ stop() ->
 
 %% @doc Create Rings.
 %%
--spec(create() ->
+-spec(create(?VER_CURRENT|?VER_PREV) ->
              {ok, list()}).
-create() ->
-    gen_server:call(?MODULE, {create}, ?DEF_TIMEOUT).
+create(Ver) ->
+    gen_server:call(?MODULE, {create, Ver}, ?DEF_TIMEOUT).
 
 
 %% @doc Retrieve checksum (ring or member).
@@ -215,14 +215,22 @@ handle_call(stop,_From,State) ->
     {stop, normal, ok, State};
 
 
-handle_call({create}, _From, State) ->
-    Reply = case leo_redundant_manager_table_member:find_all() of
+handle_call({create, Ver}, _From, State) when Ver == ?VER_CURRENT;
+                                              Ver == ?VER_PREV ->
+    Table = case Ver of
+                ?VER_CURRENT -> ?MEMBER_TBL_CUR;
+                ?VER_PREV    -> ?MEMBER_TBL_PREV
+            end,
+    Reply = case leo_redundant_manager_table_member:find_all(Table) of
                 {ok, Members} ->
                     add_members(Members);
                 Error ->
                     Error
             end,
     {reply, Reply, State};
+
+handle_call({create,_Ver}, _From, State) ->
+    {reply, {error, invalid_version}, State};
 
 handle_call({checksum, ?CHECKSUM_MEMBER}, _From, State) ->
     Reply = case leo_redundant_manager_table_member:find_all() of

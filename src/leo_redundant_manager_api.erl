@@ -30,7 +30,7 @@
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([create/0, create/1, create/2,
+-export([create/1, create/2, create/3,
          set_options/1, get_options/0,
          attach/1, attach/2, attach/3, attach/4,
          reserve/3, reserve/5, detach/1, detach/2,
@@ -60,10 +60,10 @@
 %%--------------------------------------------------------------------
 %% @doc Create the RING
 %%
--spec(create() ->
+-spec(create(?VER_CURRENT|?VER_PREV) ->
              {ok, list(), list()} | {error, any()}).
-create() ->
-    case leo_redundant_manager:create() of
+create(Ver) ->
+    case leo_redundant_manager:create(Ver) of
         {ok, Members} ->
             {ok, Chksums} = checksum(?CHECKSUM_RING),
             {CurRingHash, _PrevRingHash} = Chksums,
@@ -76,22 +76,23 @@ create() ->
             Error
     end.
 
--spec(create(list()) ->
-             {ok, list(), list()} | {error, any()}).
-create(Members) ->
-    create(Members, []).
 
--spec(create(list(), list()) ->
+-spec(create(?VER_CURRENT|?VER_PREV, list()) ->
              {ok, list(), list()} | {error, any()}).
-create([], []) ->
-    create();
-create([], Options) ->
+create(Ver, Members) ->
+    create(Ver, Members, []).
+
+-spec(create(?VER_CURRENT|?VER_PREV, list(), list()) ->
+             {ok, list(), list()} | {error, any()}).
+create(Ver, [], []) ->
+    create(Ver);
+create(Ver, [], Options) ->
     ok = set_options(Options),
-    create();
-create([#member{node  = Node,
-                clock = Clock}|T], Options) ->
+    create(Ver);
+create(Ver, [#member{node  = Node,
+                     clock = Clock}|T], Options) ->
     ok = attach(Node, Clock),
-    create(T, Options).
+    create(Ver, T, Options).
 
 
 %% @doc set routing-table's options.
@@ -224,7 +225,7 @@ checksum(_) ->
 synchronize(?SYNC_MODE_BOTH, Members, Options) ->
     case leo_redundant_manager:update_members(Members) of
         ok ->
-            create(Members, Options);
+            create(?VER_CURRENT, Members, Options);
         Error ->
             Error
     end;

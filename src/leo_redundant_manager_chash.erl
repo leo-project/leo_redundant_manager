@@ -133,26 +133,26 @@ rebalance_1(ServerRef, Info, RingSize, AddrId, Acc) ->
                cur_tbl  = CurTbl,
                prec_tbl = PrevTbl} = Info,
     {ok, #redundancies{vnode_id_to = VNodeIdTo,
-                       nodes = Nodes_0}} =
+                       nodes = CurNodes}} =
         leo_redundant_manager_worker:lookup(ServerRef, CurTbl,  AddrId),
-    {ok, #redundancies{nodes = Nodes_1}} =
+    {ok, #redundancies{nodes = PrevNodes}} =
         leo_redundant_manager_worker:lookup(ServerRef, PrevTbl, AddrId),
 
     Res1 = lists:foldl(
              fun(N0, Acc0) ->
                      case lists:foldl(fun(N1,_Acc1) when N0 == N1 -> true;
                                          (N1, Acc1) when N0 /= N1 -> Acc1
-                                      end, false, Nodes_1) of
+                                      end, false, PrevNodes) of
                          true  -> Acc0;
                          false -> [N0|Acc0]
                      end
-             end, [], Nodes_0),
+             end, [], CurNodes),
     case Res1 of
         [] ->
             rebalance_1(ServerRef, Info, RingSize - 1, VNodeIdTo + 1, Acc);
         DestNodeList ->
             %% set one or plural target node(s)
-            SrcNode = active_node(Members, Nodes_1),
+            SrcNode = active_node(Members, PrevNodes),
             NewAcc  = rebalance_1_1(VNodeIdTo, SrcNode, DestNodeList, Acc),
             rebalance_1(ServerRef, Info, RingSize - 1, VNodeIdTo + 1, NewAcc)
     end.

@@ -90,7 +90,7 @@ redundant_manager_1_({Hostname}) ->
 
 attach_({Hostname}) ->
     ok = prepare(Hostname, gateway),
-    {ok, _, _} = leo_redundant_manager_api:create(),
+    {ok, _, _} = leo_redundant_manager_api:create(?VER_CURRENT),
 
     %% rebalance.attach
     AttachNode = list_to_atom("node_8@" ++ Hostname),
@@ -109,7 +109,7 @@ attach_({Hostname}) ->
 
 detach_({Hostname}) ->
     ok = prepare(Hostname, gateway),
-    {ok, _, _} = leo_redundant_manager_api:create(),
+    {ok, _, _} = leo_redundant_manager_api:create(?VER_CURRENT),
 
     %% 1. rebalance.detach
     DetachNode = list_to_atom("node_0@" ++ Hostname),
@@ -182,7 +182,7 @@ synchronize_0_(_Arg) ->
 
 synchronize_1_({Hostname}) ->
     ok = prepare(Hostname, storage),
-    {ok,_,_} = leo_redundant_manager_api:create(),
+    {ok,_,_} = leo_redundant_manager_api:create(?VER_CURRENT),
     {ok, _Members} = leo_redundant_manager_api:get_members(),
 
     {ok, {CurRingHash0, PrevRingHash0}} = leo_redundant_manager_api:checksum(?CHECKSUM_RING),
@@ -199,7 +199,7 @@ synchronize_1_({Hostname}) ->
 
 synchronize_2_({Hostname}) ->
     ok = prepare(Hostname, storage),
-    {ok,_,_} = leo_redundant_manager_api:create(),
+    {ok,_,_} = leo_redundant_manager_api:create(?VER_CURRENT),
     {ok, _Members} = leo_redundant_manager_api:get_members(),
 
     {ok, Ring} = leo_redundant_manager_api:get_ring(?SYNC_MODE_PREV_RING),
@@ -208,7 +208,7 @@ synchronize_2_({Hostname}) ->
 
 adjust_({Hostname}) ->
     ok = prepare(Hostname, storage),
-    {ok,_,_} = leo_redundant_manager_api:create(),
+    {ok,_,_} = leo_redundant_manager_api:create(?VER_CURRENT),
 
     {ok, Ring} = leo_redundant_manager_api:get_ring(?SYNC_MODE_CUR_RING),
     {VNodeId, _Node} = lists:nth(1, Ring),
@@ -217,7 +217,7 @@ adjust_({Hostname}) ->
 
 append_({Hostname}) ->
     ok = prepare(Hostname, storage),
-    {ok,_,_} = leo_redundant_manager_api:create(),
+    {ok,_,_} = leo_redundant_manager_api:create(?VER_CURRENT),
 
     Node = list_to_atom("node_0@" ++ Hostname),
     ok = leo_redundant_manager_api:append(?VER_CURRENT, 1, Node),
@@ -232,7 +232,7 @@ append_({Hostname}) ->
 
 suspend_({Hostname}) ->
     ok = prepare(Hostname, storage),
-    {ok,_,_} = leo_redundant_manager_api:create(),
+    {ok,_,_} = leo_redundant_manager_api:create(?VER_CURRENT),
 
     Node = list_to_atom("node_0@" ++ Hostname),
     ok = leo_redundant_manager_api:suspend(Node),
@@ -296,7 +296,7 @@ rack_aware_1_({Hostname}) ->
     leo_redundant_manager_api:attach(Node14, "R2"),
     leo_redundant_manager_api:attach(Node15, "R2"),
 
-    {ok, _, _} =leo_redundant_manager_api:create(),
+    {ok, _, _} =leo_redundant_manager_api:create(?VER_CURRENT),
     timer:sleep(100),
 
     %% ServerRef = poolboy:checkout(?RING_WORKER_POOL_NAME),
@@ -390,7 +390,7 @@ rack_aware_2_({Hostname}) ->
     leo_redundant_manager_api:attach(Node14, "R2"),
     leo_redundant_manager_api:attach(Node15, "R2"),
 
-    {ok, _, _} =leo_redundant_manager_api:create(),
+    {ok, _, _} =leo_redundant_manager_api:create(?VER_CURRENT),
     timer:sleep(100),
 
     ServerRef = leo_redundant_manager_api:get_server_id(),
@@ -469,7 +469,7 @@ inspect0(Hostname) ->
     ?assertEqual('suspend', Node7#member.state),
 
     %% create routing-table > confirmations.
-    {ok, Members1, Chksums} = leo_redundant_manager_api:create(),
+    {ok, Members1, Chksums} = leo_redundant_manager_api:create(?VER_CURRENT),
     ?assertEqual(8, length(Members1)),
     ?assertEqual(2, length(Chksums)),
 
@@ -612,7 +612,7 @@ redundant(true) ->
     leo_redundant_manager_api:attach(Node5),
     leo_redundant_manager_api:attach(Node6),
     leo_redundant_manager_api:attach(Node7),
-    {ok, _, _} =leo_redundant_manager_api:create(),
+    {ok, _, _} =leo_redundant_manager_api:create(?VER_CURRENT),
 
     %% execute
     ok = redundant_1(Members,       0,  250000),
