@@ -173,8 +173,8 @@ dump(Type) ->
 -spec(attach(atom(), string(), integer(), integer()) ->
              ok | {error, any()}).
 attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
-    TblInfo = leo_redundant_manager_api:table_info(?VER_CURRENT),
-    attach(TblInfo, Node, NumOfAwarenessL2, Clock, NumOfVNodes).
+    attach(leo_redundant_manager_api:table_info(?VER_CURRENT),
+           Node, NumOfAwarenessL2, Clock, NumOfVNodes).
 
 attach(TableInfo, Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
     gen_server:call(?MODULE, {attach, TableInfo, Node,
@@ -194,8 +194,7 @@ reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes) ->
 -spec(detach(atom(), integer()) ->
              ok | {error, any()}).
 detach(Node, Clock) ->
-    TblInfo = leo_redundant_manager_api:table_info(?VER_CURRENT),
-    detach(TblInfo, Node, Clock).
+    detach(leo_redundant_manager_api:table_info(?VER_CURRENT), Node, Clock).
 
 detach(TableInfo, Node, Clock) ->
     gen_server:call(?MODULE, {detach, TableInfo, Node, Clock}, ?DEF_TIMEOUT).
@@ -498,8 +497,9 @@ code_change(_OldVsn, State, _Extra) ->
 create_1(Ver) ->
     case leo_redundant_manager_table_member:find_all(?member_table(Ver)) of
         {ok, Members} ->
-            create_ring(Ver, Members);
+            create_2(Ver, Members);
         not_found when Ver == ?VER_PREV ->
+            %% overwrite current-ring to prev-ring
             case leo_redundant_manager_table_member:overwrite(
                    ?MEMBER_TBL_CUR, ?MEMBER_TBL_PREV) of
                 ok ->
@@ -511,19 +511,17 @@ create_1(Ver) ->
             Error
     end.
 
-
-%% @doc Create a RING(routing-table)
 %% @private
--spec(create_ring(?VER_CURRENT|?VER_PREV, list()) ->
+-spec(create_2(?VER_CURRENT|?VER_PREV, list()) ->
              ok | {ok, list()}).
-create_ring(Ver, Members) ->
-    create_ring(Ver, Members, []).
+create_2(Ver, Members) ->
+    create_2(Ver, Members, []).
 
--spec(create_ring(?VER_CURRENT|?VER_PREV, list(), list()) ->
+-spec(create_2(?VER_CURRENT|?VER_PREV, list(), list()) ->
              ok | {ok, list()}).
-create_ring(Ver,[], Acc) ->
-    create_ring_1(Ver, Acc);
-create_ring( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
+create_2(Ver,[], Acc) ->
+    create_3(Ver, Acc);
+create_2( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
     %% Modify/Add a member into 'member-table'
     Ret_2 = case leo_redundant_manager_table_member:lookup(Node) of
                 {error, Cause} ->
@@ -542,21 +540,24 @@ create_ring( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
             end,
     case Ret_2 of
         {ok, Member_2} ->
-            create_ring(Ver, Rest, [Member_2|Acc]);
+            create_2(Ver, Rest, [Member_2|Acc]);
         Error ->
             Error
     end.
 
 %% @private
--spec(create_ring_1(?VER_CURRENT|?VER_PREV, list()) ->
+-spec(create_3(?VER_CURRENT|?VER_PREV, list()) ->
              ok | {ok, list()}).
-create_ring_1(_, []) ->
+create_3(?VER_CURRENT, []) ->
     ok;
-create_ring_1(Ver, [Member|Rest]) ->
-    TblInfo = leo_redundant_manager_api:table_info(Ver),
-    case attach_1(TblInfo, Member) of
+create_3(?VER_PREV, []) ->
+    %% @TODO - merge prev-ring with current-ring
+    %%         and set "not read-repair's flag" in every redundancy records
+    ok;
+create_3(Ver, [Member|Rest]) ->
+    case attach_1(leo_redundant_manager_api:table_info(Ver), Member) of
         ok ->
-            create_ring_1(Ver, Rest);
+            create_3(Ver, Rest);
         Error ->
             Error
     end.
@@ -657,9 +658,8 @@ get_members_1(?VER_CURRENT) ->
             Error
     end;
 get_members_1(?VER_PREV) ->
-    TblInfo = leo_redundant_manager_api:table_info(?VER_PREV),
-    Ring    = leo_redundant_manager_table_ring:tab2list(TblInfo),
-    case Ring of
+    case leo_redundant_manager_table_ring:tab2list(
+           leo_redundant_manager_api:table_info(?VER_PREV)) of
         [] ->
             not_found;
         List ->
@@ -677,13 +677,12 @@ get_members_1(?VER_PREV) ->
 %% @private
 dump_ring_tabs() ->
     _ = filelib:ensure_dir("./log/ring/"),
-    TblInfo0 = leo_redundant_manager_api:table_info(?VER_CURRENT),
-    TblInfo1 = leo_redundant_manager_api:table_info(?VER_PREV),
-
     File0 = ?DUMP_FILE_RING_CUR  ++ integer_to_list(leo_date:now()),
     File1 = ?DUMP_FILE_RING_PREV ++ integer_to_list(leo_date:now()),
 
-    Res0 = leo_redundant_manager_chash:export(TblInfo0, File0),
-    Res1 = leo_redundant_manager_chash:export(TblInfo1, File1),
+    Res0 = leo_redundant_manager_chash:export(
+             leo_redundant_manager_api:table_info(?VER_CURRENT), File0),
+    Res1 = leo_redundant_manager_chash:export(
+             leo_redundant_manager_api:table_info(?VER_PREV), File1),
     {Res0, Res1}.
 

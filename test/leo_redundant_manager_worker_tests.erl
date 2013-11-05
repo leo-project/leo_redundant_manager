@@ -55,11 +55,11 @@ setup() ->
     leo_redundant_manager_api:attach('node_4@127.0.0.1'),
     leo_redundant_manager_api:create(?VER_CURRENT),
     leo_redundant_manager_api:create(?VER_PREV),
-    timer:sleep(1500),
+    timer:sleep(1000),
     Pid.
 
 teardown(Pid) ->
-    timer:sleep(200),
+    timer:sleep(100),
     exit(Pid, normal),
     application:stop(crypto),
     ok.
@@ -101,7 +101,7 @@ suite_(_) ->
     ?assertEqual(3, length(N6)),
     ?assertEqual(3, length(N7)),
 
-    Seq  = lists:seq(1, 10000),
+    Seq = lists:seq(1, 10000),
     St = leo_date:clock(),
     lists:foreach(fun(_) ->
                           AddrId = leo_redundant_manager_chash:vnode_id(128, crypto:rand_bytes(64)),

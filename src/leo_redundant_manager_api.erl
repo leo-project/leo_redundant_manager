@@ -62,11 +62,11 @@
 %%
 -spec(create(?VER_CURRENT|?VER_PREV) ->
              {ok, list(), list()} | {error, any()}).
-create(Ver) ->
+create(Ver) when Ver == ?VER_CURRENT;
+                 Ver == ?VER_PREV ->
     case leo_redundant_manager:create(Ver) of
         ok ->
-            Table = ?member_table(Ver),
-            case leo_redundant_manager_table_member:find_all(Table) of
+            case leo_redundant_manager_table_member:find_all(?member_table(Ver)) of
                 {ok, Members} ->
                     {ok, HashRing} = checksum(?CHECKSUM_RING),
                     ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, erlang:element(1, HashRing)),
@@ -78,7 +78,10 @@ create(Ver) ->
             end;
         Error ->
             Error
-    end.
+    end;
+create(_) ->
+    {error, invlid_version}.
+
 
 
 -spec(create(?VER_CURRENT|?VER_PREV, list()) ->
@@ -204,15 +207,14 @@ suspend(Node, Clock) ->
 %% @doc append a node into the ring.
 %%
 -spec(append(?VER_CURRENT | ?VER_PREV, integer(), atom()) ->
-             ok).
-append(?VER_CURRENT, VNodeId, Node) ->
-    TblInfo = table_info(?VER_CURRENT),
+             ok | {error, invalid_version}).
+append(Ver, VNodeId, Node) when Ver == ?VER_CURRENT;
+                                Ver == ?VER_PREV ->
+    TblInfo = table_info(Ver),
     ok = leo_redundant_manager_chash:append(TblInfo, VNodeId, Node),
     ok;
-append(?VER_PREV,    VNodeId, Node) ->
-    TblInfo = table_info(?VER_PREV),
-    ok = leo_redundant_manager_chash:append(TblInfo, VNodeId, Node),
-    ok.
+append(_,_,_) ->
+    {error, invalid_version}.
 
 
 %% @doc get routing_table's checksum.
@@ -229,7 +231,7 @@ checksum(?CHECKSUM_RING) ->
     {ok, Chksum1} = leo_redundant_manager_chash:checksum(TblInfo1),
     {ok, {Chksum0, Chksum1}};
 checksum(_) ->
-    {error, badarg}.
+    {error, invalid_type}.
 
 
 %% @doc synchronize member-list and routing-table.

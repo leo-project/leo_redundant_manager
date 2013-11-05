@@ -335,10 +335,10 @@ rack_aware_1_({Hostname}) ->
     {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
     timer:sleep(100),
 
-    %% ServerRef = poolboy:checkout(?RING_WORKER_POOL_NAME),
     ServerRef = leo_redundant_manager_api:get_server_id(),
     ok = leo_redundant_manager_worker:force_sync(ServerRef, ?RING_TBL_CUR),
     ok = leo_redundant_manager_worker:force_sync(ServerRef, ?RING_TBL_PREV),
+
 
     lists:foreach(
       fun(N) ->
@@ -375,7 +375,6 @@ rack_aware_1_({Hostname}) ->
                         end,
               ?assertEqual(false, (SumR1_3 == 0 orelse SumR2_3 == 0))
       end, lists:seq(1, 300)),
-    %% poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
     ok.
 
 rack_aware_2_({Hostname}) ->
@@ -431,7 +430,6 @@ rack_aware_2_({Hostname}) ->
     timer:sleep(100),
 
     ServerRef = leo_redundant_manager_api:get_server_id(),
-    %% ServerRef = poolboy:checkout(?RING_WORKER_POOL_NAME),
     ok = leo_redundant_manager_worker:force_sync(ServerRef, ?RING_TBL_CUR),
     ok = leo_redundant_manager_worker:force_sync(ServerRef, ?RING_TBL_PREV),
 
@@ -442,8 +440,6 @@ rack_aware_2_({Hostname}) ->
                     lists:append(["LEOFS_", integer_to_list(N)])),
               ?assertEqual(5, length(Nodes))
       end, lists:seq(1, 300)),
-
-    %% poolboy:checkin(?RING_WORKER_POOL_NAME, ServerRef),
     ok.
 
 
