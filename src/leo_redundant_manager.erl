@@ -40,7 +40,7 @@
          update_member/1, update_members/1, update_member_by_node/3,
          delete_member_by_node/1, synchronize/3, adjust/3, dump/1]).
 
--export([attach/4, reserve/5, detach/2, suspend/2]).
+-export([attach/4, attach/5, reserve/5, detach/2, detach/3, suspend/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -173,8 +173,13 @@ dump(Type) ->
 -spec(attach(atom(), string(), integer(), integer()) ->
              ok | {error, any()}).
 attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
-    gen_server:call(?MODULE, {attach, Node,
+    TblInfo = leo_redundant_manager_api:table_info(?VER_CURRENT),
+    attach(TblInfo, Node, NumOfAwarenessL2, Clock, NumOfVNodes).
+
+attach(TableInfo, Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
+    gen_server:call(?MODULE, {attach, TableInfo, Node,
                               NumOfAwarenessL2, Clock, NumOfVNodes}, ?DEF_TIMEOUT).
+
 
 %% @doc Change node status to 'reserve'.
 %%
@@ -189,7 +194,11 @@ reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes) ->
 -spec(detach(atom(), integer()) ->
              ok | {error, any()}).
 detach(Node, Clock) ->
-    gen_server:call(?MODULE, {detach, Node, Clock}, ?DEF_TIMEOUT).
+    TblInfo = leo_redundant_manager_api:table_info(?VER_CURRENT),
+    detach(TblInfo, Node, Clock).
+
+detach(TableInfo, Node, Clock) ->
+    gen_server:call(?MODULE, {detach, TableInfo, Node, Clock}, ?DEF_TIMEOUT).
 
 
 %% @doc Change node status to 'suspend'.
@@ -217,16 +226,7 @@ handle_call(stop,_From,State) ->
 
 handle_call({create, Ver}, _From, State) when Ver == ?VER_CURRENT;
                                               Ver == ?VER_PREV ->
-    Table = case Ver of
-                ?VER_CURRENT -> ?MEMBER_TBL_CUR;
-                ?VER_PREV    -> ?MEMBER_TBL_PREV
-            end,
-    Reply = case leo_redundant_manager_table_member:find_all(Table) of
-                {ok, Members} ->
-                    add_members(Members);
-                Error ->
-                    Error
-            end,
+    Reply = create_1(Ver),
     {reply, Reply, State};
 
 handle_call({create,_Ver}, _From, State) ->
@@ -394,29 +394,8 @@ handle_call({_, routing_table,_Filename}, _From, State) ->
     {reply, {error, badarg}, State};
 
 
-handle_call({attach, Node, NumOfAwarenessL2, Clock, NumOfVNodes}, _From, State) ->
-    TblInfo = leo_redundant_manager_api:table_info(?VER_CURRENT),
-    NodeStr = atom_to_list(Node),
-    IP = case (string:chr(NodeStr, $@) > 0) of
-             true ->
-                 lists:nth(2,string:tokens(NodeStr,"@"));
-             false ->
-                 []
-         end,
-
-    Reply = case alias(Node) of
-                {ok, Alias} ->
-                    Member = #member{node  = Node,
-                                     alias = Alias,
-                                     ip    = IP,
-                                     clock = Clock,
-                                     state = ?STATE_ATTACHED,
-                                     num_of_vnodes = NumOfVNodes,
-                                     grp_level_2   = NumOfAwarenessL2},
-                    attach_fun(TblInfo, Member);
-                {error, Cause} ->
-                    {error, Cause}
-            end,
+handle_call({attach, TblInfo, Node, NumOfAwarenessL2, Clock, NumOfVNodes}, _From, State) ->
+    Reply = attach_1(TblInfo, Node, NumOfAwarenessL2, Clock, NumOfVNodes),
     {reply, Reply, State};
 
 
@@ -447,10 +426,9 @@ handle_call({reserve, Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes}, _Fr
     {reply, Reply, State};
 
 
-handle_call({detach, Node, Clock}, _From, State) ->
+handle_call({detach, TblInfo, Node, Clock}, _From, State) ->
     Reply = case leo_redundant_manager_table_member:lookup(Node) of
                 {ok, Member} ->
-                    TblInfo = leo_redundant_manager_api:table_info(?VER_CURRENT),
                     detach_fun(TblInfo, Member#member{clock = Clock});
                 Error ->
                     Error
@@ -508,44 +486,82 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% INNER FUNCTIONS
 %%--------------------------------------------------------------------
--spec(add_members(list()) ->
+%% @doc Create a RING(routing-table)
+%% @private
+-spec(create_1(?VER_CURRENT|?VER_PREV) ->
+             ok | {error, any()}).
+create_1(Ver) ->
+    case leo_redundant_manager_table_member:find_all(?member_table(Ver)) of
+        {ok, Members} ->
+            create_ring(Ver, Members);
+        not_found when Ver == ?VER_PREV ->
+            case leo_redundant_manager_table_member:overwrite(
+                   ?MEMBER_TBL_CUR, ?MEMBER_TBL_PREV) of
+                ok ->
+                    create_1(Ver);
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end.
+
+
+%% @doc Create a RING(routing-table)
+%% @private
+-spec(create_ring(?VER_CURRENT|?VER_PREV, list()) ->
              ok | {ok, list()}).
-add_members(Members) ->
-    State = ?STATE_RUNNING,
-    NewMembers = lists:map(
-                   fun(#member{node = Node} = M1) ->
-                           case leo_redundant_manager_table_member:lookup(Node) of
-                               {ok, M2} ->
-                                   leo_redundant_manager_table_member:insert(
-                                     {Node, M2#member{state = State}});
-                               not_found ->
-                                   leo_redundant_manager_table_member:insert(
-                                     {Node, M1#member{state = State}});
-                               _ ->
-                                   void
+create_ring(Ver, Members) ->
+    create_ring(Ver, Members, []).
+
+-spec(create_ring(?VER_CURRENT|?VER_PREV, list(), list()) ->
+             ok | {ok, list()}).
+create_ring(Ver,[], Acc) ->
+    create_ring_1(Ver, Acc);
+create_ring( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
+    %% Modify/Add a member into 'member-table'
+    Ret_2 = case leo_redundant_manager_table_member:lookup(Node) of
+                {error, Cause} ->
+                    {error, Cause};
+                Ret_1 ->
+                    Prop = case Ret_1 of
+                               {ok, Member_1} -> {Node, Member_1#member{state = ?STATE_RUNNING}};
+                               not_found      -> {Node, Member_0#member{state = ?STATE_RUNNING}}
                            end,
-                           M1#member{state = State}
-                   end, Members),
+                    case leo_redundant_manager_table_member:insert(Prop) of
+                        ok ->
+                            {ok, erlang:element(2, Prop)};
+                        {error, Cause} ->
+                            {error, Cause}
+                    end
+            end,
+    case Ret_2 of
+        {ok, Member_2} ->
+            create_ring(Ver, Rest, [Member_2|Acc]);
+        Error ->
+            Error
+    end.
 
-    TblInfo0 = leo_redundant_manager_api:table_info(?VER_CURRENT),
-    TblInfo1 = leo_redundant_manager_api:table_info(?VER_PREV),
+%% @private
+-spec(create_ring_1(?VER_CURRENT|?VER_PREV, list()) ->
+             ok | {ok, list()}).
+create_ring_1(_, []) ->
+    ok;
+create_ring_1(Ver, [#member{node          = Node,
+                            clock         = Clock,
+                            num_of_vnodes = NumOfVNodes,
+                            grp_level_2   = GroupL2}|Rest]) ->
+    TblInfo = leo_redundant_manager_api:table_info(Ver),
+    case attach_1(TblInfo, Node, GroupL2, Clock, NumOfVNodes) of
+        ok ->
+            create_ring_1(Ver, Rest);
+        Error ->
+            Error
+    end.
 
-    true = leo_redundant_manager_table_ring:delete_all_objects(TblInfo1),
-    case leo_redundant_manager_table_ring:tab2list(TblInfo0) of
-        [] ->
-            void;
-        List when is_list(List) ->
-            lists:foreach(fun({K,V}) ->
-                                  leo_redundant_manager_table_ring:insert(TblInfo1, {K, V})
-                          end, List);
-        _Error ->
-            void
-    end,
 
-    dump_ring_tabs(),
-    {ok, NewMembers}.
-
-
+%% @doc
+%% @private
 alias(Node) ->
     case leo_redundant_manager_table_member:find_by_status(?STATE_DETACHED) of
         not_found ->
@@ -560,18 +576,45 @@ alias(Node) ->
     end.
 
 
-attach_fun({_, ?CUR_RING_TABLE} = TblInfo, #member{node = Node} = Member) ->
+%% @doc
+%% @private
+attach_1(TblInfo, Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
+    NodeStr = atom_to_list(Node),
+    IP = case (string:chr(NodeStr, $@) > 0) of
+             true ->
+                 lists:nth(2,string:tokens(NodeStr,"@"));
+             false ->
+                 []
+         end,
+
+    case alias(Node) of
+        {ok, Alias} ->
+            Member = #member{node  = Node,
+                             alias = Alias,
+                             ip    = IP,
+                             clock = Clock,
+                             state = ?STATE_ATTACHED,
+                             num_of_vnodes = NumOfVNodes,
+                             grp_level_2   = NumOfAwarenessL2},
+            attach_2(TblInfo, Member);
+        {error, Cause} ->
+            {error, Cause}
+    end.
+
+
+attach_2(TblInfo, #member{node = Node} = Member) ->
+%% attach_2({_, ?RING_TBL_CUR} = TblInfo, #member{node = Node} = Member) ->
     case leo_redundant_manager_table_member:insert(
            {Node, Member#member{clock = leo_date:clock()}}) of
         ok ->
-            attach_fun1(TblInfo, Member);
+            attach_3(TblInfo, Member);
         Error ->
             Error
-    end;
-attach_fun({_, ?PREV_RING_TABLE} = TblInfo, Member)  ->
-    attach_fun1(TblInfo, Member).
+    end.
+%% attach_2({_, ?RING_TBL_PREV} = TblInfo, Member)  ->
+%%     attach_3(TblInfo, Member).
 
-attach_fun1(TblInfo, Member) ->
+attach_3(TblInfo, Member) ->
     case leo_redundant_manager_chash:add(TblInfo, Member) of
         ok ->
             dump_ring_tabs(),
@@ -581,7 +624,9 @@ attach_fun1(TblInfo, Member) ->
     end.
 
 
-detach_fun({_, ?CUR_RING_TABLE} = TblInfo, Member) ->
+%% @doc
+%% @private
+detach_fun({_, ?RING_TBL_CUR} = TblInfo, Member) ->
     Node = Member#member.node,
     case leo_redundant_manager_table_member:insert(
            {Node, Member#member{node = Node,
@@ -592,7 +637,7 @@ detach_fun({_, ?CUR_RING_TABLE} = TblInfo, Member) ->
         Error ->
             Error
     end;
-detach_fun({_, ?PREV_RING_TABLE} = TblInfo, Member) ->
+detach_fun({_, ?RING_TBL_PREV} = TblInfo, Member) ->
     detach_fun1(TblInfo, Member).
 
 detach_fun1(TblInfo, Member) ->
@@ -605,6 +650,8 @@ detach_fun1(TblInfo, Member) ->
     end.
 
 
+%% @doc
+%% @private
 get_members_fun(?VER_CURRENT) ->
     case leo_redundant_manager_table_member:find_all() of
         {ok, Members} ->
@@ -631,6 +678,8 @@ get_members_fun(?VER_PREV) ->
     end.
 
 
+%% @doc
+%% @private
 dump_ring_tabs() ->
     _ = filelib:ensure_dir("./log/ring/"),
     TblInfo0 = leo_redundant_manager_api:table_info(?VER_CURRENT),

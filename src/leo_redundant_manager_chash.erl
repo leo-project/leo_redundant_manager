@@ -108,7 +108,7 @@ redundancies(ServerRef, {_,Table}, VNodeId) ->
 -spec(rebalance(tuple(), list()) ->
              {ok, list()} | {error, any()}).
 rebalance(Tables, Members) ->
-    %% {{$DB,?CUR_RING_TABLE}, {$DB,?PREV_RING_TABLE}} = Tables,
+    %% {{$DB,?RING_TBL_CUR}, {$DB,?RING_TBL_PREV}} = Tables,
     {{_,CurTbl} = CurTblInfo, {_,PrevTbl}} = Tables,
     Info = #rebalance{members  = Members,
                       cur_tbl  = CurTbl,

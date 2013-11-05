@@ -154,8 +154,8 @@ handle_call(stop,_From,State) ->
     {stop, normal, ok, State};
 
 
-handle_call({lookup, Tbl,_AddrId},_From, State) when Tbl /= ?CUR_RING_TABLE,
-                                                     Tbl /= ?PREV_RING_TABLE ->
+handle_call({lookup, Tbl,_AddrId},_From, State) when Tbl /= ?RING_TBL_CUR,
+                                                     Tbl /= ?RING_TBL_PREV ->
     {reply, {error, invalid_table}, State};
 
 handle_call({lookup, Tbl, AddrId},_From, State) ->
@@ -166,8 +166,8 @@ handle_call({lookup, Tbl, AddrId},_From, State) ->
     {reply, Reply, State};
 
 
-handle_call({first, Tbl},_From, State) when Tbl /= ?CUR_RING_TABLE,
-                                            Tbl /= ?PREV_RING_TABLE ->
+handle_call({first, Tbl},_From, State) when Tbl /= ?RING_TBL_CUR,
+                                            Tbl /= ?RING_TBL_PREV ->
     {reply, {error, invalid_table}, State};
 handle_call({first, Tbl},_From, State) ->
     #ring_info{ring_group_list = RingGroupList} = ring_info(Tbl, State),
@@ -175,8 +175,8 @@ handle_call({first, Tbl},_From, State) ->
     {reply, Reply, State};
 
 
-handle_call({last, Tbl},_From, State) when Tbl /= ?CUR_RING_TABLE,
-                                           Tbl /= ?PREV_RING_TABLE ->
+handle_call({last, Tbl},_From, State) when Tbl /= ?RING_TBL_CUR,
+                                           Tbl /= ?RING_TBL_PREV ->
     {reply, {error, invalid_table}, State};
 handle_call({last, Tbl},_From, State) ->
     #ring_info{ring_group_list = RingGroupList} = ring_info(Tbl, State),
@@ -184,14 +184,14 @@ handle_call({last, Tbl},_From, State) ->
     {reply, Reply, State};
 
 
-handle_call({force_sync, Tbl},_From, State) when Tbl /= ?CUR_RING_TABLE,
-                                                 Tbl /= ?PREV_RING_TABLE ->
+handle_call({force_sync, Tbl},_From, State) when Tbl /= ?RING_TBL_CUR,
+                                                 Tbl /= ?RING_TBL_PREV ->
     {reply, {error, invalid_table}, State};
 
 handle_call({force_sync, Tbl},_From, State) ->
     TargetRing = case Tbl of
-                     ?CUR_RING_TABLE  -> ?SYNC_MODE_CUR_RING;
-                     ?PREV_RING_TABLE -> ?SYNC_MODE_PREV_RING
+                     ?RING_TBL_CUR  -> ?SYNC_MODE_CUR_RING;
+                     ?RING_TBL_PREV -> ?SYNC_MODE_PREV_RING
                  end,
     NewState = force_sync_fun(TargetRing, State),
     {reply, ok, NewState};
@@ -565,7 +565,7 @@ redundancies_3(Table, NumOfReplicas, L2, Members,
 
 %% @doc Retrieve virtual-node by vnode-id
 %% @private
--spec(get_node_by_vnodeid({ets|mnesia, ?CUR_RING_TABLE|?PREV_RING_TABLE}, pos_integer()) ->
+-spec(get_node_by_vnodeid({ets|mnesia, ?RING_TBL_CUR|?RING_TBL_PREV}, pos_integer()) ->
              {ok, pos_integer()} | {error, no_entry}).
 get_node_by_vnodeid(Table, VNodeId) ->
     case leo_redundant_manager_table_ring:next(Table, VNodeId) of
@@ -777,11 +777,11 @@ force_sync_fun_1(_,_,State) ->
 
 %% @doc Retrieve ring-info
 %% @private
--spec(ring_info(?CUR_RING_TABLE|?PREV_RING_TABLE, #state{}) ->
+-spec(ring_info(?RING_TBL_CUR|?RING_TBL_PREV, #state{}) ->
              #ring_info{}).
-ring_info(?CUR_RING_TABLE, State) ->
+ring_info(?RING_TBL_CUR, State) ->
     State#state.cur;
-ring_info(?PREV_RING_TABLE, State) ->
+ring_info(?RING_TBL_PREV, State) ->
     State#state.prev;
 ring_info(_,_) ->
     {error, invalid_table}.

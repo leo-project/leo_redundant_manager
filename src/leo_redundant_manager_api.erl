@@ -64,14 +64,18 @@
              {ok, list(), list()} | {error, any()}).
 create(Ver) ->
     case leo_redundant_manager:create(Ver) of
-        {ok, Members} ->
-            {ok, Chksums} = checksum(?CHECKSUM_RING),
-            {CurRingHash, _PrevRingHash} = Chksums,
-            ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, CurRingHash),
-
-            {ok, Chksum0} = checksum(?CHECKSUM_MEMBER),
-            {ok, Members, [{?CHECKSUM_RING,   Chksums},
-                           {?CHECKSUM_MEMBER, Chksum0}]};
+        ok ->
+            Table = ?member_table(Ver),
+            case leo_redundant_manager_table_member:find_all(Table) of
+                {ok, Members} ->
+                    {ok, HashRing} = checksum(?CHECKSUM_RING),
+                    ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, erlang:element(1, HashRing)),
+                    {ok, HashMember} = checksum(?CHECKSUM_MEMBER),
+                    {ok, Members, [{?CHECKSUM_RING,   HashRing},
+                                   {?CHECKSUM_MEMBER, HashMember}]};
+                Error ->
+                    Error
+            end;
         Error ->
             Error
     end.
@@ -89,10 +93,20 @@ create(Ver, [], []) ->
 create(Ver, [], Options) ->
     ok = set_options(Options),
     create(Ver);
-create(Ver, [#member{node  = Node,
-                     clock = Clock}|T], Options) ->
-    ok = attach(Node, Clock),
-    create(Ver, T, Options).
+create(Ver, [#member{node = Node} = Member|T], Options) when Ver == ?VER_CURRENT;
+                                                             Ver == ?VER_PREV ->
+    %% Add a member as "attached node" into member-table
+    case leo_redundant_manager_table_member:lookup(Node) of
+        not_found ->
+            Prop = {Node, Member#member{state = ?STATE_ATTACHED}},
+            leo_redundant_manager_table_member:insert(Prop);
+        _ ->
+            void
+    end,
+    create(Ver, T, Options);
+create(_,_,_) ->
+    {error, invalid_version}.
+
 
 
 %% @doc set routing-table's options.
@@ -300,7 +314,7 @@ adjust(VNodeId) ->
 -spec(get_ring() ->
              {ok, list()} | {error, any()}).
 get_ring() ->
-    {ok, ets:tab2list(?CUR_RING_TABLE)}.
+    {ok, ets:tab2list(?RING_TBL_CUR)}.
 
 
 %% @doc Dump table-records.
@@ -425,6 +439,7 @@ rebalance_1({ok, Members}) ->
 rebalance_1(Error) ->
     Error.
 
+%% @private
 rebalance_1_1([]) ->
     ok;
 rebalance_1_1([#member{state = ?STATE_ATTACHED}|Rest]) ->
@@ -576,23 +591,23 @@ is_alive() ->
 
 
 -ifdef(TEST).
-table_info(?VER_CURRENT) -> {ets, ?CUR_RING_TABLE };
-table_info(?VER_PREV   ) -> {ets, ?PREV_RING_TABLE}.
+table_info(?VER_CURRENT) -> {ets, ?RING_TBL_CUR };
+table_info(?VER_PREV   ) -> {ets, ?RING_TBL_PREV}.
 -else.
 table_info(?VER_CURRENT) ->
     case leo_misc:get_env(?APP, ?PROP_SERVER_TYPE) of
         {ok, ?SERVER_MANAGER} ->
-            {mnesia, ?CUR_RING_TABLE};
+            {mnesia, ?RING_TBL_CUR};
         _ ->
-            {ets, ?CUR_RING_TABLE}
+            {ets, ?RING_TBL_CUR}
     end;
 
 table_info(?VER_PREV) ->
     case leo_misc:get_env(?APP, ?PROP_SERVER_TYPE) of
         {ok, ?SERVER_MANAGER} ->
-            {mnesia, ?PREV_RING_TABLE};
+            {mnesia, ?RING_TBL_PREV};
         _ ->
-            {ets, ?PREV_RING_TABLE}
+            {ets, ?RING_TBL_PREV}
     end.
 -endif.
 

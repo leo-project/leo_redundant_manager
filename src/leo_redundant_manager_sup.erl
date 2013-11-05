@@ -209,8 +209,8 @@ server_type(Type)   -> Type.
 init_tables(_)  ->
     catch leo_redundant_manager_table_member:create_members(?MEMBER_TBL_CUR),
     catch leo_redundant_manager_table_member:create_members(?MEMBER_TBL_PREV),
-    catch ets:new(?CUR_RING_TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
-    catch ets:new(?PREV_RING_TABLE,[named_table, ordered_set, public, {read_concurrency, true}]),
+    catch ets:new(?RING_TBL_CUR, [named_table, ordered_set, public, {read_concurrency, true}]),
+    catch ets:new(?RING_TBL_PREV,[named_table, ordered_set, public, {read_concurrency, true}]),
     ok.
 -else.
 init_tables(manager) -> ok;
@@ -219,7 +219,7 @@ init_tables(slave)   -> ok;
 init_tables(_Other)  ->
     catch leo_redundant_manager_table_member:create_members(?MEMBER_TBL_CUR),
     catch leo_redundant_manager_table_member:create_members(?MEMBER_TBL_PREV),
-    catch ets:new(?CUR_RING_TABLE, [named_table, ordered_set, public, {read_concurrency, true}]),
-    catch ets:new(?PREV_RING_TABLE,[named_table, ordered_set, public, {read_concurrency, true}]),
+    catch ets:new(?RING_TBL_CUR, [named_table, ordered_set, public, {read_concurrency, true}]),
+    catch ets:new(?RING_TBL_PREV,[named_table, ordered_set, public, {read_concurrency, true}]),
     ok.
 -endif.

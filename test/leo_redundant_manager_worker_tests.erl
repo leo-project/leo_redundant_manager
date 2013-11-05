@@ -54,6 +54,7 @@ setup() ->
     leo_redundant_manager_api:attach('node_3@127.0.0.1'),
     leo_redundant_manager_api:attach('node_4@127.0.0.1'),
     leo_redundant_manager_api:create(?VER_CURRENT),
+    leo_redundant_manager_api:create(?VER_PREV),
     timer:sleep(1500),
     Pid.
 

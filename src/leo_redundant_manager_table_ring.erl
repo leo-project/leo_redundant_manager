@@ -45,7 +45,7 @@ create_ring_current(Mode) ->
 
 create_ring_current(Mode, Nodes) ->
     mnesia:create_table(
-      ?CUR_RING_TABLE,
+      ?RING_TBL_CUR,
       [{Mode, Nodes},
        {type, ordered_set},
        {record_name, ring},
@@ -65,7 +65,7 @@ create_ring_prev(Mode) ->
 
 create_ring_prev(Mode, Nodes) ->
     mnesia:create_table(
-      ?PREV_RING_TABLE,
+      ?RING_TBL_PREV,
       [{Mode, Nodes},
        {type, ordered_set},
        {record_name, ring},

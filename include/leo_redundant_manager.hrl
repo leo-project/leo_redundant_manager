@@ -60,13 +60,13 @@
 %% Ring related
 -define(TYPE_RING_TABLE_ETS,    'ets').
 -define(TYPE_RING_TABLE_MNESIA, 'mnesia').
--define(CUR_RING_TABLE,         'leo_ring_cur').
--define(PREV_RING_TABLE,        'leo_ring_prv').
+-define(RING_TBL_CUR,           'leo_ring_cur').
+-define(RING_TBL_PREV,          'leo_ring_prv').
 -define(NODE_ALIAS_PREFIX,      "node_").
 
 -type(ring_table_type() :: ?TYPE_RING_TABLE_ETS | ?TYPE_RING_TABLE_MNESIA).
--type(ring_table_info() :: {ring_table_type(), ?CUR_RING_TABLE} |
-                           {ring_table_type(), ?PREV_RING_TABLE}).
+-type(ring_table_info() :: {ring_table_type(), ?RING_TBL_CUR} |
+                           {ring_table_type(), ?RING_TBL_PREV}).
 
 -define(WORKER_POOL_NAME_PREFIX, "leo_redundant_manager_worker_").
 
@@ -94,7 +94,7 @@
 -define(DEF_OPT_D, 1).
 -define(DEF_OPT_BIT_OF_RING, ?MD5).
 -ifdef(TEST).
--define(DEF_NUMBER_OF_VNODES, 168).
+-define(DEF_NUMBER_OF_VNODES, 32).
 -else.
 -define(DEF_NUMBER_OF_VNODES, 168).
 -endif.
@@ -135,6 +135,16 @@
 %%
 -define(VER_CURRENT, 'cur' ).
 -define(VER_PREV,    'prev').
+-define(member_table(_VER), case _VER of
+                                ?VER_CURRENT -> ?MEMBER_TBL_CUR;
+                                ?VER_PREV    -> ?MEMBER_TBL_PREV;
+                                _ -> undefind
+                            end).
+-define(ring_table(_VER),   case _VER of
+                                ?VER_CURRENT -> ?RING_TBL_CUR;
+                                ?VER_PREV    -> ?RING_TBL_PREV;
+                                _ -> undefind
+                            end).
 
 
 %% Synchronization
