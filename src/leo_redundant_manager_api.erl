@@ -408,15 +408,9 @@ range_of_vnodes(ToVNodeId) ->
 -spec(rebalance() ->
              {ok, list()} | {error, any()}).
 rebalance() ->
-    ServerType = leo_misc:get_env(?APP, ?PROP_SERVER_TYPE),
-    rebalance(ServerType).
-
-rebalance(?SERVER_MANAGER) ->
-    Ret = leo_redundant_manager_table_member:find_all(),
-    rebalance_1(Ret);
-rebalance(_) ->
-    Ret = leo_redundant_manager_table_member:find_all(),
+    Ret = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
     rebalance_1(Ret).
+
 
 %% @private
 rebalance_1({ok, Members}) ->

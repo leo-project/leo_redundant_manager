@@ -99,13 +99,27 @@ attach_({Hostname}) ->
     leo_redundant_manager_api:dump(?CHECKSUM_RING),
 
     %% execute
-    {ok, Res} = leo_redundant_manager_api:rebalance(),
+    {ok, Res1} = leo_redundant_manager_api:rebalance(),
     lists:foreach(fun(Item) ->
                           Src  = proplists:get_value('src',  Item),
                           Dest = proplists:get_value('dest', Item),
                           ?assertEqual(true, Src =/= Dest),
                           ?assertEqual(true, Src =/= AttachNode)
-                  end, Res),
+                  end, Res1),
+    {ok, MembersCur} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
+
+    %% re-create previous-ring
+    {ok, MembersPrev, Hashs} = leo_redundant_manager_api:create(?VER_PREV),
+    {RingHashCur, RingHashPrev} = leo_misc:get_value('ring', Hashs),
+    MemberHash = leo_misc:get_value('member', Hashs),
+
+    ?assertEqual(9, length(MembersCur)),
+    ?assertEqual(8, length(MembersPrev)),
+    ?assertNotEqual([], MembersPrev),
+    ?assertNotEqual(-1, RingHashCur),
+    ?assertNotEqual(-1, RingHashPrev),
+    ?assertNotEqual(RingHashCur, RingHashPrev),
+    ?assertNotEqual(-1, MemberHash),
     ok.
 
 detach_({Hostname}) ->
@@ -127,6 +141,20 @@ detach_({Hostname}) ->
                           ?assertEqual(true, Src  =/= DetachNode),
                           ?assertEqual(true, Dest =/= DetachNode)
                   end, Res),
+    {ok, MembersCur} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
+
+    %% re-create previous-ring
+    {ok, MembersPrev, Hashs} = leo_redundant_manager_api:create(?VER_PREV),
+    {RingHashCur, RingHashPrev} = leo_misc:get_value('ring', Hashs),
+    MemberHash = leo_misc:get_value('member', Hashs),
+
+    ?assertEqual(8, length(MembersCur)),
+    ?assertEqual(7, length(MembersPrev)),
+    ?assertNotEqual([], MembersPrev),
+    ?assertNotEqual(-1, RingHashCur),
+    ?assertNotEqual(-1, RingHashPrev),
+    ?assertNotEqual(RingHashCur, RingHashPrev),
+    ?assertNotEqual(-1, MemberHash),
     ok.
 
 

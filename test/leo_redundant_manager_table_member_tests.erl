@@ -168,7 +168,6 @@ inspect(TableType) ->
     {ok, Ret17} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV),
     ?assertEqual(3, length(Ret17)),
     ?assertEqual(Ret15, Ret17),
-    ?debugVal(Ret17),
     ok.
 
 -endif.
