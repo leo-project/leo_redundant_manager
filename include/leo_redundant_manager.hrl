@@ -28,9 +28,10 @@
 
 
 %% Error
--define(ERROR_COULD_NOT_GET_RING,     "could not get ring").
--define(ERROR_COULD_NOT_GET_CHECKSUM, "could not get checksum").
--define(ERROR_COULD_NOT_UPDATE_RING,  "could not update ring").
+-define(ERROR_COULD_NOT_GET_RING,         "Could not get ring").
+-define(ERROR_COULD_NOT_GET_CHECKSUM,     "Could not get checksum").
+-define(ERROR_COULD_NOT_UPDATE_RING,      "Could not update ring").
+-define(ERROR_COULD_NOT_GET_REDUNDANCIES, "Could not get redundancies").
 
 -define(ERR_TYPE_INCONSISTENT_HASH,   inconsistent_hash).
 -define(ERR_TYPE_NODE_DOWN,           nodedown).
@@ -140,12 +141,11 @@
                                 ?VER_PREV    -> ?MEMBER_TBL_PREV;
                                 _ -> undefind
                             end).
--define(ring_table(_VER),   case _VER of
-                                ?VER_CURRENT -> ?RING_TBL_CUR;
-                                ?VER_PREV    -> ?RING_TBL_PREV;
+-define(ring_table(_Target),case _Target of
+                                ?SYNC_MODE_CUR_RING  -> leo_redundant_manager_api:table_info(?VER_CURRENT);
+                                ?SYNC_MODE_PREV_RING -> leo_redundant_manager_api:table_info(?VER_PREV);
                                 _ -> undefind
                             end).
-
 
 %% Synchronization
 %%

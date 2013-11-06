@@ -548,11 +548,7 @@ create_2( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
 %% @private
 -spec(create_3(?VER_CURRENT|?VER_PREV, list()) ->
              ok | {ok, list()}).
-create_3(?VER_CURRENT, []) ->
-    ok;
-create_3(?VER_PREV, []) ->
-    %% @TODO - merge prev-ring with current-ring
-    %%         and set "not read-repair's flag" in every redundancy records
+create_3(_, []) ->
     ok;
 create_3(Ver, [Member|Rest]) ->
     case attach_1(leo_redundant_manager_api:table_info(Ver), Member) of
