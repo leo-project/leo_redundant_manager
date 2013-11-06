@@ -515,8 +515,8 @@ inspect0(Hostname) ->
     ?assertEqual(true, (-1 =< Chksum3)),
     ?assertEqual(true, (-1 =< Chksum4)),
 
-    ?assertEqual(256, leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR} )),
-    ?assertEqual(256, leo_redundant_manager_table_ring:size({ets, ?RING_TBL_PREV})),
+    ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR} )),
+    ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), leo_redundant_manager_table_ring:size({ets, ?RING_TBL_PREV})),
 
     Max = leo_math:power(2, ?MD5),
     lists:foreach(fun(Num) ->
