@@ -61,6 +61,8 @@
           id :: atom(),
           cur  = #ring_info{} :: #ring_info{},
           prev = #ring_info{} :: #ring_info{},
+          num_of_replicas = 0       :: pos_integer(),
+          num_of_rack_awareness = 0 :: pos_integer(),
           min_interval = ?DEF_SYNC_MIN_INTERVAL :: pos_integer(),
           max_interval = ?DEF_SYNC_MAX_INTERVAL :: pos_integer(),
           timestamp = 0 :: pos_integer()
@@ -70,9 +72,7 @@
           target       :: ?VER_CURRENT | ?VER_PREV,
           members = [] :: list(#member{}),
           org_checksum = 0 :: pos_integer(),
-          cur_checksum = 0 :: pos_integer(),
-          num_of_replicas = 0       :: pos_integer(),
-          num_of_rack_awareness = 0 :: pos_integer()
+          cur_checksum = 0 :: pos_integer()
          }).
 
 -record(ring_conf, {
@@ -266,25 +266,33 @@ maybe_sync(#state{cur  = #ring_info{checksum = CurHash},
                   prev = #ring_info{checksum = PrevHash},
                   min_interval = MinInterval,
                   timestamp    = Timestamp} = State) ->
-    {ok, {R1, R2}} = leo_redundant_manager_api:checksum(?CHECKSUM_RING),
+    State_1 = case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
+                  {ok, Options} ->
+                      NumOfReplica = leo_misc:get_value(?PROP_N,  Options),
+                      NumOfL2      = leo_misc:get_value(?PROP_L2, Options, 0),
+                      State#state{num_of_replicas = NumOfReplica,
+                                  num_of_rack_awareness = NumOfL2};
+                  _ ->
+                      State
+              end,
     ThisTime = timestamp(),
     sync(),
 
     case ((ThisTime - Timestamp) < MinInterval) of
         true ->
-            State#state{timestamp = ThisTime};
+            State_1#state{timestamp = ThisTime};
         false ->
-            NewState = case (R1 == -1 orelse
-                             R2 == -1) of
-                           true ->
-                               State;
-                           false when R1 == CurHash  andalso
-                                      R2 == PrevHash ->
-                               State;
-                           false ->
-                               maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash})
-                       end,
-            NewState#state{timestamp = ThisTime}
+            {ok, {R1, R2}} = leo_redundant_manager_api:checksum(?CHECKSUM_RING),
+            State_2 = case (R1 == -1 orelse R2 == -1) of
+                          true ->
+                              State_1;
+                          false when R1 == CurHash  andalso
+                                     R2 == PrevHash ->
+                              State_1;
+                          false ->
+                              maybe_sync_1(State_1, {R1, R2}, {CurHash, PrevHash})
+                      end,
+            State_2#state{timestamp = ThisTime}
     end.
 
 %% @doc Fix prev-ring or current-ring inconsistency
@@ -296,29 +304,17 @@ maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
         {ok, MembersCur} ->
             case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
                 {ok, MembersPrev} ->
-                    case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
-                        {ok, Options} ->
-                            N  = leo_misc:get_value(?PROP_N,  Options),
-                            L2 = leo_misc:get_value(?PROP_L2, Options, 0),
-
-                            CurSyncInfo  = #sync_info{target = ?SYNC_MODE_CUR_RING,
-                                                      org_checksum = R1,
-                                                      cur_checksum = CurHash,
-                                                      num_of_replicas = N,
-                                                      num_of_rack_awareness = L2,
-                                                      members = MembersCur},
-                            PrevSyncInfo = #sync_info{target = ?SYNC_MODE_PREV_RING,
-                                                      org_checksum = R2,
-                                                      cur_checksum = PrevHash,
-                                                      num_of_replicas = N,
-                                                      num_of_rack_awareness = L2,
-                                                      members = MembersPrev},
-                            State1 = maybe_sync_1_1(CurSyncInfo,  State),
-                            State2 = maybe_sync_1_1(PrevSyncInfo, State1),
-                            State2;
-                        _ ->
-                            State
-                    end;
+                    CurSyncInfo  = #sync_info{target = ?SYNC_MODE_CUR_RING,
+                                              org_checksum = R1,
+                                              cur_checksum = CurHash,
+                                              members = MembersCur},
+                    PrevSyncInfo = #sync_info{target = ?SYNC_MODE_PREV_RING,
+                                              org_checksum = R2,
+                                              cur_checksum = PrevHash,
+                                              members = MembersPrev},
+                    State1 = maybe_sync_1_1(CurSyncInfo,  State),
+                    State2 = maybe_sync_1_1(PrevSyncInfo, State1),
+                    State2;
                 _ ->
                     State
             end;
@@ -384,9 +380,9 @@ gen_routing_table_1([],_,#ring_conf{index_list = IdxAcc,
 
 gen_routing_table_1([{AddrId,_Node}|Rest], SyncInfo, RingConf, State) ->
     TargetRing       = SyncInfo#sync_info.target,
-    NumOfReplicas    = SyncInfo#sync_info.num_of_replicas,
-    NumOfAwarenessL2 = SyncInfo#sync_info.num_of_rack_awareness,
     Members          = SyncInfo#sync_info.members,
+    NumOfReplicas    = State#state.num_of_replicas,
+    NumOfAwarenessL2 = State#state.num_of_rack_awareness,
 
     case redundancies(?ring_table(TargetRing),
                       AddrId, NumOfReplicas, NumOfAwarenessL2, Members) of
@@ -776,17 +772,9 @@ find_redundancies_by_addr_id_1([_|Rest], AddrId) ->
 force_sync_fun(TargetRing, State) ->
     case leo_redundant_manager_table_member:find_all(?ring_table(TargetRing)) of
         {ok, Members} ->
-            case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
-                {ok, Options} ->
-                    Ret = gen_routing_table(
-                            #sync_info{target = TargetRing,
-                                       num_of_replicas       = leo_misc:get_value(?PROP_N,  Options),
-                                       num_of_rack_awareness = leo_misc:get_value(?PROP_L2, Options, 0),
-                                       members = Members}, State),
-                    force_sync_fun_1(Ret, TargetRing, State);
-                _ ->
-                    State
-            end;
+            Ret = gen_routing_table(#sync_info{target  = TargetRing,
+                                               members = Members}, State),
+            force_sync_fun_1(Ret, TargetRing, State);
         _ ->
             State
     end.

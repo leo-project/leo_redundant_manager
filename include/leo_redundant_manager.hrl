@@ -28,6 +28,7 @@
 
 
 %% Error
+-define(ERROR_COULD_NOT_INIT,             "Could not initialize").
 -define(ERROR_COULD_NOT_GET_RING,         "Could not get ring").
 -define(ERROR_COULD_NOT_GET_CHECKSUM,     "Could not get checksum").
 -define(ERROR_COULD_NOT_UPDATE_RING,      "Could not update ring").

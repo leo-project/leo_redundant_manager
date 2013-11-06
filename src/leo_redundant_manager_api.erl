@@ -83,7 +83,6 @@ create(_) ->
     {error, invlid_version}.
 
 
-
 -spec(create(?VER_CURRENT|?VER_PREV, list()) ->
              {ok, list(), list()} | {error, any()}).
 create(Ver, Members) ->
