@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012 Rakuten, Inc.
+%% Copyright (c) 2012-2013 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -45,7 +45,7 @@ create_ring_current(Mode) ->
 
 create_ring_current(Mode, Nodes) ->
     mnesia:create_table(
-      ?CUR_RING_TABLE,
+      ?RING_TBL_CUR,
       [{Mode, Nodes},
        {type, ordered_set},
        {record_name, ring},
@@ -65,7 +65,7 @@ create_ring_prev(Mode) ->
 
 create_ring_prev(Mode, Nodes) ->
     mnesia:create_table(
-      ?PREV_RING_TABLE,
+      ?RING_TBL_PREV,
       [{Mode, Nodes},
        {type, ordered_set},
        {record_name, ring},

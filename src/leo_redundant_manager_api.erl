@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012 Rakuten, Inc.
+%% Copyright (c) 2012-2013 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -30,7 +30,7 @@
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([create/0, create/1, create/2,
+-export([create/1, create/2, create/3,
          set_options/1, get_options/0,
          attach/1, attach/2, attach/3, attach/4,
          reserve/3, reserve/5, detach/1, detach/2,
@@ -60,38 +60,55 @@
 %%--------------------------------------------------------------------
 %% @doc Create the RING
 %%
--spec(create() ->
+-spec(create(?VER_CURRENT|?VER_PREV) ->
              {ok, list(), list()} | {error, any()}).
-create() ->
-    case leo_redundant_manager:create() of
-        {ok, Members} ->
-            {ok, Chksums} = checksum(?CHECKSUM_RING),
-            {CurRingHash, _PrevRingHash} = Chksums,
-            ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, CurRingHash),
-
-            {ok, Chksum0} = checksum(?CHECKSUM_MEMBER),
-            {ok, Members, [{?CHECKSUM_RING,   Chksums},
-                           {?CHECKSUM_MEMBER, Chksum0}]};
+create(Ver) when Ver == ?VER_CURRENT;
+                 Ver == ?VER_PREV ->
+    case leo_redundant_manager:create(Ver) of
+        ok ->
+            case leo_redundant_manager_table_member:find_all(?member_table(Ver)) of
+                {ok, Members} ->
+                    {ok, HashRing} = checksum(?CHECKSUM_RING),
+                    ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, erlang:element(1, HashRing)),
+                    {ok, HashMember} = checksum(?CHECKSUM_MEMBER),
+                    {ok, Members, [{?CHECKSUM_RING,   HashRing},
+                                   {?CHECKSUM_MEMBER, HashMember}]};
+                Error ->
+                    Error
+            end;
         Error ->
             Error
-    end.
+    end;
+create(_) ->
+    {error, invlid_version}.
 
--spec(create(list()) ->
-             {ok, list(), list()} | {error, any()}).
-create([]) ->
-    create();
-create([#member{node = Node, clock = Clock}|T]) ->
-    ok = attach(Node, Clock),
-    create(T).
 
--spec(create(list(), list()) ->
+-spec(create(?VER_CURRENT|?VER_PREV, list()) ->
              {ok, list(), list()} | {error, any()}).
-create([], Options) ->
+create(Ver, Members) ->
+    create(Ver, Members, []).
+
+-spec(create(?VER_CURRENT|?VER_PREV, list(), list()) ->
+             {ok, list(), list()} | {error, any()}).
+create(Ver, [], []) ->
+    create(Ver);
+create(Ver, [], Options) ->
     ok = set_options(Options),
-    create();
-create([#member{node = Node, clock = Clock}|T], Options) ->
-    ok = attach(Node, Clock),
-    create(T, Options).
+    create(Ver);
+create(Ver, [#member{node = Node} = Member|T], Options) when Ver == ?VER_CURRENT;
+                                                             Ver == ?VER_PREV ->
+    %% Add a member as "attached node" into member-table
+    case leo_redundant_manager_table_member:lookup(Node) of
+        not_found ->
+            Prop = {Node, Member#member{state = ?STATE_ATTACHED}},
+            leo_redundant_manager_table_member:insert(Prop);
+        _ ->
+            void
+    end,
+    create(Ver, T, Options);
+create(_,_,_) ->
+    {error, invalid_version}.
+
 
 
 %% @doc set routing-table's options.
@@ -189,15 +206,14 @@ suspend(Node, Clock) ->
 %% @doc append a node into the ring.
 %%
 -spec(append(?VER_CURRENT | ?VER_PREV, integer(), atom()) ->
-             ok).
-append(?VER_CURRENT, VNodeId, Node) ->
-    TblInfo = table_info(?VER_CURRENT),
+             ok | {error, invalid_version}).
+append(Ver, VNodeId, Node) when Ver == ?VER_CURRENT;
+                                Ver == ?VER_PREV ->
+    TblInfo = table_info(Ver),
     ok = leo_redundant_manager_chash:append(TblInfo, VNodeId, Node),
     ok;
-append(?VER_PREV,    VNodeId, Node) ->
-    TblInfo = table_info(?VER_PREV),
-    ok = leo_redundant_manager_chash:append(TblInfo, VNodeId, Node),
-    ok.
+append(_,_,_) ->
+    {error, invalid_version}.
 
 
 %% @doc get routing_table's checksum.
@@ -214,7 +230,7 @@ checksum(?CHECKSUM_RING) ->
     {ok, Chksum1} = leo_redundant_manager_chash:checksum(TblInfo1),
     {ok, {Chksum0, Chksum1}};
 checksum(_) ->
-    {error, badarg}.
+    {error, invalid_type}.
 
 
 %% @doc synchronize member-list and routing-table.
@@ -224,7 +240,7 @@ checksum(_) ->
 synchronize(?SYNC_MODE_BOTH, Members, Options) ->
     case leo_redundant_manager:update_members(Members) of
         ok ->
-            create(Members, Options);
+            create(?VER_CURRENT, Members, Options);
         Error ->
             Error
     end;
@@ -299,7 +315,7 @@ adjust(VNodeId) ->
 -spec(get_ring() ->
              {ok, list()} | {error, any()}).
 get_ring() ->
-    {ok, ets:tab2list(?CUR_RING_TABLE)}.
+    {ok, ets:tab2list(?RING_TBL_CUR)}.
 
 
 %% @doc Dump table-records.
@@ -393,23 +409,48 @@ range_of_vnodes(ToVNodeId) ->
 -spec(rebalance() ->
              {ok, list()} | {error, any()}).
 rebalance() ->
-    ServerType = leo_misc:get_env(?APP, ?PROP_SERVER_TYPE),
-    rebalance(ServerType).
-
-rebalance(?SERVER_MANAGER) ->
-    Ret = leo_redundant_manager_table_member:find_all(),
-    rebalance_1(Ret);
-rebalance(_) ->
-    Ret = leo_redundant_manager_table_member:find_all(),
+    Ret = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
     rebalance_1(Ret).
 
-rebalance_1({ok, Members}) ->
-    TblInfo0 = table_info(?VER_CURRENT),
-    TblInfo1 = table_info(?VER_PREV),
 
-    leo_redundant_manager_chash:rebalance({TblInfo0, TblInfo1}, Members);
+%% @private
+rebalance_1({ok, Members}) ->
+    %% Remove all previous members,
+    %% Then insert new members from current members
+    case leo_redundant_manager_table_member:delete_all(?MEMBER_TBL_PREV) of
+        ok ->
+            case rebalance_1_1(Members) of
+                ok ->
+                    %% Retrieve rebalance-info
+                    TblInfo0 = table_info(?VER_CURRENT),
+                    TblInfo1 = table_info(?VER_PREV),
+                    leo_redundant_manager_chash:rebalance({TblInfo0, TblInfo1}, Members);
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end;
 rebalance_1(Error) ->
     Error.
+
+%% @private
+rebalance_1_1([]) ->
+    ok;
+rebalance_1_1([#member{state = ?STATE_ATTACHED}|Rest]) ->
+    rebalance_1_1(Rest);
+rebalance_1_1([#member{state = ?STATE_DETACHED}|Rest]) ->
+    rebalance_1_1(Rest);
+rebalance_1_1([#member{state = ?STATE_RESERVED}|Rest]) ->
+    rebalance_1_1(Rest);
+rebalance_1_1([Member|Rest]) ->
+    #member{node = Node} = Member,
+    case leo_redundant_manager_table_member:insert(?MEMBER_TBL_PREV, {Node, Member}) of
+        ok ->
+            rebalance_1_1(Rest);
+        Error ->
+            Error
+    end.
 
 
 %%--------------------------------------------------------------------
@@ -465,7 +506,7 @@ get_member_by_node(Node) ->
 -spec(get_members_count() ->
              integer() | {error, any()}).
 get_members_count() ->
-    leo_redundant_manager_table_member:size().
+    leo_redundant_manager_table_member:table_size().
 
 
 %% @doc get members by status
@@ -545,23 +586,23 @@ is_alive() ->
 
 
 -ifdef(TEST).
-table_info(?VER_CURRENT) -> {ets, ?CUR_RING_TABLE };
-table_info(?VER_PREV   ) -> {ets, ?PREV_RING_TABLE}.
+table_info(?VER_CURRENT) -> {ets, ?RING_TBL_CUR };
+table_info(?VER_PREV   ) -> {ets, ?RING_TBL_PREV}.
 -else.
 table_info(?VER_CURRENT) ->
     case leo_misc:get_env(?APP, ?PROP_SERVER_TYPE) of
         {ok, ?SERVER_MANAGER} ->
-            {mnesia, ?CUR_RING_TABLE};
+            {mnesia, ?RING_TBL_CUR};
         _ ->
-            {ets, ?CUR_RING_TABLE}
+            {ets, ?RING_TBL_CUR}
     end;
 
 table_info(?VER_PREV) ->
     case leo_misc:get_env(?APP, ?PROP_SERVER_TYPE) of
         {ok, ?SERVER_MANAGER} ->
-            {mnesia, ?PREV_RING_TABLE};
+            {mnesia, ?RING_TBL_PREV};
         _ ->
-            {ets, ?PREV_RING_TABLE}
+            {ets, ?RING_TBL_PREV}
     end.
 -endif.
 

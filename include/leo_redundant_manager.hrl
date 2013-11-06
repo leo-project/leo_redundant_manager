@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012
+%% Copyright (c) 2012-2013 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -28,9 +28,10 @@
 
 
 %% Error
--define(ERROR_COULD_NOT_GET_RING,     "could not get ring").
--define(ERROR_COULD_NOT_GET_CHECKSUM, "could not get checksum").
--define(ERROR_COULD_NOT_UPDATE_RING,  "could not update ring").
+-define(ERROR_COULD_NOT_GET_RING,         "Could not get ring").
+-define(ERROR_COULD_NOT_GET_CHECKSUM,     "Could not get checksum").
+-define(ERROR_COULD_NOT_UPDATE_RING,      "Could not update ring").
+-define(ERROR_COULD_NOT_GET_REDUNDANCIES, "Could not get redundancies").
 
 -define(ERR_TYPE_INCONSISTENT_HASH,   inconsistent_hash).
 -define(ERR_TYPE_NODE_DOWN,           nodedown).
@@ -48,17 +49,25 @@
 -define(DEF_MIN_REPLICAS, 1).
 -define(DEF_MAX_REPLICAS, 8).
 
+-define(DB_ETS,    'ets').
+-define(DB_MNESIA, 'mnesia').
+
+%% Member tables
+-define(MEMBER_TBL_CUR,  'leo_members_cur').
+-define(MEMBER_TBL_PREV, 'leo_members_prev').
+-type(member_table() :: ?MEMBER_TBL_CUR | ?MEMBER_TBL_PREV).
+
 
 %% Ring related
 -define(TYPE_RING_TABLE_ETS,    'ets').
 -define(TYPE_RING_TABLE_MNESIA, 'mnesia').
--define(CUR_RING_TABLE,         'leo_ring_cur').
--define(PREV_RING_TABLE,        'leo_ring_prv').
+-define(RING_TBL_CUR,           'leo_ring_cur').
+-define(RING_TBL_PREV,          'leo_ring_prv').
 -define(NODE_ALIAS_PREFIX,      "node_").
 
 -type(ring_table_type() :: ?TYPE_RING_TABLE_ETS | ?TYPE_RING_TABLE_MNESIA).
--type(ring_table_info() :: {ring_table_type(), ?CUR_RING_TABLE} |
-                           {ring_table_type(), ?PREV_RING_TABLE}).
+-type(ring_table_info() :: {ring_table_type(), ?RING_TBL_CUR} |
+                           {ring_table_type(), ?RING_TBL_PREV}).
 
 -define(WORKER_POOL_NAME_PREFIX, "leo_redundant_manager_worker_").
 
@@ -86,7 +95,7 @@
 -define(DEF_OPT_D, 1).
 -define(DEF_OPT_BIT_OF_RING, ?MD5).
 -ifdef(TEST).
--define(DEF_NUMBER_OF_VNODES, 168).
+-define(DEF_NUMBER_OF_VNODES, 64).
 -else.
 -define(DEF_NUMBER_OF_VNODES, 168).
 -endif.
@@ -94,7 +103,6 @@
 
 %% Node State
 %%
--define(STATE_IDLING,    'idling').
 -define(STATE_ATTACHED,  'attached').
 -define(STATE_DETACHED,  'detached').
 -define(STATE_SUSPEND,   'suspend').
@@ -103,8 +111,7 @@
 -define(STATE_RESTARTED, 'restarted').
 -define(STATE_RESERVED,  'reserved').
 
--type(node_state() :: ?STATE_IDLING   |
-                      ?STATE_ATTACHED |
+-type(node_state() :: ?STATE_ATTACHED |
                       ?STATE_DETACHED |
                       ?STATE_SUSPEND  |
                       ?STATE_RUNNING  |
@@ -129,7 +136,16 @@
 %%
 -define(VER_CURRENT, 'cur' ).
 -define(VER_PREV,    'prev').
-
+-define(member_table(_VER), case _VER of
+                                ?VER_CURRENT -> ?MEMBER_TBL_CUR;
+                                ?VER_PREV    -> ?MEMBER_TBL_PREV;
+                                _ -> undefind
+                            end).
+-define(ring_table(_Target),case _Target of
+                                ?SYNC_MODE_CUR_RING  -> leo_redundant_manager_api:table_info(?VER_CURRENT);
+                                ?SYNC_MODE_PREV_RING -> leo_redundant_manager_api:table_info(?VER_PREV);
+                                _ -> undefind
+                            end).
 
 %% Synchronization
 %%
