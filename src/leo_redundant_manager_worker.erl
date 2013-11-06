@@ -391,22 +391,32 @@ gen_routing_table_1([{AddrId,_Node}|Rest], SyncInfo, RingConf, State) ->
     case redundancies(?ring_table(TargetRing),
                       AddrId, NumOfReplicas, NumOfAwarenessL2, Members) of
         {ok, Redundancies} ->
-            %% case TargetRing of
-            %%     ?SYNC_MODE_PREV_RING ->
-            %%         RingInfoCur   = ring_info(?RING_TBL_CUR, State),
-            %%         RingGroupList = RingInfoCur#ring_info.ring_group_list,
-            %%         FirstVNodeId  = RingInfoCur#ring_info.first_vnode_id,
-            %%         LastVNodeId   = RingInfoCur#ring_info.last_vnode_id,
-            %%         case lookup_fun(RingGroupList, FirstVNodeId, LastVNodeId, AddrId) of
-            %%             {ok, #redundancies{nodes = RedundanciesCur}} ->
-            %%                 %% TODO - merge ring with prev-ring
-            %%             _ ->
-            %%                 void
-            %%         end;
-            %%     _ ->
-            %%         void
-            %% end,
-            RingConf_1 = gen_routing_table_2(Redundancies, RingConf#ring_conf{addr_id = AddrId}),
+            Redundancies_1 =
+                case TargetRing of
+                    ?SYNC_MODE_PREV_RING ->
+                        RingInfoCur   = ring_info(?RING_TBL_CUR, State),
+                        RingGroupList = RingInfoCur#ring_info.ring_group_list,
+                        FirstVNodeId  = RingInfoCur#ring_info.first_vnode_id,
+                        LastVNodeId   = RingInfoCur#ring_info.last_vnode_id,
+                        case lookup_fun(RingGroupList, FirstVNodeId, LastVNodeId, AddrId) of
+                            {ok, #redundancies{nodes = RedundanciesCur}} ->
+                                NodesPrev = Redundancies#redundancies.nodes,
+                                NodesCur  = [N || {N,_} <- RedundanciesCur],
+                                case NodesPrev of
+                                    NodesCur ->
+                                        Redundancies;
+                                    _ ->
+                                        Redundancies#redundancies{
+                                          nodes = gen_routing_table_1_1(NodesPrev, NodesCur)}
+                                end;
+                            _ ->
+                                Redundancies
+                        end;
+                    _ ->
+                        Redundancies
+                end,
+            RingConf_1 = gen_routing_table_2(Redundancies_1,
+                                             RingConf#ring_conf{addr_id = AddrId}),
             gen_routing_table_1(Rest, SyncInfo, RingConf_1, State);
         Error ->
             ?output_error_log(?LINE, "gen_routing_table_1/4",
@@ -414,6 +424,15 @@ gen_routing_table_1([{AddrId,_Node}|Rest], SyncInfo, RingConf, State) ->
             Error
     end.
 
+%% @private
+gen_routing_table_1_1([], Acc) ->
+    Acc;
+gen_routing_table_1_1([N|Rest], Acc) ->
+    Acc_1 = case lists:member(N, Acc) of
+                false -> Acc ++ [N];
+                true  -> Acc
+            end,
+    gen_routing_table_1_1(Rest, Acc_1).
 
 %% @private
 -spec(gen_routing_table_2(#redundancies{}, #ring_conf{}) ->
