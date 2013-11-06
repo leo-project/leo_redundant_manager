@@ -345,9 +345,9 @@ rack_aware_1_({Hostname}) ->
               {ok, #redundancies{nodes = Nodes}} =
                   leo_redundant_manager_api:get_redundancies_by_key(
                     lists:append(["LEOFS_", integer_to_list(N)])),
-              {N1,_} = lists:nth(1, Nodes),
-              {N2,_} = lists:nth(2, Nodes),
-              {N3,_} = lists:nth(3, Nodes),
+              {N1,_,_} = lists:nth(1, Nodes),
+              {N2,_,_} = lists:nth(2, Nodes),
+              {N3,_,_} = lists:nth(3, Nodes),
 
               SumR1_1 = case lists:member(N1, R1) of
                             true  -> 1;

@@ -97,8 +97,8 @@
                                   {line, Line}, {body, Msg}])).
 -endif.
 
--compile({inline, [lookup_fun/4, find_redundancies_by_addr_id/2,
-                   reply_redundancies/2,first_fun/1, last_fun/1,
+-compile({inline, [lookup_fun/5, find_redundancies_by_addr_id/2,
+                   reply_redundancies/3,first_fun/1, last_fun/1,
                    gen_routing_table/2, gen_routing_table_1/4, gen_routing_table_2/2,
                    redundancies/5, redundancies_1/6, redundancies_1_1/7,
                    redundancies_2/6, redundancies_3/7, get_node_by_vnodeid/2,
@@ -163,7 +163,7 @@ handle_call({lookup, Tbl, AddrId},_From, State) ->
     #ring_info{ring_group_list = RingGroupList,
                first_vnode_id  = FirstVNodeId,
                last_vnode_id   = LastVNodeId} = ring_info(Tbl, State),
-    Reply = lookup_fun(RingGroupList, FirstVNodeId, LastVNodeId, AddrId),
+    Reply = lookup_fun(RingGroupList, FirstVNodeId, LastVNodeId, AddrId, State),
     {reply, Reply, State};
 
 
@@ -394,7 +394,7 @@ gen_routing_table_1([{AddrId,_Node}|Rest], SyncInfo, RingConf, State) ->
                         RingGroupList = RingInfoCur#ring_info.ring_group_list,
                         FirstVNodeId  = RingInfoCur#ring_info.first_vnode_id,
                         LastVNodeId   = RingInfoCur#ring_info.last_vnode_id,
-                        case lookup_fun(RingGroupList, FirstVNodeId, LastVNodeId, AddrId) of
+                        case lookup_fun(RingGroupList, FirstVNodeId, LastVNodeId, AddrId, State) of
                             {ok, #redundancies{nodes = RedundanciesCur}} ->
                                 NodesPrev = Redundancies#redundancies.nodes,
                                 NodesCur  = [N || {N,_} <- RedundanciesCur],
@@ -626,25 +626,30 @@ get_redundancies([#member{node = Node_0}|T], Node_1, SetL2) when Node_0 /= Node_
 
 %% @doc Reply redundancies
 %% @private
--spec(reply_redundancies(not_found | {ok, #redundancies{}}, pos_integer()) ->
+-spec(reply_redundancies(not_found | {ok, #redundancies{}}, pos_integer(), #state{}) ->
              not_found | {ok, #redundancies{}}).
-reply_redundancies(not_found,_) ->
+reply_redundancies(not_found,_,_) ->
     not_found;
-reply_redundancies({ok, #redundancies{nodes = Nodes} = Redundancies}, AddrId) ->
-    reply_redundancies_1(Redundancies, AddrId, Nodes, []).
+reply_redundancies({ok, #redundancies{nodes = Nodes} = Redundancies},
+                   AddrId, #state{num_of_replicas = NumOfReplicas}) ->
+    reply_redundancies_1(Redundancies, AddrId, Nodes, NumOfReplicas, []).
 
 %% @private
-reply_redundancies_1(Redundancies, AddrId, [], Acc) ->
+reply_redundancies_1(Redundancies, AddrId, [], _NumOfReplicas, Acc) ->
     {ok, Redundancies#redundancies{id = AddrId,
                                    nodes = lists:reverse(Acc)}};
-reply_redundancies_1(Redundancies, AddrId, [Node|Rest], Acc) ->
+reply_redundancies_1(Redundancies, AddrId, [Node|Rest], NumOfReplicas, Acc) ->
+    IsReadRepair = (NumOfReplicas >= (length(Acc) + 1)),
+
     case leo_redundant_manager_table_member:lookup(Node) of
         {ok, #member{state = ?STATE_RUNNING}} ->
-            reply_redundancies_1(Redundancies, AddrId, Rest, [{Node, true }|Acc]);
+            reply_redundancies_1(Redundancies, AddrId, Rest, NumOfReplicas,
+                                 [{Node, true,  IsReadRepair}|Acc]);
         {ok, #member{state = _State}} ->
-            reply_redundancies_1(Redundancies, AddrId, Rest, [{Node, false}|Acc]);
+            reply_redundancies_1(Redundancies, AddrId, Rest, NumOfReplicas,
+                                 [{Node, false, IsReadRepair}|Acc]);
         _ ->
-            reply_redundancies_1(Redundancies, AddrId, Rest, Acc)
+            reply_redundancies_1(Redundancies, AddrId, Rest, NumOfReplicas, Acc)
     end.
 
 
@@ -709,22 +714,22 @@ last_fun(RingGroupList) ->
 
 %% @doc Retrieve redundancies by vnode-id
 %% @private
--spec(lookup_fun(list(#ring_group{}), pos_integer(), pos_integer(), pos_integer()) ->
+-spec(lookup_fun(list(#ring_group{}), pos_integer(), pos_integer(), pos_integer(), #state{}) ->
              not_found | {ok, #redundancies{}}).
-lookup_fun([],_FirstVNodeId,_LastVNodeId,_AddrId) ->
+lookup_fun([],_,_,_,_) ->
     error_logger:warning_msg("~p,~p,~p,~p~n",
                              [{module, ?MODULE_STRING}, {function, "lookup_fun/4"},
                               {line, ?LINE}, {body, "not_found"}]),
     not_found;
-lookup_fun(RingGroupList, FirstVNodeId,_LastVNodeId, AddrId) when FirstVNodeId >= AddrId ->
+lookup_fun(RingGroupList, FirstVNodeId,_LastVNodeId, AddrId, State) when FirstVNodeId >= AddrId ->
     Ret = first_fun(RingGroupList),
-    reply_redundancies(Ret, AddrId);
-lookup_fun(RingGroupList,_FirstVNodeId, LastVNodeId, AddrId) when LastVNodeId < AddrId ->
+    reply_redundancies(Ret, AddrId, State);
+lookup_fun(RingGroupList,_FirstVNodeId, LastVNodeId, AddrId, State) when LastVNodeId < AddrId ->
     Ret = first_fun(RingGroupList),
-    reply_redundancies(Ret, AddrId);
-lookup_fun(RingGroupList,_FirstVNodeId,_LastVNodeId, AddrId) ->
+    reply_redundancies(Ret, AddrId, State);
+lookup_fun(RingGroupList,_,_, AddrId, State) ->
     Ret = find_redundancies_by_addr_id(RingGroupList, AddrId),
-    reply_redundancies(Ret, AddrId).
+    reply_redundancies(Ret, AddrId, State).
 
 
 %% @doc Find redundanciess by vnodeid

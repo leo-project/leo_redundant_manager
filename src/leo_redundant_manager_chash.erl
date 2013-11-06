@@ -264,7 +264,7 @@ range_of_vnodes_1(ServerRef, Table, VNodeId) ->
 %% @private
 active_node(_Members, []) ->
     {error, no_entry};
-active_node(Members, [{Node0, _}|T]) ->
+active_node(Members, [{Node0,_,_}|T]) ->
     case lists:foldl(
            fun(#member{node  = Node1,
                        state = ?STATE_RUNNING}, []) when Node0 == Node1 ->
