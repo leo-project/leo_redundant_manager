@@ -174,6 +174,26 @@
 
 %% Record
 %%
+-record(member,
+        {node                  :: atom(),        %% actual node-name
+         alias = []            :: string(),      %% node-alias
+         ip = "0.0.0.0"        :: string(),      %% ip-address
+         port  = 13075         :: pos_integer(), %% port-number
+         inet  = 'ipv4'        :: 'ipv4'|'ipv6', %% type of ip
+         clock = 0             :: pos_integer(), %% joined at
+         state = null          :: atom(),        %% current-status
+         num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
+         grp_level_1 = []      :: string(),      %% Group of level_1
+         grp_level_2 = []      :: string()       %% Group of level_2
+        }).
+
+-record(sync_info, {
+          target            :: ?VER_CURRENT | ?VER_PREV,
+          members = []      :: list(#member{}),
+          org_checksum = 0  :: pos_integer(),
+          cur_checksum = 0  :: pos_integer()
+         }).
+
 -record(vnodeid_nodes, {
           id = 0            :: pos_integer(),
           vnode_id_from = 0 :: pos_integer(),
@@ -191,7 +211,8 @@
           checksum = -1      :: integer(),
           first_vnode_id = 0 :: pos_integer(),
           last_vnode_id = 0  :: pos_integer(),
-          ring_group_list    :: list(#ring_group{})
+          ring_group_list    :: list(#ring_group{}),
+          members = []       :: list(#member{})
          }).
 
 -record(node_state, {
@@ -223,17 +244,3 @@
         {vnode_id = -1         :: pos_integer(),
          node                  :: atom()
         }).
-
--record(member,
-        {node                  :: atom(),        %% actual node-name
-         alias = []            :: string(),      %% node-alias
-         ip = "0.0.0.0"        :: string(),      %% ip-address
-         port  = 13075         :: pos_integer(), %% port-number
-         inet  = 'ipv4'        :: 'ipv4'|'ipv6', %% type of ip
-         clock = 0             :: pos_integer(), %% joined at
-         state = null          :: atom(),        %% current-status
-         num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
-         grp_level_1 = []      :: string(),      %% Group of level_1
-         grp_level_2 = []      :: string()       %% Group of level_2
-        }).
-

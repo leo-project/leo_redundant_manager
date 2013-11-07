@@ -44,9 +44,9 @@
 
 -ifdef(TEST).
 -define(CURRENT_TIME, 65432100000).
--define(DEF_SYNC_MIN_INTERVAL,    1).
--define(DEF_SYNC_MAX_INTERVAL,   10).
--define(DEF_TIMEOUT,           1000).
+-define(DEF_SYNC_MIN_INTERVAL,  10).
+-define(DEF_SYNC_MAX_INTERVAL,  50).
+-define(DEF_TIMEOUT,          3000).
 -else.
 -define(CURRENT_TIME, leo_date:now()).
 -define(DEF_SYNC_MIN_INTERVAL,  250).
@@ -66,13 +66,6 @@
           min_interval = ?DEF_SYNC_MIN_INTERVAL :: pos_integer(),
           max_interval = ?DEF_SYNC_MAX_INTERVAL :: pos_integer(),
           timestamp = 0 :: pos_integer()
-         }).
-
--record(sync_info, {
-          target       :: ?VER_CURRENT | ?VER_PREV,
-          members = [] :: list(#member{}),
-          org_checksum = 0 :: pos_integer(),
-          cur_checksum = 0 :: pos_integer()
          }).
 
 -record(ring_conf, {
@@ -312,7 +305,11 @@ maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
                                               org_checksum = R2,
                                               cur_checksum = PrevHash,
                                               members = MembersPrev},
-                    State1 = maybe_sync_1_1(CurSyncInfo,  State),
+                    #state{cur  = CurRingInfo,
+                           prev = PrevRingInfo} = State,
+                    State0 = State#state{cur  = CurRingInfo#ring_info{members = MembersCur},
+                                         prev = PrevRingInfo#ring_info{members = MembersPrev}},
+                    State1 = maybe_sync_1_1(CurSyncInfo,  State0),
                     State2 = maybe_sync_1_1(PrevSyncInfo, State1),
                     State2;
                 _ ->
@@ -322,7 +319,8 @@ maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
             State
     end.
 
-maybe_sync_1_1(#sync_info{org_checksum = OrgChecksum,
+maybe_sync_1_1(#sync_info{target = ?SYNC_MODE_CUR_RING,
+                          org_checksum = OrgChecksum,
                           cur_checksum = CurChecksum}, State) when OrgChecksum == CurChecksum ->
     State;
 maybe_sync_1_1(SyncInfo, State) ->
@@ -354,56 +352,59 @@ gen_routing_table(#sync_info{target = TargetRing} = SyncInfo, State) ->
     GroupSize  = leo_math:ceiling(RingSize / ?DEF_NUM_OF_DIV),
 
     %% Retrieve redundancies by addr-id
-    gen_routing_table_1(Ring, SyncInfo, #ring_conf{id = 0,
-                                                   group_id   = 0,
-                                                   ring_size  = RingSize,
-                                                   group_size = GroupSize,
-                                                   index_list = [],
-                                                   table_list = [],
-                                                   from_addr_id = 0,
-                                                   checksum     = Checksum}, State).
+    {ok, CurRing} = leo_redundant_manager_api:get_ring(?SYNC_MODE_CUR_RING),
+    gen_routing_table_1(CurRing, SyncInfo, #ring_conf{id = 0,
+                                                      group_id   = 0,
+                                                      ring_size  = RingSize,
+                                                      group_size = GroupSize,
+                                                      index_list = [],
+                                                      table_list = [],
+                                                      from_addr_id = 0,
+                                                      checksum     = Checksum}, State).
 
 %% @private
 -spec(gen_routing_table_1(list(), #sync_info{}, #ring_conf{}, #state{}) ->
              {ok, #ring_info{}} | {error, atom()}).
 gen_routing_table_1([],_,#ring_conf{index_list = []},_) ->
     {error, ?ERROR_COULD_NOT_GET_REDUNDANCIES};
-gen_routing_table_1([],_,#ring_conf{index_list = IdxAcc,
-                                    checksum   = Checksum},_) ->
+gen_routing_table_1([], #sync_info{target = TargetRing}, #ring_conf{index_list = IdxAcc,
+                                                                    checksum   = Checksum}, State) ->
     IdxAcc_1 = lists:reverse(IdxAcc),
+    Members = case TargetRing of
+                  ?SYNC_MODE_CUR_RING  -> (State#state.cur)#ring_info.members;
+                  ?SYNC_MODE_PREV_RING -> (State#state.prev)#ring_info.members
+              end,
+
     {ok, #redundancies{vnode_id_to = FirstAddrId}} = first_fun(IdxAcc_1),
     {ok, #redundancies{vnode_id_to = LastAddrId}}  = last_fun(IdxAcc_1),
     {ok, #ring_info{checksum        = Checksum,
                     ring_group_list = IdxAcc_1,
                     first_vnode_id  = FirstAddrId,
-                    last_vnode_id   = LastAddrId}};
+                    last_vnode_id   = LastAddrId,
+                    members         = Members}};
 
 gen_routing_table_1([{AddrId,_Node}|Rest], SyncInfo, RingConf, State) ->
     TargetRing       = SyncInfo#sync_info.target,
-    Members          = SyncInfo#sync_info.members,
+    MembersCur       = (State#state.cur)#ring_info.members,
     NumOfReplicas    = State#state.num_of_replicas,
     NumOfAwarenessL2 = State#state.num_of_rack_awareness,
 
-    case redundancies(?ring_table(TargetRing),
-                      AddrId, NumOfReplicas, NumOfAwarenessL2, Members) of
-        {ok, Redundancies} ->
+    case redundancies(?ring_table(?SYNC_MODE_CUR_RING),
+                      AddrId, NumOfReplicas, NumOfAwarenessL2, MembersCur) of
+        {ok, #redundancies{nodes = CurNodes} = Redundancies} ->
             Redundancies_1 =
                 case TargetRing of
                     ?SYNC_MODE_PREV_RING ->
-                        RingInfoCur   = ring_info(?RING_TBL_CUR, State),
-                        RingGroupList = RingInfoCur#ring_info.ring_group_list,
-                        FirstVNodeId  = RingInfoCur#ring_info.first_vnode_id,
-                        LastVNodeId   = RingInfoCur#ring_info.last_vnode_id,
-                        case lookup_fun(RingGroupList, FirstVNodeId, LastVNodeId, AddrId, State) of
-                            {ok, #redundancies{nodes = RedundanciesCur}} ->
-                                NodesPrev = Redundancies#redundancies.nodes,
-                                NodesCur  = [N || {N,_} <- RedundanciesCur],
-                                case NodesPrev of
-                                    NodesCur ->
+                        MembersPrev = (State#state.prev)#ring_info.members,
+                        case redundancies(?ring_table(?SYNC_MODE_PREV_RING),
+                                          AddrId, NumOfReplicas, NumOfAwarenessL2, MembersPrev) of
+                            {ok, #redundancies{nodes = PrevNodes}} ->
+                                case lists:subtract(CurNodes, PrevNodes) of
+                                    [] ->
                                         Redundancies;
-                                    _ ->
+                                    _Difference ->
                                         Redundancies#redundancies{
-                                          nodes = gen_routing_table_1_1(NodesPrev, NodesCur)}
+                                          nodes = gen_routing_table_1_1(PrevNodes, CurNodes)}
                                 end;
                             _ ->
                                 Redundancies
