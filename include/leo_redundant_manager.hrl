@@ -95,7 +95,7 @@
 -define(DEF_OPT_D, 1).
 -define(DEF_OPT_BIT_OF_RING, ?MD5).
 -ifdef(TEST).
--define(DEF_NUMBER_OF_VNODES, 64).
+-define(DEF_NUMBER_OF_VNODES, 32).
 -else.
 -define(DEF_NUMBER_OF_VNODES, 168).
 -endif.
@@ -189,7 +189,6 @@
 
 -record(sync_info, {
           target            :: ?VER_CURRENT | ?VER_PREV,
-          members = []      :: list(#member{}),
           org_checksum = 0  :: pos_integer(),
           cur_checksum = 0  :: pos_integer()
          }).

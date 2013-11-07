@@ -299,19 +299,17 @@ maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
                 {ok, MembersPrev} ->
                     CurSyncInfo  = #sync_info{target = ?SYNC_MODE_CUR_RING,
                                               org_checksum = R1,
-                                              cur_checksum = CurHash,
-                                              members = MembersCur},
+                                              cur_checksum = CurHash},
                     PrevSyncInfo = #sync_info{target = ?SYNC_MODE_PREV_RING,
                                               org_checksum = R2,
-                                              cur_checksum = PrevHash,
-                                              members = MembersPrev},
+                                              cur_checksum = PrevHash},
                     #state{cur  = CurRingInfo,
                            prev = PrevRingInfo} = State,
-                    State0 = State#state{cur  = CurRingInfo#ring_info{members = MembersCur},
+                    State_1 = State#state{cur  = CurRingInfo#ring_info{members = MembersCur},
                                          prev = PrevRingInfo#ring_info{members = MembersPrev}},
-                    State1 = maybe_sync_1_1(CurSyncInfo,  State0),
-                    State2 = maybe_sync_1_1(PrevSyncInfo, State1),
-                    State2;
+                    State_2 = maybe_sync_1_1(CurSyncInfo,  State_1),
+                    State_3 = maybe_sync_1_1(PrevSyncInfo, State_2),
+                    State_3;
                 _ ->
                     State
             end;
@@ -342,8 +340,6 @@ maybe_sync_1_1(SyncInfo, State) ->
 gen_routing_table(#sync_info{target = TargetRing},_) when TargetRing /= ?SYNC_MODE_CUR_RING,
                                                           TargetRing /= ?SYNC_MODE_PREV_RING ->
     {error, invalid_target_ring};
-gen_routing_table(#sync_info{members = []},_) ->
-    {error, member_empty};
 gen_routing_table(#sync_info{target = TargetRing} = SyncInfo, State) ->
     %% Retrieve ring from local's master [etc|mnesia]
     {ok, Ring} = leo_redundant_manager_api:get_ring(TargetRing),
@@ -776,11 +772,17 @@ find_redundancies_by_addr_id_1([_|Rest], AddrId) ->
 -spec(force_sync_fun(?SYNC_MODE_CUR_RING|?SYNC_MODE_PREV_RING, #state{}) ->
              #state{}).
 force_sync_fun(TargetRing, State) ->
-    case leo_redundant_manager_table_member:find_all(?ring_table(TargetRing)) of
-        {ok, Members} ->
-            Ret = gen_routing_table(#sync_info{target  = TargetRing,
-                                               members = Members}, State),
-            force_sync_fun_1(Ret, TargetRing, State);
+    case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
+        {ok, MembersCur} ->
+            case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
+                {ok, MembersPrev} ->
+                    State_1 = State#state{cur  = #ring_info{members = MembersCur},
+                                          prev = #ring_info{members = MembersPrev}},
+                    Ret = gen_routing_table(#sync_info{target  = TargetRing}, State_1),
+                    force_sync_fun_1(Ret, TargetRing, State);
+                _ ->
+                    State
+            end;
         _ ->
             State
     end.
