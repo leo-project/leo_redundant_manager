@@ -274,7 +274,7 @@ exec1(?SERVER_MANAGER = ServerType, Managers, [{_, Node, _NodeState}|T]) ->
         {ok, #member{state = ?STATE_DETACHED}}  -> void;
         {ok, #member{state = ?STATE_RESTARTED}} -> void;
         _ ->
-            ok = compare_manager_with_remote_chksum(Node, Managers)
+            _ = compare_manager_with_remote_chksum(Node, Managers)
     end,
     exec1(ServerType, Managers, T);
 
