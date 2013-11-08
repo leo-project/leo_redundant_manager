@@ -107,10 +107,12 @@ attach_1_({Hostname}) ->
 
     %% execute
     timer:sleep(100),
+    ?debugVal(ok),
     {ok, Res1} = leo_redundant_manager_api:rebalance(),
     lists:foreach(fun(Item) ->
                           Src  = proplists:get_value('src',  Item),
                           Dest = proplists:get_value('dest', Item),
+                          ?debugVal({Src, Dest}),
                           ?assertEqual(true, Src =/= Dest),
                           ?assertEqual(true, Src =/= AttachNode)
                   end, Res1),
@@ -433,9 +435,9 @@ rack_aware_1_({Hostname}) ->
               {ok, #redundancies{nodes = Nodes}} =
                   leo_redundant_manager_api:get_redundancies_by_key(
                     lists:append(["LEOFS_", integer_to_list(N)])),
-              {N1,_,_} = lists:nth(1, Nodes),
-              {N2,_,_} = lists:nth(2, Nodes),
-              {N3,_,_} = lists:nth(3, Nodes),
+              #redundant_node{node = N1} = lists:nth(1, Nodes),
+              #redundant_node{node = N2} = lists:nth(2, Nodes),
+              #redundant_node{node = N3} = lists:nth(3, Nodes),
 
               SumR1_1 = case lists:member(N1, R1) of
                             true  -> 1;
@@ -764,7 +766,7 @@ redundant_1(Members, St, End) ->
            lists:append(["LEOFS_", integer_to_list(St)])) of
         {ok, #redundancies{nodes = Nodes}} ->
             ?assertEqual(3, length(Nodes)),
-            lists:foreach(fun({N, _}) ->
+            lists:foreach(fun(#redundant_node{node = N}) ->
                                   ?assertEqual(true, lists:member(N, Members))
                           end, Nodes);
         _Error ->

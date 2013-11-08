@@ -72,7 +72,6 @@ suite_(_) ->
     {ok, #redundancies{vnode_id_from = 0,
                        vnode_id_to   = VNodeIdTo2,
                        nodes = N0}} = leo_redundant_manager_worker:first(ServerRef, 'leo_ring_prv'),
-
     {ok, #redundancies{nodes = N1}} = leo_redundant_manager_worker:lookup(
                                         ServerRef, 'leo_ring_cur', 0),
     {ok, #redundancies{nodes = N2}} = leo_redundant_manager_worker:lookup(

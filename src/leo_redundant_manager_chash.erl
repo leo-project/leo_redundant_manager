@@ -139,9 +139,9 @@ rebalance_1(ServerRef, Info, RingSize, AddrId, Acc) ->
         leo_redundant_manager_worker:lookup(ServerRef, PrevTbl, AddrId),
 
     Res1 = lists:foldl(
-             fun(N0, Acc0) ->
-                     case lists:foldl(fun(N1,_Acc1) when N0 == N1 -> true;
-                                         (N1, Acc1) when N0 /= N1 -> Acc1
+             fun(#redundant_node{node = N0}, Acc0) ->
+                     case lists:foldl(fun(#redundant_node{node = N1},_Acc1) when N0 == N1 -> true;
+                                         (#redundant_node{node = N1}, Acc1) when N0 /= N1 -> Acc1
                                       end, false, PrevNodes) of
                          true  -> Acc0;
                          false -> [N0|Acc0]
@@ -264,11 +264,11 @@ range_of_vnodes_1(ServerRef, Table, VNodeId) ->
 %% @private
 active_node(_Members, []) ->
     {error, no_entry};
-active_node(Members, [{Node0,_,_}|T]) ->
+active_node(Members, [#redundant_node{node = Node_1}|T]) ->
     case lists:foldl(
-           fun(#member{node  = Node1,
-                       state = ?STATE_RUNNING}, []) when Node0 == Node1 ->
-                   Node1;
+           fun(#member{node  = Node_2,
+                       state = ?STATE_RUNNING}, []) when Node_1 == Node_2 ->
+                   Node_2;
               (_Member, SoFar) ->
                    SoFar
            end, [], Members) of

@@ -142,9 +142,12 @@
                                 _ -> undefind
                             end).
 -define(ring_table(_Target),case _Target of
-                                ?SYNC_MODE_CUR_RING  -> leo_redundant_manager_api:table_info(?VER_CURRENT);
-                                ?SYNC_MODE_PREV_RING -> leo_redundant_manager_api:table_info(?VER_PREV);
-                                _ -> undefind
+                                ?SYNC_MODE_CUR_RING  ->
+                                    leo_redundant_manager_api:table_info(?VER_CURRENT);
+                                ?SYNC_MODE_PREV_RING ->
+                                    leo_redundant_manager_api:table_info(?VER_PREV);
+                                _ ->
+                                    undefind
                             end).
 
 %% Synchronization
@@ -189,29 +192,29 @@
 
 -record(sync_info, {
           target            :: ?VER_CURRENT | ?VER_PREV,
-          org_checksum = 0  :: pos_integer(),
-          cur_checksum = 0  :: pos_integer()
+          org_checksum = 0  :: pos_integer(),    %% original checksum
+          cur_checksum = 0  :: pos_integer()     %% current chechsum
          }).
 
 -record(vnodeid_nodes, {
-          id = 0            :: pos_integer(),
-          vnode_id_from = 0 :: pos_integer(),
-          vnode_id_to = 0   :: pos_integer(),
-          nodes             :: list(atom())
+          id = 0            :: pos_integer(),    %% id
+          vnode_id_from = 0 :: pos_integer(),    %% vnode-id's from
+          vnode_id_to = 0   :: pos_integer(),    %% vnode-id's to
+          nodes             :: list()            %% list of nodes
          }).
 
 -record(ring_group, {
-          index_from = 0     :: pos_integer(),
-          index_to = 0       :: pos_integer(),
-          vnodeid_nodes_list :: list(#vnodeid_nodes{})
+          index_from = 0     :: pos_integer(),   %% group-index's from
+          index_to = 0       :: pos_integer(),   %% group-index's to
+          vnodeid_nodes_list :: list(#vnodeid_nodes{}) %% list of vnodeid(s)
          }).
 
 -record(ring_info, {
-          checksum = -1      :: integer(),
-          first_vnode_id = 0 :: pos_integer(),
-          last_vnode_id = 0  :: pos_integer(),
-          ring_group_list    :: list(#ring_group{}),
-          members = []       :: list(#member{})
+          checksum = -1      :: integer(),       %% Ring's checksum
+          first_vnode_id = 0 :: pos_integer(),   %% start vnode-id
+          last_vnode_id = 0  :: pos_integer(),   %% end vnode-id
+          ring_group_list    :: list(#ring_group{}), %% list of groups
+          members = []       :: list(#member{})  %% cluster-members
          }).
 
 -record(node_state, {
@@ -223,13 +226,19 @@
           error     = 0        :: pos_integer()  %% # of errors
          }).
 
+-record(redundant_node, {
+          node                   :: atom(),      %% node name
+          available       = true :: boolean(),   %% alive/dead
+          can_read_repair = true :: boolean()    %% able to execute read-repair in case of 'Get Operation'
+         }).
+
 -record(redundancies,
         {id = -1               :: pos_integer(), %% ring's address
          vnode_id_from = -1    :: pos_integer(), %% start of vnode_id
          vnode_id_to = -1      :: pos_integer(), %% end   of vnode_id (ex. vnode_id)
          temp_nodes = []       :: list(),        %% tempolary objects of redundant-nodes
          temp_level_2 = []     :: list(),        %% tempolary list of level-2's node
-         nodes = []            :: list(),        %% objects of redundant-nodes
+         nodes = []            :: list(#redundant_node{}), %% objects of redundant-nodes
          n = 0                 :: pos_integer(), %% # of replicas
          r = 0                 :: pos_integer(), %% # of successes of READ
          w = 0                 :: pos_integer(), %% # of successes of WRITE

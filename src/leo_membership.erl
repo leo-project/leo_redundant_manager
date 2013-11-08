@@ -250,7 +250,9 @@ exec(ServerType, Managers) ->
 
     case leo_redundant_manager_api:get_redundancies_by_addr_id(AddrId) of
         {ok, #redundancies{nodes = Redundancies}} ->
-            Nodes = lists:map(fun({Node, State}) ->
+            Nodes = lists:map(fun(#redundant_node{
+                                     node = Node,
+                                     available = State}) ->
                                       {storage, Node, State}
                               end, Redundancies),
             exec1(ServerType, Managers, Nodes);

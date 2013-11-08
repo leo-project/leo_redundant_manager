@@ -388,6 +388,7 @@ gen_routing_table_1([{AddrId,_Node}|Rest], SyncInfo, RingConf, State) ->
     case redundancies(?ring_table(?SYNC_MODE_CUR_RING),
                       AddrId, NumOfReplicas, NumOfAwarenessL2, MembersCur) of
         {ok, #redundancies{nodes = CurNodes} = Redundancies} ->
+            CurNodes_1 = [_N1 || #redundant_node{node = _N1} <- CurNodes],
             Redundancies_1 =
                 case TargetRing of
                     ?SYNC_MODE_PREV_RING ->
@@ -395,12 +396,13 @@ gen_routing_table_1([{AddrId,_Node}|Rest], SyncInfo, RingConf, State) ->
                         case redundancies(?ring_table(?SYNC_MODE_PREV_RING),
                                           AddrId, NumOfReplicas, NumOfAwarenessL2, MembersPrev) of
                             {ok, #redundancies{nodes = PrevNodes}} ->
-                                case lists:subtract(CurNodes, PrevNodes) of
+                                PrevNodes_1 = [_N2 || #redundant_node{node = _N2} <- PrevNodes],
+                                case lists:subtract(CurNodes_1, PrevNodes_1) of
                                     [] ->
                                         Redundancies;
                                     _Difference ->
                                         Redundancies#redundancies{
-                                          nodes = gen_routing_table_1_1(PrevNodes, CurNodes)}
+                                          nodes = gen_routing_table_1_1(PrevNodes_1, CurNodes)}
                                 end;
                             _ ->
                                 Redundancies
@@ -421,11 +423,12 @@ gen_routing_table_1([{AddrId,_Node}|Rest], SyncInfo, RingConf, State) ->
 gen_routing_table_1_1([], Acc) ->
     Acc;
 gen_routing_table_1_1([N|Rest], Acc) ->
-    Acc_1 = case lists:member(N, Acc) of
-                false -> Acc ++ [N];
+    Acc_1 = [_N || #redundant_node{node = _N} <- Acc],
+    Acc_2 = case lists:member(N, Acc_1) of
+                false -> Acc ++ [#redundant_node{node = N}];
                 true  -> Acc
             end,
-    gen_routing_table_1_1(Rest, Acc_1).
+    gen_routing_table_1_1(Rest, Acc_2).
 
 %% @private
 -spec(gen_routing_table_2(#redundancies{}, #ring_conf{}) ->
@@ -525,13 +528,12 @@ redundancies_1_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, No
         not_found ->
             {error, ?ERROR_COULD_NOT_GET_REDUNDANCIES};
         {Node, SetsL2} ->
-            NodeList = [Node],
             redundancies_2(Table, NumOfReplicas-1, L2, Members, VNodeId_Hop,
                            #redundancies{id           = VNodeId_Org,
                                          vnode_id_to  = VNodeId_Hop,
-                                         temp_nodes   = NodeList,
+                                         temp_nodes   = [Node],
                                          temp_level_2 = SetsL2,
-                                         nodes        = NodeList})
+                                         nodes        = [#redundant_node{node = Node}]})
     end.
 
 %% @private
@@ -581,7 +583,8 @@ redundancies_3(Table, NumOfReplicas, L2, Members, VNodeId, Node_1, R) ->
                             redundancies_2(Table, NumOfReplicas-1, L2, Members, VNodeId,
                                            R#redundancies{temp_nodes   = [Node_2|AccTempNode],
                                                           temp_level_2 = AccLevel2_1,
-                                                          nodes        = [Node_2|AccNodes]})
+                                                          nodes        = [#redundant_node{node = Node_2}
+                                                                          |AccNodes]})
                     end
             end
     end.
@@ -597,11 +600,11 @@ get_node_by_vnodeid(Table, VNodeId) ->
             case leo_redundant_manager_table_ring:first(Table) of
                 '$end_of_table' ->
                     {error, no_entry};
-                NextId ->
-                    {ok, NextId}
+                Node ->
+                    {ok, Node}
             end;
-        NextId ->
-            {ok, NextId}
+        Node ->
+            {ok, Node}
     end.
 
 
@@ -635,16 +638,20 @@ reply_redundancies({ok, #redundancies{nodes = Nodes} = Redundancies},
 reply_redundancies_1(Redundancies, AddrId, [], _NumOfReplicas, Acc) ->
     {ok, Redundancies#redundancies{id = AddrId,
                                    nodes = lists:reverse(Acc)}};
-reply_redundancies_1(Redundancies, AddrId, [Node|Rest], NumOfReplicas, Acc) ->
+reply_redundancies_1(Redundancies, AddrId, [#redundant_node{node = Node}|Rest], NumOfReplicas, Acc) ->
     IsReadRepair = (NumOfReplicas >= (length(Acc) + 1)),
 
     case leo_redundant_manager_table_member:lookup(Node) of
         {ok, #member{state = ?STATE_RUNNING}} ->
             reply_redundancies_1(Redundancies, AddrId, Rest, NumOfReplicas,
-                                 [{Node, true,  IsReadRepair}|Acc]);
+                                 [#redundant_node{node = Node,
+                                                  available = true,
+                                                  can_read_repair = IsReadRepair}|Acc]);
         {ok, #member{state = _State}} ->
             reply_redundancies_1(Redundancies, AddrId, Rest, NumOfReplicas,
-                                 [{Node, false, IsReadRepair}|Acc]);
+                                 [#redundant_node{node = Node,
+                                                  available = false,
+                                                  can_read_repair = IsReadRepair}|Acc]);
         _ ->
             reply_redundancies_1(Redundancies, AddrId, Rest, NumOfReplicas, Acc)
     end.
