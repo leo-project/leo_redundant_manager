@@ -306,7 +306,7 @@ maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
                     #state{cur  = CurRingInfo,
                            prev = PrevRingInfo} = State,
                     State_1 = State#state{cur  = CurRingInfo#ring_info{members = MembersCur},
-                                         prev = PrevRingInfo#ring_info{members = MembersPrev}},
+                                          prev = PrevRingInfo#ring_info{members = MembersPrev}},
                     State_2 = maybe_sync_1_1(CurSyncInfo,  State_1),
                     State_3 = maybe_sync_1_1(PrevSyncInfo, State_2),
                     State_3;
@@ -639,19 +639,19 @@ reply_redundancies_1(Redundancies, AddrId, [], _NumOfReplicas, Acc) ->
     {ok, Redundancies#redundancies{id = AddrId,
                                    nodes = lists:reverse(Acc)}};
 reply_redundancies_1(Redundancies, AddrId, [#redundant_node{node = Node}|Rest], NumOfReplicas, Acc) ->
-    IsReadRepair = (NumOfReplicas >= (length(Acc) + 1)),
+    CanReadRepair = (NumOfReplicas >= (length(Acc) + 1)),
 
     case leo_redundant_manager_table_member:lookup(Node) of
         {ok, #member{state = ?STATE_RUNNING}} ->
             reply_redundancies_1(Redundancies, AddrId, Rest, NumOfReplicas,
                                  [#redundant_node{node = Node,
                                                   available = true,
-                                                  can_read_repair = IsReadRepair}|Acc]);
+                                                  can_read_repair = CanReadRepair}|Acc]);
         {ok, #member{state = _State}} ->
             reply_redundancies_1(Redundancies, AddrId, Rest, NumOfReplicas,
                                  [#redundant_node{node = Node,
                                                   available = false,
-                                                  can_read_repair = IsReadRepair}|Acc]);
+                                                  can_read_repair = CanReadRepair}|Acc]);
         _ ->
             reply_redundancies_1(Redundancies, AddrId, Rest, NumOfReplicas, Acc)
     end.
