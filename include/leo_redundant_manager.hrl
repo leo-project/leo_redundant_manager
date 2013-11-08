@@ -170,9 +170,12 @@
 
 %% Dump File
 %%
--define(DUMP_FILE_MEMBERS,   "./log/ring/members.dump.").
--define(DUMP_FILE_RING_CUR,  "./log/ring/ring_cur.dump.").
--define(DUMP_FILE_RING_PREV, "./log/ring/ring_prv.dump.").
+-define(DEF_LOG_DIR_MEMBERS,    "./log/ring/").
+-define(DEF_LOG_DIR_RING,       "./log/ring/").
+-define(DUMP_FILE_MEMBERS_CUR,  "members_cur.dump.").
+-define(DUMP_FILE_MEMBERS_PREV, "members_prv.dump.").
+-define(DUMP_FILE_RING_CUR,     "ring_cur.dump.").
+-define(DUMP_FILE_RING_PREV,    "ring_prv.dump.").
 
 
 %% Record

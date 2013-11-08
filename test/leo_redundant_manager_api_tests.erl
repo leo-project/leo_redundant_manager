@@ -101,18 +101,17 @@ attach_1_({Hostname}) ->
     AttachNode = list_to_atom("node_8@" ++ Hostname),
     ok = leo_redundant_manager_api:attach(AttachNode),
     leo_redundant_manager_api:dump(?CHECKSUM_RING),
+    leo_redundant_manager_api:dump(?CHECKSUM_MEMBER),
 
     Size_2 = leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR}),
     ?assertEqual((9 * ?DEF_NUMBER_OF_VNODES), Size_2),
 
     %% execute
     timer:sleep(100),
-    ?debugVal(ok),
     {ok, Res1} = leo_redundant_manager_api:rebalance(),
     lists:foreach(fun(Item) ->
                           Src  = proplists:get_value('src',  Item),
                           Dest = proplists:get_value('dest', Item),
-                          ?debugVal({Src, Dest}),
                           ?assertEqual(true, Src =/= Dest),
                           ?assertEqual(true, Src =/= AttachNode)
                   end, Res1),
@@ -156,7 +155,6 @@ attach_1_1(Index) ->
 
 
 attach_2_({Hostname}) ->
-    ?debugVal(attach_2),
     ok = prepare(Hostname, gateway),
     {ok, _, _} = leo_redundant_manager_api:create(?VER_CURRENT),
     {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
@@ -167,13 +165,13 @@ attach_2_({Hostname}) ->
     ok = leo_redundant_manager_api:attach(list_to_atom("node_9@"  ++ Hostname)),
     ok = leo_redundant_manager_api:attach(list_to_atom("node_10@" ++ Hostname)),
     leo_redundant_manager_api:dump(?CHECKSUM_RING),
+    leo_redundant_manager_api:dump(?CHECKSUM_MEMBER),
 
     RingSize = leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR}),
     ?assertEqual((11 * ?DEF_NUMBER_OF_VNODES), RingSize),
 
     %% execute
     timer:sleep(100),
-    ?debugVal(attach_2_1),
     {ok, _} = leo_redundant_manager_api:rebalance(),
     {ok, MembersCur,  _Hashs} = leo_redundant_manager_api:create(?VER_CURRENT),
     {ok, MembersPrev,  Hashs} = leo_redundant_manager_api:create(?VER_PREV),
@@ -221,6 +219,7 @@ detach_({Hostname}) ->
     DetachNode = list_to_atom("node_0@" ++ Hostname),
     ok = leo_redundant_manager_api:detach(DetachNode),
     leo_redundant_manager_api:dump(?CHECKSUM_RING),
+    leo_redundant_manager_api:dump(?CHECKSUM_MEMBER),
 
     %% execute
     {ok, Res} = leo_redundant_manager_api:rebalance(),

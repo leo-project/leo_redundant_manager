@@ -374,10 +374,36 @@ handle_call({adjust, CurRingTable, PrevRingTable, VNodeId}, _From, State) ->
 
 
 handle_call({dump, member}, _From, State) ->
-    Reply = case leo_redundant_manager_table_member:find_all() of
-                {ok, Members} ->
-                    FileName = ?DUMP_FILE_MEMBERS ++ integer_to_list(leo_date:now()),
-                    leo_file:file_unconsult(FileName, Members);
+    LogDir = case application:get_env(leo_redundant_manager,
+                                      log_dir_member) of
+                 undefined ->
+                     ?DEF_LOG_DIR_MEMBERS;
+                 {ok, Dir} ->
+                     case (string:len(Dir) == string:rstr(Dir, "/")) of
+                         true  -> Dir;
+                         false -> Dir ++ "/"
+                     end
+             end,
+    _ = filelib:ensure_dir(LogDir),
+
+    Reply = case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
+                {ok, MembersCur} ->
+                    Path_1 = lists:append([LogDir,
+                                           ?DUMP_FILE_MEMBERS_CUR,
+                                           integer_to_list(leo_date:now())]),
+                    leo_file:file_unconsult(Path_1, MembersCur),
+
+                    case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
+                        {ok, MembersPrev} ->
+                            Path_2 = lists:append([LogDir,
+                                                   ?DUMP_FILE_MEMBERS_PREV,
+                                                   integer_to_list(leo_date:now())]),
+                            leo_file:file_unconsult(Path_2, MembersPrev);
+                        not_found = Cause ->
+                            {error, Cause};
+                        Error ->
+                            Error
+                    end;
                 not_found = Cause ->
                     {error, Cause};
                 Error ->
@@ -672,13 +698,22 @@ get_members_1(?VER_PREV) ->
 %% @doc Export 'Ring' from a table
 %% @private
 dump_ring_tabs() ->
-    _ = filelib:ensure_dir("./log/ring/"),
-    File0 = ?DUMP_FILE_RING_CUR  ++ integer_to_list(leo_date:now()),
-    File1 = ?DUMP_FILE_RING_PREV ++ integer_to_list(leo_date:now()),
+    LogDir = case application:get_env(leo_redundant_manager, log_dir_ring) of
+                 undefined -> ?DEF_LOG_DIR_RING;
+                 {ok, Dir} ->
+                     case (string:len(Dir) == string:rstr(Dir, "/")) of
+                         true  -> Dir;
+                         false -> Dir ++ "/"
+                     end
+             end,
+
+    _ = filelib:ensure_dir(LogDir),
+    File_1 = LogDir ++ ?DUMP_FILE_RING_CUR  ++ integer_to_list(leo_date:now()),
+    File_2 = LogDir ++ ?DUMP_FILE_RING_PREV ++ integer_to_list(leo_date:now()),
 
     Res0 = leo_redundant_manager_chash:export(
-             leo_redundant_manager_api:table_info(?VER_CURRENT), File0),
+             leo_redundant_manager_api:table_info(?VER_CURRENT), File_1),
     Res1 = leo_redundant_manager_chash:export(
-             leo_redundant_manager_api:table_info(?VER_PREV), File1),
+             leo_redundant_manager_api:table_info(?VER_PREV), File_2),
     {Res0, Res1}.
 
