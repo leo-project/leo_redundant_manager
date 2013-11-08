@@ -232,13 +232,19 @@ handle_call({create,_Ver}, _From, State) ->
     {reply, {error, invalid_version}, State};
 
 handle_call({checksum, ?CHECKSUM_MEMBER}, _From, State) ->
-    Reply = case leo_redundant_manager_table_member:find_all() of
-                {ok, Members} ->
-                    {ok, erlang:crc32(term_to_binary(Members))};
-                _ ->
-                    {ok, -1}
-            end,
-    {reply, Reply, State};
+    HashCur = case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
+                  {ok, MembersCur} ->
+                      erlang:crc32(term_to_binary(MembersCur));
+                  _ ->
+                      -1
+              end,
+    HashPrv = case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
+                  {ok, MembersPrev} ->
+                      erlang:crc32(term_to_binary(MembersPrev));
+                  _ ->
+                      -1
+              end,
+    {reply, {ok, {HashCur, HashPrv}}, State};
 
 handle_call({checksum, _}, _From, State) ->
     {reply, {error, badarg}, State};
