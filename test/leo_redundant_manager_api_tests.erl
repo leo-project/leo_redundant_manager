@@ -245,7 +245,27 @@ detach_({Hostname}) ->
     ?assertNotEqual(-1, RingHashPrev),
     ?assertNotEqual(RingHashCur, RingHashPrev),
     ?assertNotEqual(-1, MemberHash),
+
+    timer:sleep(100),
+    detach_1_1(25),
     ok.
+
+detach_1_1(0) ->
+    ok;
+detach_1_1(Index) ->
+    Key = list_to_binary("key_" ++ integer_to_list(Index)),
+    {ok, R1} = leo_redundant_manager_api:get_redundancies_by_key(put, Key),
+    {ok, R2} = leo_redundant_manager_api:get_redundancies_by_key(get, Key),
+    case (R1#redundancies.nodes == R2#redundancies.nodes) of
+        true ->
+            void;
+        false ->
+            ?assertEqual(1, (length(R2#redundancies.nodes) -
+                                 length(R1#redundancies.nodes))),
+            ?debugVal({Key, R1#redundancies.vnode_id_to,
+                       R1#redundancies.nodes, R2#redundancies.nodes})
+    end,
+    detach_1_1(Index - 1).
 
 
 -define(TEST_MEMBERS, [#member{node = 'node_0@127.0.0.1'},
