@@ -471,8 +471,9 @@ has_member(Node) ->
 has_charge_of_node(Key) ->
     case get_redundancies_by_key(put, Key) of
         {ok, #redundancies{nodes = Nodes}} ->
-            lists:foldl(fun(#redundant_node{node = N}, false) ->
-                                N == erlang:node();
+            lists:foldl(fun(#redundant_node{node = N,
+                                            can_read_repair = CanReadRepair}, false) ->
+                                (N == erlang:node() andalso CanReadRepair == true);
                            (_, true ) ->
                                 true
                         end, false, Nodes);
