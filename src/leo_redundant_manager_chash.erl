@@ -152,9 +152,13 @@ rebalance_1(ServerRef, Info, RingSize, AddrId, Acc) ->
             rebalance_1(ServerRef, Info, RingSize - 1, VNodeIdTo + 1, Acc);
         DestNodeList ->
             %% set one or plural target node(s)
-            SrcNode = active_node(Members, PrevNodes),
-            NewAcc  = rebalance_1_1(VNodeIdTo, SrcNode, DestNodeList, Acc),
-            rebalance_1(ServerRef, Info, RingSize - 1, VNodeIdTo + 1, NewAcc)
+            case active_node(Members, PrevNodes) of
+                {error, Cause} ->
+                    {error, Cause};
+                SrcNode ->
+                    NewAcc  = rebalance_1_1(VNodeIdTo, SrcNode, DestNodeList, Acc),
+                    rebalance_1(ServerRef, Info, RingSize - 1, VNodeIdTo + 1, NewAcc)
+            end
     end.
 
 %% @private
