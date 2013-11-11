@@ -187,7 +187,7 @@
          port  = 13075         :: pos_integer(), %% port-number
          inet  = 'ipv4'        :: 'ipv4'|'ipv6', %% type of ip
          clock = 0             :: pos_integer(), %% joined at
-         state = null          :: atom(),        %% current-status
+         state = null          :: node_state(),  %% current-status
          num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
          grp_level_1 = []      :: string(),      %% Group of level_1
          grp_level_2 = []      :: string()       %% Group of level_2
