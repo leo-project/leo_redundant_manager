@@ -185,12 +185,12 @@ code_change(_OldVsn, State, _Extra) ->
              #state{}).
 maybe_heartbeat(#state{enable = false} = State) ->
     State;
-maybe_heartbeat(#state{type            = ServerType,
-                       interval        = Interval,
-                       timestamp       = Timestamp,
-                       enable          = true,
-                       managers        = Managers,
-                       proc_auditor    = ProcAuditor} = State) ->
+maybe_heartbeat(#state{type         = ServerType,
+                       interval     = Interval,
+                       timestamp    = Timestamp,
+                       enable       = true,
+                       managers     = Managers,
+                       proc_auditor = ProcAuditor} = State) ->
     ThisTime = leo_date:now() * 1000,
     case ((ThisTime - Timestamp) < Interval) of
         true ->
@@ -250,9 +250,8 @@ exec(ServerType, Managers) ->
 
     case leo_redundant_manager_api:get_redundancies_by_addr_id(AddrId) of
         {ok, #redundancies{nodes = Redundancies}} ->
-            Nodes = lists:map(fun(#redundant_node{
-                                     node = Node,
-                                     available = State}) ->
+            Nodes = lists:map(fun(#redundant_node{node = Node,
+                                                  available = State}) ->
                                       {storage, Node, State}
                               end, Redundancies),
             exec1(ServerType, Managers, Nodes);
@@ -268,7 +267,7 @@ exec(ServerType, Managers) ->
 exec1(_,_,[]) ->
     ok;
 
-exec1(?SERVER_MANAGER = ServerType, Managers, [{_, Node, _NodeState}|T]) ->
+exec1(?SERVER_MANAGER = ServerType, Managers, [{_, Node,_State}|T]) ->
     case leo_redundant_manager_api:get_member_by_node(Node) of
         {ok, #member{state = ?STATE_SUSPEND}}   -> void;
         {ok, #member{state = ?STATE_DETACHED}}  -> void;
@@ -285,7 +284,7 @@ exec1(ServerType, Managers, [{_, Node, State}|T]) ->
         true ->
             void;
         false ->
-            Ret = compare_with_remote_chksum(Node, ServerType),
+            Ret = compare_with_remote_chksum(Node),
             _ = inspect_result(Ret, [ServerType, Managers, Node, State])
     end,
     exec1(ServerType, Managers, T);
@@ -334,7 +333,7 @@ compare_manager_with_remote_chksum( Node, Managers, [HashType|T]) ->
                         _ -> true
                     end,
 
-            Ret = compare_with_remote_chksum(Node, HashType, ?SERVER_MANAGER, LocalChksum),
+            Ret = compare_with_remote_chksum_1(Node, HashType, LocalChksum),
             _ = inspect_result(Ret, [?SERVER_MANAGER, Managers, Node, State]),
             compare_manager_with_remote_chksum(Node, Managers, T);
         Error ->
@@ -344,19 +343,19 @@ compare_manager_with_remote_chksum( Node, Managers, [HashType|T]) ->
 
 %% @doc Comapare own-hash with remote-node-hash
 %% @private
--spec(compare_with_remote_chksum(atom(), ?SERVER_MANAGER | ?SERVER_STORAGE | ?SERVER_GATEWAY) ->
+-spec(compare_with_remote_chksum(atom()) ->
              ok | {error, any()}).
-compare_with_remote_chksum(Node, LocalServerType) ->
-    compare_with_remote_chksum(Node, [?CHECKSUM_RING, ?CHECKSUM_MEMBER], LocalServerType).
+compare_with_remote_chksum(Node) ->
+    compare_with_remote_chksum(Node, [?CHECKSUM_RING, ?CHECKSUM_MEMBER]).
 
-compare_with_remote_chksum(_Node, [], _) ->
+compare_with_remote_chksum(_,[]) ->
     ok;
-compare_with_remote_chksum(Node, [HashType|T], LocalServerType) ->
+compare_with_remote_chksum(Node, [HashType|T]) ->
     case leo_redundant_manager_api:checksum(HashType) of
         {ok, LocalChecksum} ->
-            case compare_with_remote_chksum(Node, HashType, LocalServerType, LocalChecksum) of
+            case compare_with_remote_chksum_1(Node, HashType, LocalChecksum) of
                 ok ->
-                    compare_with_remote_chksum(Node, T, LocalServerType);
+                    compare_with_remote_chksum(Node, T);
                 Error ->
                     Error
             end;
@@ -364,34 +363,25 @@ compare_with_remote_chksum(Node, [HashType|T], LocalServerType) ->
             ok
     end.
 
-compare_with_remote_chksum(Node, HashType, LocalServerType, LocalChksum) ->
+%% @private
+compare_with_remote_chksum_1(Node, HashType, LocalChksum) ->
     case rpc:call(Node, leo_redundant_manager_api, checksum, [HashType], ?DEF_TIMEOUT) of
         {ok, RemoteChksum} when LocalChksum =:= RemoteChksum ->
             ok;
-        %% Case: "New Attached Node" because only storage-node
-        {ok, {RingHash0, RingHash1} = RemoteChksum} when HashType == ?CHECKSUM_RING andalso
-                                                         LocalServerType /= ?SERVER_GATEWAY andalso
-                                                         RingHash0 == RingHash1 ->
-            {LocalChksum0, _} = LocalChksum,
-            case (RingHash0 == LocalChksum0) of
-                true  ->
-                    ok;
-                false ->
-                    {error, {HashType, ?ERR_TYPE_INCONSISTENT_HASH, [{node(), LocalChksum},
-                                                                     {Node,   RemoteChksum}]}}
-            end;
         {ok, RemoteChksum} when LocalChksum =/= RemoteChksum ->
             {error, {HashType, ?ERR_TYPE_INCONSISTENT_HASH, [{node(), LocalChksum},
                                                              {Node,   RemoteChksum}]}};
         not_found = Cause ->
             error_logger:warning_msg("~p,~p,~p,~p~n",
-                                     [{module, ?MODULE_STRING}, {function, "compare_with_remote_chksum/3"},
+                                     [{module, ?MODULE_STRING},
+                                      {function, "compare_with_remote_chksum/3"},
                                       {line, ?LINE}, {body, {Node, Cause}}]),
             {error, {HashType, ?ERR_TYPE_INCONSISTENT_HASH, [{node(), LocalChksum},
                                                              {Node,   -1}]}};
         {_, Cause} ->
             error_logger:warning_msg("~p,~p,~p,~p~n",
-                                     [{module, ?MODULE_STRING}, {function, "compare_with_remote_chksum/3"},
+                                     [{module, ?MODULE_STRING},
+                                      {function, "compare_with_remote_chksum/3"},
                                       {line, ?LINE}, {body, {Node, Cause}}]),
             {error, ?ERR_TYPE_NODE_DOWN}
     end.

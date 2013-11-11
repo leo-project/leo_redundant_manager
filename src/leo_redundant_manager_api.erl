@@ -30,7 +30,7 @@
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([create/1, create/2, create/3,
+-export([create/0, create/1, create/2, create/3,
          set_options/1, get_options/0,
          attach/1, attach/2, attach/3, attach/4,
          reserve/3, reserve/5, detach/1, detach/2,
@@ -60,6 +60,21 @@
 %%--------------------------------------------------------------------
 %% @doc Create the RING
 %%
+-spec(create() ->
+             {ok, list(), list()} | {error, any()}).
+create() ->
+    case create(?VER_CURRENT) of
+        {ok, Members, HashValues} ->
+            case create(?VER_PREV) of
+                {ok,_,_} ->
+                    {ok, Members, HashValues};
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end.
+
 -spec(create(?VER_CURRENT|?VER_PREV) ->
              {ok, list(), list()} | {error, any()}).
 create(Ver) when Ver == ?VER_CURRENT;
