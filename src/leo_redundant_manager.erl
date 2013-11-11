@@ -231,6 +231,8 @@ handle_call({create, Ver}, _From, State) when Ver == ?VER_CURRENT;
 handle_call({create,_Ver}, _From, State) ->
     {reply, {error, invalid_version}, State};
 
+handle_call({checksum, ?CHECKSUM_MEMBER}, _From, null = State) ->
+        {reply, {ok, {-1, -1}}, State};
 handle_call({checksum, ?CHECKSUM_MEMBER}, _From, State) ->
     HashCur = case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
                   {ok, MembersCur} ->
