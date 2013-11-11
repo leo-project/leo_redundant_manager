@@ -253,7 +253,7 @@ detach_({Hostname}) ->
     MemberHash = leo_misc:get_value('member', Hashs),
 
     ?assertEqual(8, length(MembersCur)),
-    ?assertEqual(7, length(MembersPrev)),
+    ?assertEqual(8, length(MembersPrev)),
     ?assertNotEqual([], MembersPrev),
     ?assertNotEqual(-1, RingHashCur),
     ?assertNotEqual(-1, RingHashPrev),

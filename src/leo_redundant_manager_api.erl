@@ -461,8 +461,6 @@ rebalance_1_1([]) ->
     ok;
 rebalance_1_1([#member{state = ?STATE_ATTACHED}|Rest]) ->
     rebalance_1_1(Rest);
-rebalance_1_1([#member{state = ?STATE_DETACHED}|Rest]) ->
-    rebalance_1_1(Rest);
 rebalance_1_1([#member{state = ?STATE_RESERVED}|Rest]) ->
     rebalance_1_1(Rest);
 rebalance_1_1([Member|Rest]) ->
