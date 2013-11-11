@@ -30,7 +30,7 @@
 
 %% API
 -export([start_link/1, stop/1]).
--export([lookup/3, first/2, last/2, force_sync/2]).
+-export([lookup/3, first/2, last/2, force_sync/2, redundancies/4]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -130,6 +130,11 @@ last(ServerRef, Table) ->
 force_sync(ServerRef, Table) ->
     gen_server:call(ServerRef, {force_sync, Table}, ?DEF_TIMEOUT).
 
+-spec(redundancies(atom(), atom(), number(), list(#member{})) ->
+             {ok, #redundancies{}} | not_found).
+redundancies(ServerRef, Table, AddrId, Members) ->
+    gen_server:call(ServerRef, {redundancies, Table, AddrId, Members}, ?DEF_TIMEOUT).
+
 
 %%--------------------------------------------------------------------
 %% GEN_SERVER CALLBACKS
@@ -189,6 +194,11 @@ handle_call({force_sync, Tbl},_From, State) ->
                  end,
     NewState = force_sync_fun(TargetRing, State),
     {reply, ok, NewState};
+
+handle_call({redundancies, Table, AddrId, Members},_From, #state{num_of_replicas = N,
+                                                                 num_of_rack_awareness = L2} = State) ->
+    Reply = redundancies(Table, AddrId, N, L2, Members),
+    {reply, Reply, State};
 
 handle_call(_Handle, _From, State) ->
     {reply, ok, State}.
@@ -317,8 +327,7 @@ maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
             State
     end.
 
-maybe_sync_1_1(#sync_info{target = ?SYNC_MODE_CUR_RING,
-                          org_checksum = OrgChecksum,
+maybe_sync_1_1(#sync_info{org_checksum = OrgChecksum,
                           cur_checksum = CurChecksum}, State) when OrgChecksum == CurChecksum ->
     State;
 maybe_sync_1_1(SyncInfo, State) ->

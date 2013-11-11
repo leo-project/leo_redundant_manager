@@ -255,3 +255,9 @@
         {vnode_id = -1         :: pos_integer(),
          node                  :: atom()
         }).
+
+-record(rebalance, {members_cur  = []  :: list(),
+                    members_prev = []  :: list(),
+                    tbl_cur            :: atom(),
+                    tbl_prev           :: atom()
+                   }).

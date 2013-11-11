@@ -555,6 +555,7 @@ create_2(Ver,[], Acc) ->
     create_3(Ver, Acc);
 create_2( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
     %% Modify/Add a member into 'member-table'
+    Table = ?member_table(Ver),
     Ret_2 = case leo_redundant_manager_table_member:lookup(Node) of
                 {error, Cause} ->
                     {error, Cause};
@@ -563,7 +564,7 @@ create_2( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
                                {ok, Member_1} -> {Node, Member_1#member{state = ?STATE_RUNNING}};
                                not_found      -> {Node, Member_0#member{state = ?STATE_RUNNING}}
                            end,
-                    case leo_redundant_manager_table_member:insert(Prop) of
+                    case leo_redundant_manager_table_member:insert(Table, Prop) of
                         ok ->
                             {ok, erlang:element(2, Prop)};
                         {error, Cause} ->

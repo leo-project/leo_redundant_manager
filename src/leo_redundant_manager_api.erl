@@ -409,30 +409,37 @@ range_of_vnodes(ToVNodeId) ->
 -spec(rebalance() ->
              {ok, list()} | {error, any()}).
 rebalance() ->
-    Ret = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
-    rebalance_1(Ret).
-
-
-%% @private
-rebalance_1({ok, Members}) ->
-    %% Remove all previous members,
-    %% Then insert new members from current members
-    case leo_redundant_manager_table_member:delete_all(?MEMBER_TBL_PREV) of
-        ok ->
-            case rebalance_1_1(Members) of
-                ok ->
-                    %% Retrieve rebalance-info
-                    TblInfo0 = table_info(?VER_CURRENT),
-                    TblInfo1 = table_info(?VER_PREV),
-                    leo_redundant_manager_chash:rebalance({TblInfo0, TblInfo1}, Members);
+    case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
+        {ok, MembersCur} ->
+            case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
+                {ok, MembersPrev} ->
+                    rebalance_1(#rebalance{tbl_cur  = table_info(?VER_CURRENT),
+                                           tbl_prev = table_info(?VER_PREV),
+                                           members_cur  = MembersCur,
+                                           members_prev = MembersPrev});
                 Error ->
                     Error
             end;
         Error ->
             Error
-    end;
-rebalance_1(Error) ->
-    Error.
+    end.
+
+
+%% @private
+rebalance_1(RebalanceInfo) ->
+    %% Remove all previous members,
+    %% Then insert new members from current members
+    case leo_redundant_manager_table_member:delete_all(?MEMBER_TBL_PREV) of
+        ok ->
+            case rebalance_1_1(RebalanceInfo#rebalance.members_cur) of
+                ok ->
+                    leo_redundant_manager_chash:rebalance(RebalanceInfo);
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end.
 
 %% @private
 rebalance_1_1([]) ->

@@ -30,14 +30,9 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -export([add/2, append/3, adjust/3, remove/2,
-         redundancies/3, range_of_vnodes/2, rebalance/2,
+         redundancies/3, range_of_vnodes/2, rebalance/1,
          checksum/1, vnode_id/1, vnode_id/2]).
 -export([export/2, import/2]).
-
--record(rebalance, {members = []  :: list(),
-                    cur_tbl  :: atom(),
-                    prec_tbl :: atom()
-                   }).
 
 
 %%====================================================================
@@ -105,60 +100,62 @@ redundancies(ServerRef, {_,Table}, VNodeId) ->
 
 %% @doc Do rebalance
 %% @private
--spec(rebalance(tuple(), list()) ->
+-spec(rebalance(#rebalance{}) ->
              {ok, list()} | {error, any()}).
-rebalance(Tables, Members) ->
-    %% {{$DB,?RING_TBL_CUR}, {$DB,?RING_TBL_PREV}} = Tables,
-    {{_,CurTbl} = CurTblInfo, {_,PrevTbl}} = Tables,
-    Info = #rebalance{members  = Members,
-                      cur_tbl  = CurTbl,
-                      prec_tbl = PrevTbl},
-    RingSize  = leo_redundant_manager_table_ring:size(CurTblInfo),
+rebalance(RebalanceInfo) ->
+    #rebalance{tbl_cur  = TblInfoCur,
+               tbl_prev = TblInfoPrev} = RebalanceInfo,
+
+    RingSize  = leo_redundant_manager_table_ring:size(TblInfoCur),
     ServerRef = leo_redundant_manager_api:get_server_id(),
 
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, CurTbl),
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, PrevTbl),
-    rebalance_1(ServerRef, Info, RingSize, 0, []).
+    {_, TblNameCur } = TblInfoCur,
+    {_, TblNamePrev} = TblInfoPrev,
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, TblNameCur),
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, TblNamePrev),
+
+    rebalance_1(ServerRef, RebalanceInfo, RingSize, 0, []).
 
 %% @private
-rebalance_1(_ServerRef,_Info, 0,  _AddrId, Acc) ->
+rebalance_1(_,_,0,_, Acc) ->
     Acc1 = lists:reverse(Acc),
     %% lists:foldl(fun(Item, Index) ->
     %%                     ?debugVal({Index, Item}),
     %%                     Index+1
     %%             end, 0, Acc1),
     {ok, Acc1};
-rebalance_1(ServerRef, Info, RingSize, AddrId, Acc) ->
-    #rebalance{members  = Members,
-               cur_tbl  = CurTbl,
-               prec_tbl = PrevTbl} = Info,
+rebalance_1(ServerRef, RebalanceInfo, RingSize, AddrId, Acc) ->
+    #rebalance{tbl_cur      = TblInfoCur,
+               members_cur  = MembersCur,
+               members_prev = MembersPrev} = RebalanceInfo,
+    {_, TblNameCur} = TblInfoCur,
+
     {ok, #redundancies{vnode_id_to = VNodeIdTo,
                        nodes = CurNodes}} =
-        leo_redundant_manager_worker:lookup(ServerRef, CurTbl,  AddrId),
-    {ok, #redundancies{nodes = PrevNodes}} =
-        leo_redundant_manager_worker:lookup(ServerRef, PrevTbl, AddrId),
+        leo_redundant_manager_worker:lookup(ServerRef, TblNameCur,  AddrId),
 
-    Res1 = lists:foldl(
+    {ok, #redundancies{nodes = PrevNodes}} =
+        leo_redundant_manager_worker:redundancies(
+          ServerRef, ?ring_table(?SYNC_MODE_PREV_RING), AddrId, MembersPrev),
+
+    case lists:foldl(
              fun(#redundant_node{node = N0}, Acc0) ->
-                     case lists:foldl(fun(#redundant_node{node = N1},_Acc1) when N0 == N1 -> true;
-                                         (#redundant_node{node = N1}, Acc1) when N0 /= N1 -> Acc1
-                                      end, false, PrevNodes) of
+                     case lists:foldl(
+                            fun(#redundant_node{node = N1},_Acc1) when N0 == N1 -> true;
+                               (#redundant_node{node = N1}, Acc1) when N0 /= N1 -> Acc1
+                            end, false, PrevNodes) of
                          true  -> Acc0;
                          false -> [N0|Acc0]
                      end
-             end, [], CurNodes),
-    case Res1 of
+             end, [], CurNodes) of
         [] ->
-            rebalance_1(ServerRef, Info, RingSize - 1, VNodeIdTo + 1, Acc);
+            rebalance_1(ServerRef, RebalanceInfo, RingSize - 1, VNodeIdTo + 1, Acc);
         DestNodeList ->
             %% set one or plural target node(s)
-            case active_node(Members, PrevNodes) of
-                {error, Cause} ->
-                    {error, Cause};
-                SrcNode ->
-                    NewAcc  = rebalance_1_1(VNodeIdTo, SrcNode, DestNodeList, Acc),
-                    rebalance_1(ServerRef, Info, RingSize - 1, VNodeIdTo + 1, NewAcc)
-            end
+            %% ?debugVal({lists:subtract(CurNodes, PrevNodes), DestNodeList}),
+            SrcNode = active_node(MembersCur, PrevNodes),
+            NewAcc  = rebalance_1_1(VNodeIdTo, SrcNode, DestNodeList, Acc),
+            rebalance_1(ServerRef, RebalanceInfo, RingSize - 1, VNodeIdTo + 1, NewAcc)
     end.
 
 %% @private

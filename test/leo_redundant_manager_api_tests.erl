@@ -98,6 +98,7 @@ attach_1_({Hostname}) ->
     timer:sleep(100),
 
     %% rebalance.attach
+    %% ?debugVal(attach),
     AttachNode = list_to_atom("node_8@" ++ Hostname),
     ok = leo_redundant_manager_api:attach(AttachNode),
     leo_redundant_manager_api:dump(?CHECKSUM_RING),
@@ -107,13 +108,15 @@ attach_1_({Hostname}) ->
     ?assertEqual((9 * ?DEF_NUMBER_OF_VNODES), Size_2),
 
     %% execute
-    timer:sleep(100),
+    timer:sleep(1000),
     {ok, Res1} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res1 =/= []),
     lists:foreach(fun(Item) ->
                           Src  = proplists:get_value('src',  Item),
                           Dest = proplists:get_value('dest', Item),
-                          ?assertEqual(true, Src =/= Dest),
-                          ?assertEqual(true, Src =/= AttachNode)
+                          ?assertEqual(true, Src  /= Dest),
+                          ?assertEqual(true, Src  /= AttachNode),
+                          ?assertEqual(true, Dest == AttachNode)
                   end, Res1),
     {ok, MembersCur} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
 
@@ -161,9 +164,12 @@ attach_2_({Hostname}) ->
     timer:sleep(100),
 
     %% rebalance.attach
-    ok = leo_redundant_manager_api:attach(list_to_atom("node_8@"  ++ Hostname)),
-    ok = leo_redundant_manager_api:attach(list_to_atom("node_9@"  ++ Hostname)),
-    ok = leo_redundant_manager_api:attach(list_to_atom("node_10@" ++ Hostname)),
+    AttachedNodes = [list_to_atom("node_8@"  ++ Hostname),
+                     list_to_atom("node_9@"  ++ Hostname),
+                     list_to_atom("node_10@" ++ Hostname)],
+    lists:foreach(fun(_N) ->
+                          ok = leo_redundant_manager_api:attach(_N)
+                  end, AttachedNodes),
     leo_redundant_manager_api:dump(?CHECKSUM_RING),
     leo_redundant_manager_api:dump(?CHECKSUM_MEMBER),
 
@@ -172,7 +178,16 @@ attach_2_({Hostname}) ->
 
     %% execute
     timer:sleep(100),
-    {ok, _} = leo_redundant_manager_api:rebalance(),
+    {ok, Res1} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res1 =/= []),
+    lists:foreach(fun(Item) ->
+                          Src  = proplists:get_value('src',  Item),
+                          Dest = proplists:get_value('dest', Item),
+                          ?assertEqual(true,  Src =/= Dest),
+                          ?assertEqual(false, lists:member(Src,  AttachedNodes)),
+                          ?assertEqual(true,  lists:member(Dest, AttachedNodes))
+                  end, Res1),
+
     {ok, MembersCur,  _Hashs} = leo_redundant_manager_api:create(?VER_CURRENT),
     {ok, MembersPrev,  Hashs} = leo_redundant_manager_api:create(?VER_PREV),
     {RingHashCur, RingHashPrev} = leo_misc:get_value('ring', Hashs),
