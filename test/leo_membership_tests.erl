@@ -118,7 +118,7 @@ membership_manager_({Hostname, _, _, Node0, Node1, Node2}) ->
                                         end]),
 
     Path = filename:absname("") ++ "db/queue",
-    leo_redundant_manager_sup:start_link(manager, ['test_manager@127.0.0.1'], Path),
+    leo_redundant_manager_sup:start_link(manager, [list_to_atom("test_manager@" ++ Hostname)], Path),
     leo_redundant_manager_api:set_options([{n, 3},
                                            {r, 1},
                                            {w ,1},
@@ -181,8 +181,7 @@ membership_storage_({Hostname, Mgr0, Mgr1, Node0, Node1, Node2}) ->
     {ok, _Members, _Chksums} = leo_redundant_manager_api:create(?VER_CURRENT),
     timer:sleep(1500),
 
-    History0 = rpc:call(Mgr0, meck, history, [leo_manager_api]),
-    ?debugVal(History0),
+    %% History0 = rpc:call(Mgr0, meck, history, [leo_manager_api]),
     %% ?assertEqual(true, length(History0) > 0),
     History1 = rpc:call(Mgr1, meck, history, [leo_manager_api]),
     ?assertEqual([], History1),
