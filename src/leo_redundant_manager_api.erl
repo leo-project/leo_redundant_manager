@@ -252,9 +252,13 @@ checksum(_) ->
 %%
 -spec(synchronize(sync_target(), list(tuple()), list(tuple())) ->
              {ok, list(tuple())} | {error, any()}).
-synchronize(?SYNC_TARGET_BOTH, SyncData, Conf) ->
+synchronize(?SYNC_TARGET_BOTH, SyncData, Options) ->
     %% set configurations
-    ok = set_options(Conf),
+    case Options of
+        [] -> void;
+        _ ->
+            ok = set_options(Options)
+    end,
 
     %% Synchronize current and previous members
     %%   Then Synchronize ring
@@ -280,6 +284,9 @@ synchronize(?SYNC_TARGET_BOTH, SyncData, Conf) ->
 
 -spec(synchronize(sync_target(), list(tuple())) ->
              {ok, list(tuple())} | {error, any()}).
+synchronize(?SYNC_TARGET_BOTH, SyncData) ->
+    synchronize(?SYNC_TARGET_BOTH, SyncData, []);
+
 synchronize(?SYNC_TARGET_MEMBER = SyncTarget, SyncData) ->
     case synchronize_1(SyncTarget, ?VER_CUR,  SyncData) of
         ok ->
