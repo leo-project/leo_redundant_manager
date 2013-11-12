@@ -189,8 +189,8 @@ handle_call({force_sync, Tbl},_From, State) when Tbl /= ?RING_TBL_CUR,
 
 handle_call({force_sync, Tbl},_From, State) ->
     TargetRing = case Tbl of
-                     ?RING_TBL_CUR  -> ?SYNC_MODE_CUR_RING;
-                     ?RING_TBL_PREV -> ?SYNC_MODE_PREV_RING
+                     ?RING_TBL_CUR  -> ?SYNC_TARGET_RING_CUR;
+                     ?RING_TBL_PREV -> ?SYNC_TARGET_RING_PREV
                  end,
     NewState = force_sync_fun(TargetRing, State),
     {reply, ok, NewState};
@@ -307,10 +307,10 @@ maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
         {ok, MembersCur} ->
             case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
                 {ok, MembersPrev} ->
-                    CurSyncInfo  = #sync_info{target = ?SYNC_MODE_CUR_RING,
+                    CurSyncInfo  = #sync_info{target = ?SYNC_TARGET_RING_CUR,
                                               org_checksum = R1,
                                               cur_checksum = CurHash},
-                    PrevSyncInfo = #sync_info{target = ?SYNC_MODE_PREV_RING,
+                    PrevSyncInfo = #sync_info{target = ?SYNC_TARGET_RING_PREV,
                                               org_checksum = R2,
                                               cur_checksum = PrevHash},
                     #state{cur  = CurRingInfo,
@@ -333,9 +333,9 @@ maybe_sync_1_1(#sync_info{org_checksum = OrgChecksum,
 maybe_sync_1_1(SyncInfo, State) ->
     TargetRing = SyncInfo#sync_info.target,
     case gen_routing_table(SyncInfo, State) of
-        {ok, RingInfo} when TargetRing == ?SYNC_MODE_CUR_RING ->
+        {ok, RingInfo} when TargetRing == ?SYNC_TARGET_RING_CUR ->
             State#state{cur  = RingInfo};
-        {ok, RingInfo} when TargetRing == ?SYNC_MODE_PREV_RING ->
+        {ok, RingInfo} when TargetRing == ?SYNC_TARGET_RING_PREV ->
             State#state{prev = RingInfo};
         _ ->
             State
@@ -346,8 +346,8 @@ maybe_sync_1_1(SyncInfo, State) ->
 %% @private
 -spec(gen_routing_table(#sync_info{}, #state{}) ->
              {ok, #ring_info{}} | {error, atom()}).
-gen_routing_table(#sync_info{target = TargetRing},_) when TargetRing /= ?SYNC_MODE_CUR_RING,
-                                                          TargetRing /= ?SYNC_MODE_PREV_RING ->
+gen_routing_table(#sync_info{target = TargetRing},_) when TargetRing /= ?SYNC_TARGET_RING_CUR,
+                                                          TargetRing /= ?SYNC_TARGET_RING_PREV ->
     {error, invalid_target_ring};
 gen_routing_table(#sync_info{target = TargetRing} = SyncInfo, State) ->
     %% Retrieve ring from local's master [etc|mnesia]
@@ -357,7 +357,7 @@ gen_routing_table(#sync_info{target = TargetRing} = SyncInfo, State) ->
     GroupSize  = leo_math:ceiling(RingSize / ?DEF_NUM_OF_DIV),
 
     %% Retrieve redundancies by addr-id
-    {ok, CurRing} = leo_redundant_manager_api:get_ring(?SYNC_MODE_CUR_RING),
+    {ok, CurRing} = leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR),
     gen_routing_table_1(CurRing, SyncInfo, #ring_conf{id = 0,
                                                       group_id   = 0,
                                                       ring_size  = RingSize,
@@ -376,8 +376,8 @@ gen_routing_table_1([], #sync_info{target = TargetRing}, #ring_conf{index_list =
                                                                     checksum   = Checksum}, State) ->
     IdxAcc_1 = lists:reverse(IdxAcc),
     Members = case TargetRing of
-                  ?SYNC_MODE_CUR_RING  -> (State#state.cur)#ring_info.members;
-                  ?SYNC_MODE_PREV_RING -> (State#state.prev)#ring_info.members
+                  ?SYNC_TARGET_RING_CUR  -> (State#state.cur)#ring_info.members;
+                  ?SYNC_TARGET_RING_PREV -> (State#state.prev)#ring_info.members
               end,
 
     {ok, #redundancies{vnode_id_to = FirstAddrId}} = first_fun(IdxAcc_1),
@@ -394,15 +394,15 @@ gen_routing_table_1([{AddrId,_Node}|Rest], SyncInfo, RingConf, State) ->
     NumOfReplicas    = State#state.num_of_replicas,
     NumOfAwarenessL2 = State#state.num_of_rack_awareness,
 
-    case redundancies(?ring_table(?SYNC_MODE_CUR_RING),
+    case redundancies(?ring_table(?SYNC_TARGET_RING_CUR),
                       AddrId, NumOfReplicas, NumOfAwarenessL2, MembersCur) of
         {ok, #redundancies{nodes = CurNodes} = Redundancies} ->
             CurNodes_1 = [_N1 || #redundant_node{node = _N1} <- CurNodes],
             Redundancies_1 =
                 case TargetRing of
-                    ?SYNC_MODE_PREV_RING ->
+                    ?SYNC_TARGET_RING_PREV ->
                         MembersPrev = (State#state.prev)#ring_info.members,
-                        case redundancies(?ring_table(?SYNC_MODE_PREV_RING),
+                        case redundancies(?ring_table(?SYNC_TARGET_RING_PREV),
                                           AddrId, NumOfReplicas, NumOfAwarenessL2, MembersPrev) of
                             {ok, #redundancies{nodes = PrevNodes}} ->
                                 PrevNodes_1 = [_N2 || #redundant_node{node = _N2} <- PrevNodes],
@@ -785,7 +785,7 @@ find_redundancies_by_addr_id_1([_|Rest], AddrId) ->
 
 %% @doc Force sync
 %% @private
--spec(force_sync_fun(?SYNC_MODE_CUR_RING|?SYNC_MODE_PREV_RING, #state{}) ->
+-spec(force_sync_fun(?SYNC_TARGET_RING_CUR|?SYNC_TARGET_RING_PREV, #state{}) ->
              #state{}).
 force_sync_fun(TargetRing, State) ->
     case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
@@ -804,9 +804,9 @@ force_sync_fun(TargetRing, State) ->
     end.
 
 %% @private
-force_sync_fun_1({ok, RingInfo}, ?SYNC_MODE_CUR_RING, State) ->
+force_sync_fun_1({ok, RingInfo}, ?SYNC_TARGET_RING_CUR, State) ->
     State#state{cur  = RingInfo};
-force_sync_fun_1({ok, RingInfo}, ?SYNC_MODE_PREV_RING, State) ->
+force_sync_fun_1({ok, RingInfo}, ?SYNC_TARGET_RING_PREV, State) ->
     State#state{prev = RingInfo};
 force_sync_fun_1(_,_,State) ->
     State.

@@ -67,7 +67,7 @@ stop() ->
 
 %% @doc Create Rings.
 %%
--spec(create(?VER_CURRENT|?VER_PREV) ->
+-spec(create(?VER_CUR|?VER_PREV) ->
              {ok, list()}).
 create(Ver) ->
     gen_server:call(?MODULE, {create, Ver}, ?DEF_TIMEOUT).
@@ -94,7 +94,7 @@ has_member(Node) ->
 -spec(get_members() ->
              {ok, list()}).
 get_members() ->
-    gen_server:call(?MODULE, {get_members, ?VER_CURRENT}, ?DEF_TIMEOUT).
+    gen_server:call(?MODULE, {get_members, ?VER_CUR}, ?DEF_TIMEOUT).
 
 get_members(Mode) ->
     gen_server:call(?MODULE, {get_members, Mode}, ?DEF_TIMEOUT).
@@ -173,7 +173,7 @@ dump(Type) ->
 -spec(attach(atom(), string(), integer(), integer()) ->
              ok | {error, any()}).
 attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
-    attach(leo_redundant_manager_api:table_info(?VER_CURRENT),
+    attach(leo_redundant_manager_api:table_info(?VER_CUR),
            Node, NumOfAwarenessL2, Clock, NumOfVNodes).
 
 attach(TableInfo, Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
@@ -194,7 +194,7 @@ reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes) ->
 -spec(detach(atom(), integer()) ->
              ok | {error, any()}).
 detach(Node, Clock) ->
-    detach(leo_redundant_manager_api:table_info(?VER_CURRENT), Node, Clock).
+    detach(leo_redundant_manager_api:table_info(?VER_CUR), Node, Clock).
 
 detach(TableInfo, Node, Clock) ->
     gen_server:call(?MODULE, {detach, TableInfo, Node, Clock}, ?DEF_TIMEOUT).
@@ -223,7 +223,7 @@ handle_call(stop,_From,State) ->
     {stop, normal, ok, State};
 
 
-handle_call({create, Ver}, _From, State) when Ver == ?VER_CURRENT;
+handle_call({create, Ver}, _From, State) when Ver == ?VER_CUR;
                                               Ver == ?VER_PREV ->
     Reply = create_1(Ver),
     {reply, Reply, State};
@@ -231,8 +231,6 @@ handle_call({create, Ver}, _From, State) when Ver == ?VER_CURRENT;
 handle_call({create,_Ver}, _From, State) ->
     {reply, {error, invalid_version}, State};
 
-handle_call({checksum, ?CHECKSUM_MEMBER}, _From, null = State) ->
-        {reply, {ok, {-1, -1}}, State};
 handle_call({checksum, ?CHECKSUM_MEMBER}, _From, State) ->
     HashCur = case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
                   {ok, MembersCur} ->
@@ -261,7 +259,7 @@ handle_call({has_member, Node}, _From, State) ->
     {reply, Reply, State};
 
 
-handle_call({get_members, ?VER_CURRENT = Mode}, _From, State) ->
+handle_call({get_members, ?VER_CUR = Mode}, _From, State) ->
     Reply = get_members_1(Mode),
     {reply, Reply, State};
 
@@ -526,7 +524,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% @doc Create a RING(routing-table)
 %% @private
--spec(create_1(?VER_CURRENT|?VER_PREV) ->
+-spec(create_1(?VER_CUR|?VER_PREV) ->
              ok | {error, any()}).
 create_1(Ver) ->
     case leo_redundant_manager_table_member:find_all(?member_table(Ver)) of
@@ -546,12 +544,12 @@ create_1(Ver) ->
     end.
 
 %% @private
--spec(create_2(?VER_CURRENT|?VER_PREV, list()) ->
+-spec(create_2(?VER_CUR|?VER_PREV, list()) ->
              ok | {ok, list()}).
 create_2(Ver, Members) ->
     create_2(Ver, Members, []).
 
--spec(create_2(?VER_CURRENT|?VER_PREV, list(), list()) ->
+-spec(create_2(?VER_CUR|?VER_PREV, list(), list()) ->
              ok | {ok, list()}).
 create_2(Ver,[], Acc) ->
     create_3(Ver, Acc);
@@ -581,7 +579,7 @@ create_2( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
     end.
 
 %% @private
--spec(create_3(?VER_CURRENT|?VER_PREV, list()) ->
+-spec(create_3(?VER_CUR|?VER_PREV, list()) ->
              ok | {ok, list()}).
 create_3(_, []) ->
     ok;
@@ -679,7 +677,7 @@ detach_2(TblInfo, Member) ->
 
 %% @doc Retrieve members
 %% @private
-get_members_1(?VER_CURRENT) ->
+get_members_1(?VER_CUR) ->
     case leo_redundant_manager_table_member:find_all() of
         {ok, Members} ->
             {ok, Members};
@@ -721,7 +719,7 @@ dump_ring_tabs() ->
     File_2 = LogDir ++ ?DUMP_FILE_RING_PREV ++ integer_to_list(leo_date:now()),
 
     Res0 = leo_redundant_manager_chash:export(
-             leo_redundant_manager_api:table_info(?VER_CURRENT), File_1),
+             leo_redundant_manager_api:table_info(?VER_CUR), File_1),
     Res1 = leo_redundant_manager_chash:export(
              leo_redundant_manager_api:table_info(?VER_PREV), File_2),
     {Res0, Res1}.

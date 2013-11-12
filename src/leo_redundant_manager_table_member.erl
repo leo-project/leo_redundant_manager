@@ -420,10 +420,9 @@ replace(DBType, Table, OldMembers, NewMembers) ->
     lists:foreach(fun(Item) ->
                           delete(DBType, Table, Item#member.node)
                   end, OldMembers),
-    lists:foreach(
-      fun(Item) ->
-              insert(DBType, Table, {Item#member.node, Item})
-      end, NewMembers),
+    lists:foreach(fun(Item) ->
+                          insert(DBType, Table, {Item#member.node, Item})
+                  end, NewMembers),
     ok.
 
 

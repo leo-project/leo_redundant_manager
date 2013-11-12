@@ -33,7 +33,7 @@
 -export([create_ring_current/1, create_ring_current/2,
          create_ring_prev/1, create_ring_prev/2,
          lookup/2, insert/2, delete/2, first/1, last/1, prev/2, next/2,
-         delete_all_objects/1, size/1, tab2list/1]).
+         delete_all/1, size/1, tab2list/1]).
 
 -type(mnesia_copies() :: disc_copies | ram_copies).
 
@@ -152,10 +152,20 @@ next({ets, Table}, VNodeId) ->
 
 %% @doc Remove all objects from the table.
 %%
-delete_all_objects({mnesia, Table}) ->
-    mnesia:ets(fun ets:delete_all_objects/1, [Table]);
-delete_all_objects({ets, Table}) ->
-    ets:delete_all_objects(Table).
+delete_all({mnesia, Table}) ->
+    case mnesia:ets(fun ets:delete_all_objects/1, [Table]) of
+        true ->
+            ok;
+        Error ->
+            Error
+    end;
+delete_all({ets, Table}) ->
+    case ets:delete_all_objects(Table) of
+        true ->
+            ok;
+        Error ->
+            Error
+    end.
 
 
 %% @doc Retrieve total of records.

@@ -80,6 +80,7 @@
 -define(RING_WORKER_POOL_BUF,  0).
 -endif.
 
+
 %% Checksum
 -define(CHECKSUM_RING,   'ring').
 -define(CHECKSUM_MEMBER, 'member').
@@ -134,17 +135,17 @@
 
 %% Version
 %%
--define(VER_CURRENT, 'cur' ).
--define(VER_PREV,    'prev').
+-define(VER_CUR,  'cur' ).
+-define(VER_PREV, 'prev').
 -define(member_table(_VER), case _VER of
-                                ?VER_CURRENT -> ?MEMBER_TBL_CUR;
-                                ?VER_PREV    -> ?MEMBER_TBL_PREV;
+                                ?VER_CUR  -> ?MEMBER_TBL_CUR;
+                                ?VER_PREV -> ?MEMBER_TBL_PREV;
                                 _ -> undefind
                             end).
 -define(ring_table(_Target),case _Target of
-                                ?SYNC_MODE_CUR_RING  ->
-                                    leo_redundant_manager_api:table_info(?VER_CURRENT);
-                                ?SYNC_MODE_PREV_RING ->
+                                ?SYNC_TARGET_RING_CUR  ->
+                                    leo_redundant_manager_api:table_info(?VER_CUR);
+                                ?SYNC_TARGET_RING_PREV ->
                                     leo_redundant_manager_api:table_info(?VER_PREV);
                                 _ ->
                                     undefind
@@ -152,14 +153,15 @@
 
 %% Synchronization
 %%
--define(SYNC_MODE_BOTH,      'both_rings').
--define(SYNC_MODE_MEMBERS,   'members').
--define(SYNC_MODE_CUR_RING,  'ring_cur').
--define(SYNC_MODE_PREV_RING, 'ring_prev').
-
--type(sync_mode() :: ?SYNC_MODE_BOTH | ?SYNC_MODE_MEMBERS |
-                     ?SYNC_MODE_CUR_RING | ?SYNC_MODE_PREV_RING).
-
+%% Synchronous target
+-define(SYNC_TARGET_BOTH,      'both').
+-define(SYNC_TARGET_RING_CUR,  'ring_cur').
+-define(SYNC_TARGET_RING_PREV, 'ring_prev').
+-define(SYNC_TARGET_MEMBER,    'member').
+-type(sync_target() :: ?SYNC_TARGET_BOTH |
+                       ?SYNC_TARGET_RING_CUR  |
+                       ?SYNC_TARGET_RING_PREV |
+                       ?SYNC_TARGET_MEMBER).
 
 %% Server Type
 %%
@@ -194,7 +196,7 @@
         }).
 
 -record(sync_info, {
-          target            :: ?VER_CURRENT | ?VER_PREV,
+          target            :: ?VER_CUR | ?VER_PREV,
           org_checksum = 0  :: pos_integer(),    %% original checksum
           cur_checksum = 0  :: pos_integer()     %% current chechsum
          }).

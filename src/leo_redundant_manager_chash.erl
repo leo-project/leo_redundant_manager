@@ -136,7 +136,7 @@ rebalance_1(ServerRef, RebalanceInfo, RingSize, AddrId, Acc) ->
 
     {ok, #redundancies{nodes = PrevNodes}} =
         leo_redundant_manager_worker:redundancies(
-          ServerRef, ?ring_table(?SYNC_MODE_PREV_RING), AddrId, MembersPrev),
+          ServerRef, ?ring_table(?SYNC_TARGET_RING_PREV), AddrId, MembersPrev),
 
     case lists:foldl(
              fun(#redundant_node{node = N0}, Acc0) ->
@@ -152,7 +152,6 @@ rebalance_1(ServerRef, RebalanceInfo, RingSize, AddrId, Acc) ->
             rebalance_1(ServerRef, RebalanceInfo, RingSize - 1, VNodeIdTo + 1, Acc);
         DestNodeList ->
             %% set one or plural target node(s)
-            %% ?debugVal({lists:subtract(CurNodes, PrevNodes), DestNodeList}),
             SrcNode = active_node(MembersCur, PrevNodes),
             NewAcc  = rebalance_1_1(VNodeIdTo, SrcNode, DestNodeList, Acc),
             rebalance_1(ServerRef, RebalanceInfo, RingSize - 1, VNodeIdTo + 1, NewAcc)
@@ -219,7 +218,7 @@ import(Table, FileName) ->
         true ->
             ok;
         false ->
-            true = leo_redundant_manager_table_ring:delete_all_objects(Table),
+            true = leo_redundant_manager_table_ring:delete_all(Table),
             case file:consult(FileName) of
                 {ok, List} ->
                     lists:foreach(fun({VNodeId, Node}) ->
