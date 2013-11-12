@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012 Rakuten, Inc.
+%% Copyright (c) 2012-2013 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -30,13 +30,13 @@
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([create/0, create/1, create/2,
+-export([create/0, create/1, create/2, create/3,
          set_options/1, get_options/0,
          attach/1, attach/2, attach/3, attach/4,
          reserve/3, reserve/5, detach/1, detach/2,
          suspend/1, suspend/2, append/3,
-         checksum/1, synchronize/2, synchronize/3, adjust/1,
-         get_ring/0, dump/1
+         checksum/1, synchronize/2, synchronize/3,
+         adjust/1, get_ring/0, get_ring/1, dump/1
         ]).
 
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
@@ -48,7 +48,7 @@
          get_members/0, get_members/1, get_member_by_node/1, get_members_count/0,
          get_members_by_status/1,
          update_member/1, update_members/1, update_member_by_node/3,
-         delete_member_by_node/1, get_ring/1, is_alive/0, table_info/1
+         delete_member_by_node/1, is_alive/0, table_info/1
         ]).
 
 -export([get_server_id/0, get_server_id/1]).
@@ -63,35 +63,67 @@
 -spec(create() ->
              {ok, list(), list()} | {error, any()}).
 create() ->
-    case leo_redundant_manager:create() of
-        {ok, Members} ->
-            {ok, Chksums} = checksum(?CHECKSUM_RING),
-            {CurRingHash, _PrevRingHash} = Chksums,
-            ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, CurRingHash),
-
-            {ok, Chksum0} = checksum(?CHECKSUM_MEMBER),
-            {ok, Members, [{?CHECKSUM_RING,   Chksums},
-                           {?CHECKSUM_MEMBER, Chksum0}]};
+    case create(?VER_CUR) of
+        {ok, Members, HashValues} ->
+            case create(?VER_PREV) of
+                {ok,_,_} ->
+                    {ok, Members, HashValues};
+                Error ->
+                    Error
+            end;
         Error ->
             Error
     end.
 
--spec(create(list()) ->
+-spec(create(?VER_CUR|?VER_PREV) ->
              {ok, list(), list()} | {error, any()}).
-create([]) ->
-    create();
-create([#member{node = Node, clock = Clock}|T]) ->
-    ok = attach(Node, Clock),
-    create(T).
+create(Ver) when Ver == ?VER_CUR;
+                 Ver == ?VER_PREV ->
+    case leo_redundant_manager:create(Ver) of
+        ok ->
+            case leo_redundant_manager_table_member:find_all(?member_table(Ver)) of
+                {ok, Members} ->
+                    {ok, HashRing} = checksum(?CHECKSUM_RING),
+                    ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, erlang:element(1, HashRing)),
+                    {ok, HashMember} = checksum(?CHECKSUM_MEMBER),
+                    {ok, Members, [{?CHECKSUM_RING,   HashRing},
+                                   {?CHECKSUM_MEMBER, HashMember}]};
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end;
+create(_) ->
+    {error, invlid_version}.
 
--spec(create(list(), list()) ->
+
+-spec(create(?VER_CUR|?VER_PREV, list()) ->
              {ok, list(), list()} | {error, any()}).
-create([], Options) ->
+create(Ver, Members) ->
+    create(Ver, Members, []).
+
+-spec(create(?VER_CUR|?VER_PREV, list(), list()) ->
+             {ok, list(), list()} | {error, any()}).
+create(Ver, [], []) ->
+    create(Ver);
+create(Ver, [], Options) ->
     ok = set_options(Options),
-    create();
-create([#member{node = Node, clock = Clock}|T], Options) ->
-    ok = attach(Node, Clock),
-    create(T, Options).
+    create(Ver);
+create(Ver, [#member{node = Node} = Member|T], Options) when Ver == ?VER_CUR;
+                                                             Ver == ?VER_PREV ->
+    %% Add a member as "attached node" into member-table
+    case leo_redundant_manager_table_member:lookup(Node) of
+        not_found ->
+            Prop = {Node, Member#member{state = ?STATE_ATTACHED}},
+            leo_redundant_manager_table_member:insert(Prop);
+        _ ->
+            void
+    end,
+    create(Ver, T, Options);
+create(_,_,_) ->
+    {error, invalid_version}.
+
 
 
 %% @doc set routing-table's options.
@@ -188,16 +220,15 @@ suspend(Node, Clock) ->
 
 %% @doc append a node into the ring.
 %%
--spec(append(?VER_CURRENT | ?VER_PREV, integer(), atom()) ->
-             ok).
-append(?VER_CURRENT, VNodeId, Node) ->
-    TblInfo = table_info(?VER_CURRENT),
+-spec(append(?VER_CUR | ?VER_PREV, integer(), atom()) ->
+             ok | {error, invalid_version}).
+append(Ver, VNodeId, Node) when Ver == ?VER_CUR;
+                                Ver == ?VER_PREV ->
+    TblInfo = table_info(Ver),
     ok = leo_redundant_manager_chash:append(TblInfo, VNodeId, Node),
     ok;
-append(?VER_PREV,    VNodeId, Node) ->
-    TblInfo = table_info(?VER_PREV),
-    ok = leo_redundant_manager_chash:append(TblInfo, VNodeId, Node),
-    ok.
+append(_,_,_) ->
+    {error, invalid_version}.
 
 
 %% @doc get routing_table's checksum.
@@ -207,75 +238,118 @@ append(?VER_PREV,    VNodeId, Node) ->
 checksum(?CHECKSUM_MEMBER = Type) ->
     leo_redundant_manager:checksum(Type);
 checksum(?CHECKSUM_RING) ->
-    TblInfo0 = table_info(?VER_CURRENT),
+    TblInfo0 = table_info(?VER_CUR),
     TblInfo1 = table_info(?VER_PREV),
 
     {ok, Chksum0} = leo_redundant_manager_chash:checksum(TblInfo0),
     {ok, Chksum1} = leo_redundant_manager_chash:checksum(TblInfo1),
     {ok, {Chksum0, Chksum1}};
 checksum(_) ->
-    {error, badarg}.
+    {error, invalid_type}.
 
 
 %% @doc synchronize member-list and routing-table.
 %%
--spec(synchronize(sync_mode() | list(), list(), list()) ->
-             {ok, list(), list()} | {error, any()}).
-synchronize(?SYNC_MODE_BOTH, Members, Options) ->
-    case leo_redundant_manager:update_members(Members) of
+-spec(synchronize(sync_target(), list(tuple()), list(tuple())) ->
+             {ok, list(tuple())} | {error, any()}).
+synchronize(?SYNC_TARGET_BOTH, SyncData, Conf) ->
+    %% set configurations
+    ok = set_options(Conf),
+
+    %% Synchronize current and previous members
+    %%   Then Synchronize ring
+    case synchronize(?SYNC_TARGET_MEMBER, SyncData) of
+        {ok, ChecksumMembers} ->
+            case synchronize_1(?SYNC_TARGET_RING_CUR,  ?VER_CUR) of
+                ok ->
+                    case synchronize_1(?SYNC_TARGET_RING_PREV, ?VER_PREV) of
+                        ok ->
+                            {ok, ChecksumRing} = checksum(?CHECKSUM_RING),
+                            {ok, [{?CHECKSUM_MEMBER, ChecksumMembers},
+                                  {?CHECKSUM_RING,   ChecksumRing}
+                                 ]};
+                        Error ->
+                            Error
+                    end;
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end.
+
+-spec(synchronize(sync_target(), list(tuple())) ->
+             {ok, list(tuple())} | {error, any()}).
+synchronize(?SYNC_TARGET_MEMBER = SyncTarget, SyncData) ->
+    case synchronize_1(SyncTarget, ?VER_CUR,  SyncData) of
         ok ->
-            create(Members, Options);
+            case synchronize_1(SyncTarget, ?VER_PREV, SyncData) of
+                ok ->
+                    checksum(?CHECKSUM_MEMBER);
+                Error ->
+                    Error
+            end;
         Error ->
             Error
     end;
 
-synchronize([],_Ring0,_Acc) ->
-    checksum(?CHECKSUM_RING);
+synchronize(Target, SyncData) when ?SYNC_TARGET_RING_CUR  == Target;
+                                   ?SYNC_TARGET_RING_PREV == Target ->
+    Ver = case Target of
+              ?SYNC_TARGET_RING_CUR  -> ?VER_CUR;
+              ?SYNC_TARGET_RING_PREV -> ?VER_PREV
+          end,
+    {ok, ChecksumMembers} = synchronize(?SYNC_TARGET_MEMBER, SyncData),
 
-synchronize([RingVer|T], Ring0, Acc) ->
-    Ret = synchronize(RingVer, Ring0),
-    synchronize(T, Ring0, [Ret|Acc]).
-
-
--spec(synchronize(sync_mode(), list()) ->
-             {ok, integer()} | {error, any()}).
-synchronize(?SYNC_MODE_MEMBERS, Members) ->
-    case leo_redundant_manager:update_members(Members) of
+    case synchronize_1(Target, Ver) of
         ok ->
-            leo_redundant_manager:checksum(?CHECKSUM_MEMBER);
+            {ok, ChecksumRing} = checksum(?CHECKSUM_RING),
+            {ok, [{?CHECKSUM_MEMBER, ChecksumMembers},
+                  {?CHECKSUM_RING,   ChecksumRing}
+                 ]};
         Error ->
             Error
     end;
+synchronize(_,_) ->
+    {error, invalid_target}.
 
-synchronize(?SYNC_MODE_CUR_RING = Ver, Ring0) ->
-    {ok, Ring1} = get_ring(Ver),
-    TblInfo = table_info(?VER_CURRENT),
+%% @private
+synchronize_1(?SYNC_TARGET_MEMBER, Ver, SyncData) ->
+    case leo_misc:get_value(Ver, SyncData, []) of
+        [] ->
+            ok;
+        NewMembers ->
+            Table = ?member_table(Ver),
+            case leo_redundant_manager_table_member:find_all(Table) of
+                {ok, OldMembers} ->
+                    case leo_redundant_manager_table_member:replace(
+                           Table, OldMembers, NewMembers) of
+                        ok ->
+                            ok;
+                        Error ->
+                            Error
+                    end;
+                Error ->
+                    Error
+            end
+    end.
 
-    case leo_redundant_manager:synchronize(TblInfo, Ring0, Ring1) of
+%% @private
+synchronize_1(Target, Ver) when Target == ?SYNC_TARGET_RING_CUR;
+                                Target == ?SYNC_TARGET_RING_PREV ->
+    case leo_redundant_manager_table_ring:delete_all(table_info(Ver)) of
         ok ->
-            {ok, {CurRingHash, _PrevRingHash}} = checksum(?CHECKSUM_RING),
-            ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, CurRingHash),
-            checksum(?CHECKSUM_RING);
+            case create(Ver) of
+                {ok,_,_} ->
+                    ok;
+                Error ->
+                    Error
+            end;
         Error ->
             Error
     end;
-
-synchronize(?SYNC_MODE_PREV_RING = Ver, Ring0) ->
-    {ok, Ring1} = get_ring(Ver),
-    TblInfo = table_info(?VER_PREV),
-
-    case leo_redundant_manager:synchronize(TblInfo, Ring0, Ring1) of
-        ok ->
-            checksum(?CHECKSUM_RING);
-        Error ->
-            Error
-    end;
-
-synchronize(Ver, Ring0) when is_list(Ver) ->
-    synchronize(Ver, Ring0, []);
-
-synchronize(_, _) ->
-    {error, badarg}.
+synchronize_1(_,_) ->
+    {error, invalid_target}.
 
 
 %% @doc Adjust current vnode to previous vnode.
@@ -283,7 +357,7 @@ synchronize(_, _) ->
 -spec(adjust(integer()) ->
              ok | {error, any()}).
 adjust(VNodeId) ->
-    TblInfo0 = table_info(?VER_CURRENT),
+    TblInfo0 = table_info(?VER_CUR),
     TblInfo1 = table_info(?VER_PREV),
 
     case leo_redundant_manager:adjust(TblInfo0, TblInfo1, VNodeId) of
@@ -294,12 +368,23 @@ adjust(VNodeId) ->
     end.
 
 
-%% @doc Retrieve Current Ring
+%% @doc Retrieve Ring
 %%
 -spec(get_ring() ->
              {ok, list()} | {error, any()}).
 get_ring() ->
-    {ok, ets:tab2list(?CUR_RING_TABLE)}.
+    {ok, ets:tab2list(?RING_TBL_CUR)}.
+
+-spec(get_ring(?SYNC_TARGET_RING_CUR | ?SYNC_TARGET_RING_PREV) ->
+             {ok, list()}).
+get_ring(?SYNC_TARGET_RING_CUR) ->
+    TblInfo = table_info(?VER_CUR),
+    Ring = leo_redundant_manager_table_ring:tab2list(TblInfo),
+    {ok, Ring};
+get_ring(?SYNC_TARGET_RING_PREV) ->
+    TblInfo = table_info(?VER_PREV),
+    Ring = leo_redundant_manager_table_ring:tab2list(TblInfo),
+    {ok, Ring}.
 
 
 %% @doc Dump table-records.
@@ -384,7 +469,7 @@ get_redundancies_by_addr_id_1(TblInfo, AddrId, Options) ->
 -spec(range_of_vnodes(atom()) ->
              {ok, list()} | {error, any()}).
 range_of_vnodes(ToVNodeId) ->
-    TblInfo = table_info(?VER_CURRENT),
+    TblInfo = table_info(?VER_CUR),
     leo_redundant_manager_chash:range_of_vnodes(TblInfo, ToVNodeId).
 
 
@@ -393,23 +478,53 @@ range_of_vnodes(ToVNodeId) ->
 -spec(rebalance() ->
              {ok, list()} | {error, any()}).
 rebalance() ->
-    ServerType = leo_misc:get_env(?APP, ?PROP_SERVER_TYPE),
-    rebalance(ServerType).
+    case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
+        {ok, MembersCur} ->
+            case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
+                {ok, MembersPrev} ->
+                    rebalance_1(#rebalance{tbl_cur  = table_info(?VER_CUR),
+                                           tbl_prev = table_info(?VER_PREV),
+                                           members_cur  = MembersCur,
+                                           members_prev = MembersPrev});
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end.
 
-rebalance(?SERVER_MANAGER) ->
-    Ret = leo_redundant_manager_table_member:find_all(),
-    rebalance_1(Ret);
-rebalance(_) ->
-    Ret = leo_redundant_manager_table_member:find_all(),
-    rebalance_1(Ret).
 
-rebalance_1({ok, Members}) ->
-    TblInfo0 = table_info(?VER_CURRENT),
-    TblInfo1 = table_info(?VER_PREV),
+%% @private
+rebalance_1(RebalanceInfo) ->
+    %% Remove all previous members,
+    %% Then insert new members from current members
+    case leo_redundant_manager_table_member:delete_all(?MEMBER_TBL_PREV) of
+        ok ->
+            case rebalance_1_1(RebalanceInfo#rebalance.members_cur) of
+                ok ->
+                    leo_redundant_manager_chash:rebalance(RebalanceInfo);
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end.
 
-    leo_redundant_manager_chash:rebalance({TblInfo0, TblInfo1}, Members);
-rebalance_1(Error) ->
-    Error.
+%% @private
+rebalance_1_1([]) ->
+    ok;
+rebalance_1_1([#member{state = ?STATE_ATTACHED}|Rest]) ->
+    rebalance_1_1(Rest);
+rebalance_1_1([#member{state = ?STATE_RESERVED}|Rest]) ->
+    rebalance_1_1(Rest);
+rebalance_1_1([Member|Rest]) ->
+    #member{node = Node} = Member,
+    case leo_redundant_manager_table_member:insert(?MEMBER_TBL_PREV, {Node, Member}) of
+        ok ->
+            rebalance_1_1(Rest);
+        Error ->
+            Error
+    end.
 
 
 %%--------------------------------------------------------------------
@@ -430,8 +545,11 @@ has_member(Node) ->
 has_charge_of_node(Key) ->
     case get_redundancies_by_key(put, Key) of
         {ok, #redundancies{nodes = Nodes}} ->
-            lists:foldl(fun({N, _}, false) -> N == erlang:node();
-                           ({_, _}, true ) -> true
+            lists:foldl(fun(#redundant_node{node = N,
+                                            can_read_repair = CanReadRepair}, false) ->
+                                (N == erlang:node() andalso CanReadRepair == true);
+                           (_, true ) ->
+                                true
                         end, false, Nodes);
         _ ->
             false
@@ -441,11 +559,11 @@ has_charge_of_node(Key) ->
 %% @doc get members.
 %%
 get_members() ->
-    get_members(?VER_CURRENT).
+    get_members(?VER_CUR).
 
--spec(get_members(?VER_CURRENT | ?VER_PREV) ->
+-spec(get_members(?VER_CUR | ?VER_PREV) ->
              {ok, list()} | {error, any()}).
-get_members(?VER_CURRENT = Ver) ->
+get_members(?VER_CUR = Ver) ->
     leo_redundant_manager:get_members(Ver);
 
 get_members(?VER_PREV = Ver) ->
@@ -465,7 +583,7 @@ get_member_by_node(Node) ->
 -spec(get_members_count() ->
              integer() | {error, any()}).
 get_members_count() ->
-    leo_redundant_manager_table_member:size().
+    leo_redundant_manager_table_member:table_size().
 
 
 %% @doc get members by status
@@ -518,20 +636,6 @@ delete_member_by_node(Node) ->
     leo_redundant_manager:delete_member_by_node(Node).
 
 
-%% @doc Retrieve ring by version.
-%%
--spec(get_ring(?SYNC_MODE_CUR_RING | ?SYNC_MODE_PREV_RING) ->
-             {ok, list()}).
-get_ring(?SYNC_MODE_CUR_RING) ->
-    TblInfo = table_info(?VER_CURRENT),
-    Ring = leo_redundant_manager_table_ring:tab2list(TblInfo),
-    {ok, Ring};
-get_ring(?SYNC_MODE_PREV_RING) ->
-    TblInfo = table_info(?VER_PREV),
-    Ring = leo_redundant_manager_table_ring:tab2list(TblInfo),
-    {ok, Ring}.
-
-
 %% @doc stop membership.
 %%
 is_alive() ->
@@ -540,28 +644,26 @@ is_alive() ->
 
 %% @doc Retrieve table-info by version.
 %%
--spec(table_info(?VER_CURRENT | ?VER_PREV) ->
+-spec(table_info(?VER_CUR | ?VER_PREV) ->
              ring_table_info()).
-
-
 -ifdef(TEST).
-table_info(?VER_CURRENT) -> {ets, ?CUR_RING_TABLE };
-table_info(?VER_PREV   ) -> {ets, ?PREV_RING_TABLE}.
+table_info(?VER_CUR)  -> {ets, ?RING_TBL_CUR };
+table_info(?VER_PREV) -> {ets, ?RING_TBL_PREV}.
 -else.
-table_info(?VER_CURRENT) ->
+table_info(?VER_CUR) ->
     case leo_misc:get_env(?APP, ?PROP_SERVER_TYPE) of
         {ok, ?SERVER_MANAGER} ->
-            {mnesia, ?CUR_RING_TABLE};
+            {mnesia, ?RING_TBL_CUR};
         _ ->
-            {ets, ?CUR_RING_TABLE}
+            {ets, ?RING_TBL_CUR}
     end;
 
 table_info(?VER_PREV) ->
     case leo_misc:get_env(?APP, ?PROP_SERVER_TYPE) of
         {ok, ?SERVER_MANAGER} ->
-            {mnesia, ?PREV_RING_TABLE};
+            {mnesia, ?RING_TBL_PREV};
         _ ->
-            {ets, ?PREV_RING_TABLE}
+            {ets, ?RING_TBL_PREV}
     end.
 -endif.
 
@@ -583,9 +685,9 @@ get_server_id(AddrId) ->
 %% @private
 -spec(ring_table(method()) ->
              ring_table_info()).
-ring_table(default) -> table_info(?VER_CURRENT);
-ring_table(put)     -> table_info(?VER_CURRENT);
+ring_table(default) -> table_info(?VER_CUR);
+ring_table(put)     -> table_info(?VER_CUR);
 ring_table(get)     -> table_info(?VER_PREV);
-ring_table(delete)  -> table_info(?VER_CURRENT);
+ring_table(delete)  -> table_info(?VER_CUR);
 ring_table(head)    -> table_info(?VER_PREV).
 

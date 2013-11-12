@@ -23,14 +23,16 @@
 {application, leo_redundant_manager,
   [
     {description, "Leo Redundant Manaeger"},
-    {vsn, "1.0.4"},
+    {vsn, "1.2.0"},
     {id, "leo_redundant_manager"},
     {registered,   []},
     {applications, [kernel, stdlib, crypto]},
     {mod, {leo_redundant_manager_app, []}},
     {env, [{profile, false},
            {notify_mf, [leo_manager_api, notify]},
-           {sync_mf,   [leo_manager_api, synchronize]}
+           {sync_mf,   [leo_manager_api, synchronize]},
+           {log_dir_member, "./log/ring/"},
+           {log_dir_ring,   "./log/ring/"}
           ]}
   ]
 }.

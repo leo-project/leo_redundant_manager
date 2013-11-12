@@ -38,9 +38,10 @@ redundant_manager_test_() ->
 setup() ->
     application:start(crypto),
 
-    catch ets:delete('leo_members'),
-    catch ets:delete('leo_ring_cur'),
-    catch ets:delete('leo_ring_prv'),
+    catch ets:delete_all_objects(?MEMBER_TBL_CUR),
+    catch ets:delete_all_objects(?MEMBER_TBL_PREV),
+    catch ets:delete_all_objects('leo_ring_cur'),
+    catch ets:delete_all_objects('leo_ring_prv'),
 
     leo_misc:init_env(),
     leo_misc:set_env(leo_redundant_manager, 'server_type', 'gateway'),
@@ -52,12 +53,13 @@ setup() ->
     leo_redundant_manager_api:attach('node_2@127.0.0.1'),
     leo_redundant_manager_api:attach('node_3@127.0.0.1'),
     leo_redundant_manager_api:attach('node_4@127.0.0.1'),
-    leo_redundant_manager_api:create(),
-    timer:sleep(1500),
+    leo_redundant_manager_api:create(?VER_CUR),
+    leo_redundant_manager_api:create(?VER_PREV),
+    timer:sleep(1000),
     Pid.
 
 teardown(Pid) ->
-    timer:sleep(200),
+    timer:sleep(100),
     exit(Pid, normal),
     application:stop(crypto),
     ok.
@@ -70,7 +72,6 @@ suite_(_) ->
     {ok, #redundancies{vnode_id_from = 0,
                        vnode_id_to   = VNodeIdTo2,
                        nodes = N0}} = leo_redundant_manager_worker:first(ServerRef, 'leo_ring_prv'),
-
     {ok, #redundancies{nodes = N1}} = leo_redundant_manager_worker:lookup(
                                         ServerRef, 'leo_ring_cur', 0),
     {ok, #redundancies{nodes = N2}} = leo_redundant_manager_worker:lookup(
@@ -99,7 +100,7 @@ suite_(_) ->
     ?assertEqual(3, length(N6)),
     ?assertEqual(3, length(N7)),
 
-    Seq  = lists:seq(1, 10000),
+    Seq = lists:seq(1, 10000),
     St = leo_date:clock(),
     lists:foreach(fun(_) ->
                           AddrId = leo_redundant_manager_chash:vnode_id(128, crypto:rand_bytes(64)),

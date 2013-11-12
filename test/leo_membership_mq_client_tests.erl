@@ -177,7 +177,7 @@ prepare() ->
                                       state = ?STATE_STOP}]}
                 end),
     meck:expect(leo_redundant_manager_table_member, create_members,
-                fun() ->
+                fun(_) ->
                         ok
                 end),
 

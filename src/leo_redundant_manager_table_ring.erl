@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012 Rakuten, Inc.
+%% Copyright (c) 2012-2013 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -33,7 +33,7 @@
 -export([create_ring_current/1, create_ring_current/2,
          create_ring_prev/1, create_ring_prev/2,
          lookup/2, insert/2, delete/2, first/1, last/1, prev/2, next/2,
-         delete_all_objects/1, size/1, tab2list/1]).
+         delete_all/1, size/1, tab2list/1]).
 
 -type(mnesia_copies() :: disc_copies | ram_copies).
 
@@ -45,7 +45,7 @@ create_ring_current(Mode) ->
 
 create_ring_current(Mode, Nodes) ->
     mnesia:create_table(
-      ?CUR_RING_TABLE,
+      ?RING_TBL_CUR,
       [{Mode, Nodes},
        {type, ordered_set},
        {record_name, ring},
@@ -65,7 +65,7 @@ create_ring_prev(Mode) ->
 
 create_ring_prev(Mode, Nodes) ->
     mnesia:create_table(
-      ?PREV_RING_TABLE,
+      ?RING_TBL_PREV,
       [{Mode, Nodes},
        {type, ordered_set},
        {record_name, ring},
@@ -152,10 +152,20 @@ next({ets, Table}, VNodeId) ->
 
 %% @doc Remove all objects from the table.
 %%
-delete_all_objects({mnesia, Table}) ->
-    mnesia:ets(fun ets:delete_all_objects/1, [Table]);
-delete_all_objects({ets, Table}) ->
-    ets:delete_all_objects(Table).
+delete_all({mnesia, Table}) ->
+    case mnesia:ets(fun ets:delete_all_objects/1, [Table]) of
+        true ->
+            ok;
+        Error ->
+            Error
+    end;
+delete_all({ets, Table}) ->
+    case ets:delete_all_objects(Table) of
+        true ->
+            ok;
+        Error ->
+            Error
+    end.
 
 
 %% @doc Retrieve total of records.

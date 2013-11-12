@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012
+%% Copyright (c) 2012-2013 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -28,9 +28,10 @@
 
 
 %% Error
--define(ERROR_COULD_NOT_GET_RING,     "could not get ring").
--define(ERROR_COULD_NOT_GET_CHECKSUM, "could not get checksum").
--define(ERROR_COULD_NOT_UPDATE_RING,  "could not update ring").
+-define(ERROR_COULD_NOT_GET_RING,         "Could not get ring").
+-define(ERROR_COULD_NOT_GET_CHECKSUM,     "Could not get checksum").
+-define(ERROR_COULD_NOT_UPDATE_RING,      "Could not update ring").
+-define(ERROR_COULD_NOT_GET_REDUNDANCIES, "Could not get redundancies").
 
 -define(ERR_TYPE_INCONSISTENT_HASH,   inconsistent_hash).
 -define(ERR_TYPE_NODE_DOWN,           nodedown).
@@ -48,17 +49,25 @@
 -define(DEF_MIN_REPLICAS, 1).
 -define(DEF_MAX_REPLICAS, 8).
 
+-define(DB_ETS,    'ets').
+-define(DB_MNESIA, 'mnesia').
+
+%% Member tables
+-define(MEMBER_TBL_CUR,  'leo_members_cur').
+-define(MEMBER_TBL_PREV, 'leo_members_prev').
+-type(member_table() :: ?MEMBER_TBL_CUR | ?MEMBER_TBL_PREV).
+
 
 %% Ring related
 -define(TYPE_RING_TABLE_ETS,    'ets').
 -define(TYPE_RING_TABLE_MNESIA, 'mnesia').
--define(CUR_RING_TABLE,         'leo_ring_cur').
--define(PREV_RING_TABLE,        'leo_ring_prv').
+-define(RING_TBL_CUR,           'leo_ring_cur').
+-define(RING_TBL_PREV,          'leo_ring_prv').
 -define(NODE_ALIAS_PREFIX,      "node_").
 
 -type(ring_table_type() :: ?TYPE_RING_TABLE_ETS | ?TYPE_RING_TABLE_MNESIA).
--type(ring_table_info() :: {ring_table_type(), ?CUR_RING_TABLE} |
-                           {ring_table_type(), ?PREV_RING_TABLE}).
+-type(ring_table_info() :: {ring_table_type(), ?RING_TBL_CUR} |
+                           {ring_table_type(), ?RING_TBL_PREV}).
 
 -define(WORKER_POOL_NAME_PREFIX, "leo_redundant_manager_worker_").
 
@@ -70,6 +79,7 @@
 -define(RING_WORKER_POOL_SIZE, 8).
 -define(RING_WORKER_POOL_BUF,  0).
 -endif.
+
 
 %% Checksum
 -define(CHECKSUM_RING,   'ring').
@@ -86,7 +96,7 @@
 -define(DEF_OPT_D, 1).
 -define(DEF_OPT_BIT_OF_RING, ?MD5).
 -ifdef(TEST).
--define(DEF_NUMBER_OF_VNODES, 168).
+-define(DEF_NUMBER_OF_VNODES, 32).
 -else.
 -define(DEF_NUMBER_OF_VNODES, 168).
 -endif.
@@ -94,7 +104,6 @@
 
 %% Node State
 %%
--define(STATE_IDLING,    'idling').
 -define(STATE_ATTACHED,  'attached').
 -define(STATE_DETACHED,  'detached').
 -define(STATE_SUSPEND,   'suspend').
@@ -103,8 +112,7 @@
 -define(STATE_RESTARTED, 'restarted').
 -define(STATE_RESERVED,  'reserved').
 
--type(node_state() :: ?STATE_IDLING   |
-                      ?STATE_ATTACHED |
+-type(node_state() :: ?STATE_ATTACHED |
                       ?STATE_DETACHED |
                       ?STATE_SUSPEND  |
                       ?STATE_RUNNING  |
@@ -127,20 +135,33 @@
 
 %% Version
 %%
--define(VER_CURRENT, 'cur' ).
--define(VER_PREV,    'prev').
-
+-define(VER_CUR,  'cur' ).
+-define(VER_PREV, 'prev').
+-define(member_table(_VER), case _VER of
+                                ?VER_CUR  -> ?MEMBER_TBL_CUR;
+                                ?VER_PREV -> ?MEMBER_TBL_PREV;
+                                _ -> undefind
+                            end).
+-define(ring_table(_Target),case _Target of
+                                ?SYNC_TARGET_RING_CUR  ->
+                                    leo_redundant_manager_api:table_info(?VER_CUR);
+                                ?SYNC_TARGET_RING_PREV ->
+                                    leo_redundant_manager_api:table_info(?VER_PREV);
+                                _ ->
+                                    undefind
+                            end).
 
 %% Synchronization
 %%
--define(SYNC_MODE_BOTH,      'both_rings').
--define(SYNC_MODE_MEMBERS,   'members').
--define(SYNC_MODE_CUR_RING,  'ring_cur').
--define(SYNC_MODE_PREV_RING, 'ring_prev').
-
--type(sync_mode() :: ?SYNC_MODE_BOTH | ?SYNC_MODE_MEMBERS |
-                     ?SYNC_MODE_CUR_RING | ?SYNC_MODE_PREV_RING).
-
+%% Synchronous target
+-define(SYNC_TARGET_BOTH,      'both').
+-define(SYNC_TARGET_RING_CUR,  'ring_cur').
+-define(SYNC_TARGET_RING_PREV, 'ring_prev').
+-define(SYNC_TARGET_MEMBER,    'member').
+-type(sync_target() :: ?SYNC_TARGET_BOTH |
+                       ?SYNC_TARGET_RING_CUR  |
+                       ?SYNC_TARGET_RING_PREV |
+                       ?SYNC_TARGET_MEMBER).
 
 %% Server Type
 %%
@@ -151,31 +172,54 @@
 
 %% Dump File
 %%
--define(DUMP_FILE_MEMBERS,   "./log/ring/members.dump.").
--define(DUMP_FILE_RING_CUR,  "./log/ring/ring_cur.dump.").
--define(DUMP_FILE_RING_PREV, "./log/ring/ring_prv.dump.").
+-define(DEF_LOG_DIR_MEMBERS,    "./log/ring/").
+-define(DEF_LOG_DIR_RING,       "./log/ring/").
+-define(DUMP_FILE_MEMBERS_CUR,  "members_cur.dump.").
+-define(DUMP_FILE_MEMBERS_PREV, "members_prv.dump.").
+-define(DUMP_FILE_RING_CUR,     "ring_cur.dump.").
+-define(DUMP_FILE_RING_PREV,    "ring_prv.dump.").
 
 
 %% Record
 %%
+-record(member,
+        {node                  :: atom(),        %% actual node-name
+         alias = []            :: string(),      %% node-alias
+         ip = "0.0.0.0"        :: string(),      %% ip-address
+         port  = 13075         :: pos_integer(), %% port-number
+         inet  = 'ipv4'        :: 'ipv4'|'ipv6', %% type of ip
+         clock = 0             :: pos_integer(), %% joined at
+         state = null          :: node_state(),  %% current-status
+         num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
+         grp_level_1 = []      :: string(),      %% Group of level_1
+         grp_level_2 = []      :: string()       %% Group of level_2
+        }).
+
+-record(sync_info, {
+          target            :: ?VER_CUR | ?VER_PREV,
+          org_checksum = 0  :: pos_integer(),    %% original checksum
+          cur_checksum = 0  :: pos_integer()     %% current chechsum
+         }).
+
 -record(vnodeid_nodes, {
-          id = 0            :: pos_integer(),
-          vnode_id_from = 0 :: pos_integer(),
-          vnode_id_to = 0   :: pos_integer(),
-          nodes             :: list(atom())
+          id = 0            :: pos_integer(),    %% id
+          vnode_id_from = 0 :: pos_integer(),    %% vnode-id's from
+          vnode_id_to = 0   :: pos_integer(),    %% vnode-id's to
+          nodes             :: list()            %% list of nodes
          }).
 
 -record(ring_group, {
-          index_from = 0     :: pos_integer(),
-          index_to = 0       :: pos_integer(),
-          vnodeid_nodes_list :: list(#vnodeid_nodes{})
+          index_from = 0     :: pos_integer(),   %% group-index's from
+          index_to = 0       :: pos_integer(),   %% group-index's to
+          vnodeid_nodes_list :: list(#vnodeid_nodes{}) %% list of vnodeid(s)
          }).
 
 -record(ring_info, {
-          checksum = -1      :: integer(),
-          first_vnode_id = 0 :: pos_integer(),
-          last_vnode_id = 0  :: pos_integer(),
-          ring_group_list    :: list(#ring_group{})
+          checksum = -1      :: integer(),       %% Ring's checksum
+          first_vnode_id = 0 :: pos_integer(),   %% start vnode-id
+          last_vnode_id = 0  :: pos_integer(),   %% end vnode-id
+          ring_group_list    :: list(#ring_group{}), %% list of groups
+          members = []       :: list(#member{})  %% cluster-members
          }).
 
 -record(node_state, {
@@ -187,13 +231,19 @@
           error     = 0        :: pos_integer()  %% # of errors
          }).
 
+-record(redundant_node, {
+          node                   :: atom(),      %% node name
+          available       = true :: boolean(),   %% alive/dead
+          can_read_repair = true :: boolean()    %% able to execute read-repair in case of 'Get Operation'
+         }).
+
 -record(redundancies,
         {id = -1               :: pos_integer(), %% ring's address
          vnode_id_from = -1    :: pos_integer(), %% start of vnode_id
          vnode_id_to = -1      :: pos_integer(), %% end   of vnode_id (ex. vnode_id)
          temp_nodes = []       :: list(),        %% tempolary objects of redundant-nodes
          temp_level_2 = []     :: list(),        %% tempolary list of level-2's node
-         nodes = []            :: list(),        %% objects of redundant-nodes
+         nodes = []            :: list(#redundant_node{}), %% objects of redundant-nodes
          n = 0                 :: pos_integer(), %% # of replicas
          r = 0                 :: pos_integer(), %% # of successes of READ
          w = 0                 :: pos_integer(), %% # of successes of WRITE
@@ -208,16 +258,8 @@
          node                  :: atom()
         }).
 
--record(member,
-        {node                  :: atom(),        %% actual node-name
-         alias = []            :: string(),      %% node-alias
-         ip = "0.0.0.0"        :: string(),      %% ip-address
-         port  = 13075         :: pos_integer(), %% port-number
-         inet  = 'ipv4'        :: 'ipv4'|'ipv6', %% type of ip
-         clock = 0             :: pos_integer(), %% joined at
-         state = null          :: atom(),        %% current-status
-         num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
-         grp_level_1 = []      :: string(),      %% Group of level_1
-         grp_level_2 = []      :: string()       %% Group of level_2
-        }).
-
+-record(rebalance, {members_cur  = []  :: list(),
+                    members_prev = []  :: list(),
+                    tbl_cur            :: atom(),
+                    tbl_prev           :: atom()
+                   }).
