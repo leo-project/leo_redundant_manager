@@ -64,46 +64,49 @@ start_link() ->
     after_proc(Res).
 
 start_link(ServerType) ->
-    start_link_sub(ServerType).
+    start_link_1(ServerType).
 
 start_link(ServerType, Managers, MQStoragePath) ->
     start_link(ServerType, Managers, MQStoragePath, []).
 
-start_link(ServerType0, Managers, MQStoragePath, Options) ->
+start_link(ServerType, Managers, MQStoragePath, Conf) ->
     %% initialize
-    Res = start_link_sub(ServerType0),
-    ServerType1 = server_type(ServerType0),
-    ok = leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ServerType1),
+    case start_link_1(ServerType) of
+        {ok, RefSup} ->
+            ServerType_1 = server_type(ServerType),
+            ok = leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ServerType_1),
+            case (Conf == []) of
+                true  -> void;
+                false ->
+                    ok = leo_redundant_manager_api:set_options(Conf)
+            end,
 
-    case (Options == []) of
-        true  -> void;
-        false -> ok = leo_redundant_manager_api:set_options(Options)
-    end,
-
-    %% launch membership
-    Args = [ServerType1, Managers],
-    ChildSpec = {leo_membership, {leo_membership, start_link, Args},
-                 permanent, 2000, worker, [leo_membership]},
-
-    case supervisor:start_child(leo_redundant_manager_sup, ChildSpec) of
-        {ok, _Pid} ->
-            ok = leo_membership_mq_client:start(ServerType1, MQStoragePath),
-            ok = leo_membership:start_heartbeat(),
-            Res;
-        Cause ->
-            error_logger:error_msg("~p,~p,~p,~p~n",
-                                   [{module, ?MODULE_STRING}, {function, "start/4"},
-                                    {line, ?LINE}, {body, Cause}]),
-            case leo_redundant_manager_sup:stop() of
-                ok ->
-                    exit(invalid_launch);
-                not_started ->
-                    exit(noproc)
-            end
+            %% launch membership
+            case supervisor:start_child(leo_redundant_manager_sup,
+                                        {leo_membership,
+                                         {leo_membership, start_link, [ServerType_1, Managers]},
+                                         permanent, 2000, worker, [leo_membership]}) of
+                {ok, _Pid} ->
+                    ok = leo_membership_mq_client:start(ServerType_1, MQStoragePath),
+                    ok = leo_membership:start_heartbeat(),
+                    {ok, RefSup};
+                Cause ->
+                    error_logger:error_msg("~p,~p,~p,~p~n",
+                                           [{module, ?MODULE_STRING}, {function, "start/4"},
+                                            {line, ?LINE}, {body, Cause}]),
+                    case leo_redundant_manager_sup:stop() of
+                        ok ->
+                            exit(invalid_launch);
+                        not_started ->
+                            exit(noproc)
+                    end
+            end;
+        Error ->
+            Error
     end.
 
 %% @private
-start_link_sub(ServerType) ->
+start_link_1(ServerType) ->
     %% launch sup
     Ret = case supervisor:start_link({local, ?MODULE}, ?MODULE, []) of
               {ok, _RefSup} = Res0 ->
@@ -113,18 +116,18 @@ start_link_sub(ServerType) ->
               Other ->
                   Other
           end,
+    start_link_2(Ret, ServerType).
 
-    case Ret of
-        {ok, _} ->
-            Res1 = after_proc(Ret),
-            ok = leo_misc:init_env(),
-            _  = ?MODULE_SET_ENV_1(),
-            _  = ?MODULE_SET_ENV_2(),
-            ok = init_tables(ServerType),
-            Res1;
-        Error ->
-            Error
-    end.
+%% @private
+start_link_2({ok, _} = Ret, ServerType) ->
+    Reply = after_proc(Ret),
+    ok = leo_misc:init_env(),
+    _  = ?MODULE_SET_ENV_1(),
+    _  = ?MODULE_SET_ENV_2(),
+    ok = init_tables(ServerType),
+    Reply;
+start_link_2(Error,_ServerType) ->
+    Error.
 
 
 %% @spec () -> ok |
