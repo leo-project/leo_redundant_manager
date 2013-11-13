@@ -234,13 +234,13 @@ handle_call({create,_Ver}, _From, State) ->
 handle_call({checksum, ?CHECKSUM_MEMBER}, _From, State) ->
     HashCur = case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
                   {ok, MembersCur} ->
-                      erlang:crc32(term_to_binary(MembersCur));
+                      erlang:crc32(term_to_binary(lists:sort(MembersCur)));
                   _ ->
                       -1
               end,
     HashPrv = case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
                   {ok, MembersPrev} ->
-                      erlang:crc32(term_to_binary(MembersPrev));
+                      erlang:crc32(term_to_binary(lists:sort(MembersPrev)));
                   _ ->
                       -1
               end,
