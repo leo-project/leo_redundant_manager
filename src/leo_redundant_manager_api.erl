@@ -570,11 +570,11 @@ get_members() ->
 
 -spec(get_members(?VER_CUR | ?VER_PREV) ->
              {ok, list()} | {error, any()}).
-get_members(?VER_CUR = Ver) ->
+get_members(Ver) when Ver == ?VER_CUR;
+                      Ver == ?VER_PREV ->
     leo_redundant_manager:get_members(Ver);
-
-get_members(?VER_PREV = Ver) ->
-    leo_redundant_manager:get_members(Ver).
+get_members(_) ->
+    {error, invalid_version}.
 
 
 %% @doc get a member by node-name.

@@ -258,13 +258,8 @@ handle_call({has_member, Node}, _From, State) ->
             end,
     {reply, Reply, State};
 
-
-handle_call({get_members, ?VER_CUR = Mode}, _From, State) ->
-    Reply = get_members_1(Mode),
-    {reply, Reply, State};
-
-handle_call({get_members, ?VER_PREV    = Mode}, _From, State) ->
-    Reply = get_members_1(Mode),
+handle_call({get_members, Ver}, _From, State) ->
+    Reply = get_members_1(Ver),
     {reply, Reply, State};
 
 handle_call({get_member_by_node, Node}, _From, State) ->
@@ -677,28 +672,14 @@ detach_2(TblInfo, Member) ->
 
 %% @doc Retrieve members
 %% @private
-get_members_1(?VER_CUR) ->
-    case leo_redundant_manager_table_member:find_all() of
+get_members_1(Ver) ->
+    case leo_redundant_manager_table_member:find_all(?member_table(Ver)) of
         {ok, Members} ->
             {ok, Members};
         not_found = Cause ->
             {error, Cause};
         Error ->
             Error
-    end;
-get_members_1(?VER_PREV) ->
-    case leo_redundant_manager_table_ring:tab2list(
-           leo_redundant_manager_api:table_info(?VER_PREV)) of
-        [] ->
-            not_found;
-        List ->
-            Hashtable = leo_hashtable:new(),
-            lists:foreach(fun({VNodeId, Node}) ->
-                                  leo_hashtable:append(Hashtable, Node, VNodeId)
-                          end, List),
-            {ok, lists:map(fun({Node, VNodes}) ->
-                                   #member{node = Node, num_of_vnodes = length(VNodes)}
-                           end, leo_hashtable:all(Hashtable))}
     end.
 
 
