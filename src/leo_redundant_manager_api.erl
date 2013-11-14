@@ -522,6 +522,9 @@ rebalance_1_1([]) ->
     ok;
 rebalance_1_1([#member{state = ?STATE_ATTACHED}|Rest]) ->
     rebalance_1_1(Rest);
+rebalance_1_1([#member{state = ?STATE_DETACHED} = _Member|Rest]) ->
+    %% ok = leo_redundant_manager_chash:remove(table_info(?VER_PREV), Member),
+    rebalance_1_1(Rest);
 rebalance_1_1([#member{state = ?STATE_RESERVED}|Rest]) ->
     rebalance_1_1(Rest);
 rebalance_1_1([Member|Rest]) ->

@@ -636,7 +636,7 @@ attach_2(TblInfo, #member{node = Node} = Member) ->
 attach_3(TblInfo, Member) ->
     case leo_redundant_manager_chash:add(TblInfo, Member) of
         ok ->
-            dump_ring_tabs(),
+            %% dump_ring_tabs(),
             ok;
         Error ->
             Error
@@ -663,7 +663,6 @@ detach_1({_, ?RING_TBL_PREV} = TblInfo, Member) ->
 detach_2(TblInfo, Member) ->
     case leo_redundant_manager_chash:remove(TblInfo, Member) of
         ok ->
-            dump_ring_tabs(),
             ok;
         Error ->
             Error

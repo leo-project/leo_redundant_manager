@@ -312,7 +312,10 @@ maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
                                               cur_checksum = CurHash},
                     PrevSyncInfo = #sync_info{target = ?SYNC_TARGET_RING_PREV,
                                               org_checksum = R2,
-                                              cur_checksum = PrevHash},
+                                              cur_checksum = case (R1 == CurHash) of
+                                                                 true  -> PrevHash;
+                                                                 false -> -1
+                                                             end},
                     #state{cur  = CurRingInfo,
                            prev = PrevRingInfo} = State,
                     State_1 = State#state{cur  = CurRingInfo#ring_info{members = MembersCur},
@@ -358,6 +361,8 @@ gen_routing_table(#sync_info{target = TargetRing} = SyncInfo, State) ->
 
     %% Retrieve redundancies by addr-id
     {ok, CurRing} = leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR),
+
+
     gen_routing_table_1(CurRing, SyncInfo, #ring_conf{id = 0,
                                                       group_id   = 0,
                                                       ring_size  = RingSize,
@@ -397,7 +402,6 @@ gen_routing_table_1([{AddrId,_Node}|Rest], SyncInfo, RingConf, State) ->
     case redundancies(?ring_table(?SYNC_TARGET_RING_CUR),
                       AddrId, NumOfReplicas, NumOfAwarenessL2, MembersCur) of
         {ok, #redundancies{nodes = CurNodes} = Redundancies} ->
-            CurNodes_1 = [_N1 || #redundant_node{node = _N1} <- CurNodes],
             Redundancies_1 =
                 case TargetRing of
                     ?SYNC_TARGET_RING_PREV ->
@@ -405,6 +409,7 @@ gen_routing_table_1([{AddrId,_Node}|Rest], SyncInfo, RingConf, State) ->
                         case redundancies(?ring_table(?SYNC_TARGET_RING_PREV),
                                           AddrId, NumOfReplicas, NumOfAwarenessL2, MembersPrev) of
                             {ok, #redundancies{nodes = PrevNodes}} ->
+                                CurNodes_1  = [_N1 || #redundant_node{node = _N1} <- CurNodes ],
                                 PrevNodes_1 = [_N2 || #redundant_node{node = _N2} <- PrevNodes],
                                 case lists:subtract(CurNodes_1, PrevNodes_1) of
                                     [] ->
@@ -496,20 +501,20 @@ redundancies(_,_,NumOfReplicas,_,_) when NumOfReplicas < ?DEF_MIN_REPLICAS;
     {error, out_of_renge};
 redundancies(_,_,NumOfReplicas, L2,_) when (NumOfReplicas - L2) < 1 ->
     {error, invalid_level2};
-redundancies(Table, VNodeId0, NumOfReplicas, L2, Members) ->
-    case leo_redundant_manager_table_ring:lookup(Table, VNodeId0) of
+redundancies(Table, VNodeId_0, NumOfReplicas, L2, Members) ->
+    case leo_redundant_manager_table_ring:lookup(Table, VNodeId_0) of
         {error, Cause} ->
             {error, Cause};
         [] ->
-            case get_node_by_vnodeid(Table, VNodeId0) of
-                {ok, VNodeId1} ->
-                    redundancies_1(Table, VNodeId0, VNodeId1,
+            case get_node_by_vnodeid(Table, VNodeId_0) of
+                {ok, VNodeId_1} ->
+                    redundancies_1(Table, VNodeId_0, VNodeId_1,
                                    NumOfReplicas, L2, Members);
                 {error, Cause} ->
                     {error, Cause}
             end;
         Node ->
-            redundancies_1_1(Table, VNodeId0, VNodeId0,
+            redundancies_1_1(Table, VNodeId_0, VNodeId_0,
                              NumOfReplicas, L2, Members, Node)
     end.
 
@@ -624,7 +629,9 @@ get_node_by_vnodeid(Table, VNodeId) ->
 get_redundancies([],_,_) ->
     not_found;
 get_redundancies([#member{node = Node_0,
-                          grp_level_2 = L2}|_], Node_1, SetL2) when Node_0 == Node_1  ->
+                          state = State,
+                          grp_level_2 = L2}|_], Node_1, SetL2) when Node_0 == Node_1,
+                                                                    State  /= ?STATE_DETACHED ->
     case lists:member(L2, SetL2) of
         false  -> {Node_0, [L2|SetL2]};
         _Other -> {Node_0, SetL2}
@@ -794,7 +801,7 @@ force_sync_fun(TargetRing, State) ->
                 {ok, MembersPrev} ->
                     State_1 = State#state{cur  = #ring_info{members = MembersCur},
                                           prev = #ring_info{members = MembersPrev}},
-                    Ret = gen_routing_table(#sync_info{target  = TargetRing}, State_1),
+                    Ret = gen_routing_table(#sync_info{target = TargetRing}, State_1),
                     force_sync_fun_1(Ret, TargetRing, State);
                 _ ->
                     State
