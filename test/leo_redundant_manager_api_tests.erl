@@ -108,7 +108,7 @@ attach_1_({Hostname}) ->
     ?assertEqual((9 * ?DEF_NUMBER_OF_VNODES), Size_2),
 
     %% execute
-    timer:sleep(1000),
+    timer:sleep(100),
     {ok, Res1} = leo_redundant_manager_api:rebalance(),
     ?assertEqual(true, Res1 =/= []),
     lists:foreach(fun(Item) ->
@@ -147,12 +147,12 @@ attach_1_1(Index) ->
     {ok, R2} = leo_redundant_manager_api:get_redundancies_by_key(get, Key),
     case (R1#redundancies.nodes == R2#redundancies.nodes) of
         true ->
-            void;
+            ok;
         false ->
+            %% ?debugVal({Key, R1#redundancies.vnode_id_to,
+            %%            R1#redundancies.nodes, R2#redundancies.nodes})
             ?assertEqual(1, (length(R2#redundancies.nodes) -
-                                 length(R1#redundancies.nodes))),
-            ?debugVal({Key, R1#redundancies.vnode_id_to,
-                       R1#redundancies.nodes, R2#redundancies.nodes})
+                                 length(R1#redundancies.nodes)))
     end,
     attach_1_1(Index - 1).
 
@@ -219,11 +219,11 @@ attach_2_1(Index) ->
         true ->
             void;
         false ->
+            %% ?debugVal({Key, R1#redundancies.vnode_id_to,
+            %%            R1#redundancies.nodes, R2#redundancies.nodes})
             Difference = (length(R2#redundancies.nodes) -
                               length(R1#redundancies.nodes)),
-            ?assertEqual(true, (Difference > 0 andalso Difference =< 3)),
-            ?debugVal({Key, R1#redundancies.vnode_id_to,
-                       R1#redundancies.nodes, R2#redundancies.nodes})
+            ?assertEqual(true, (Difference > 0 andalso Difference =< 3))
     end,
     attach_2_1(Index - 1).
 
@@ -239,6 +239,7 @@ detach_({Hostname}) ->
 
     %% execute
     {ok, Res} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res =/= []),
     lists:foreach(fun(Item) ->
                           Src  = proplists:get_value('src',  Item),
                           Dest = proplists:get_value('dest', Item),
@@ -868,5 +869,93 @@ redundant_1(Members, St, End) ->
             ?debugVal(_Error)
     end,
     redundant_1(Members, St+1, End).
+
+
+redundant_manager_2_test_() ->
+        {timeout, 60000, ?_assertEqual(ok, begin
+                                               long_run_1()
+                                           end)}.
+redundant_manager_3_test_() ->
+        {timeout, 60000, ?_assertEqual(ok, begin
+                                               long_run_2()
+                                           end)}.
+redundant_manager_4_test_() ->
+        {timeout, 60000, ?_assertEqual(ok, begin
+                                               long_run_3()
+                                           end)}.
+
+long_run_1() ->
+    %% prepare
+    {Hostname} = setup(),
+
+    ok = prepare(Hostname, gateway),
+    {ok, _, _} = leo_redundant_manager_api:create(?VER_CUR),
+    {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
+    Size_1 = leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR}),
+    ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), Size_1),
+    timer:sleep(100),
+
+    %% rebalance.attach
+    AttachNode = list_to_atom("node_8@" ++ Hostname),
+    ok = leo_redundant_manager_api:attach(AttachNode),
+
+    timer:sleep(100),
+    {ok, Res1} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res1 =/= []),
+
+    %% retrieve redundancies
+    timer:sleep(100),
+    attach_1_1(30000),
+    ok.
+
+long_run_2() ->
+    %% prepare
+    {Hostname} = setup(),
+
+    ok = prepare(Hostname, gateway),
+    {ok, _, _} = leo_redundant_manager_api:create(?VER_CUR),
+    {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
+    Size_1 = leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR}),
+    ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), Size_1),
+    timer:sleep(100),
+
+    %% rebalance.attach
+    AttachedNodes = [list_to_atom("node_8@"  ++ Hostname),
+                     list_to_atom("node_9@"  ++ Hostname),
+                     list_to_atom("node_10@" ++ Hostname)],
+    lists:foreach(fun(_N) ->
+                          ok = leo_redundant_manager_api:attach(_N)
+                  end, AttachedNodes),
+
+    timer:sleep(100),
+    {ok, Res1} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res1 =/= []),
+
+    %% retrieve redundancies
+    timer:sleep(100),
+    attach_2_1(30000),
+    ok.
+
+long_run_3() ->
+    %% prepare
+    {Hostname} = setup(),
+
+    ok = prepare(Hostname, gateway),
+    {ok, _, _} = leo_redundant_manager_api:create(?VER_CUR),
+    {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
+    timer:sleep(100),
+
+    %% rebalance.detach
+    DetachNode = list_to_atom("node_0@" ++ Hostname),
+    ok = leo_redundant_manager_api:detach(DetachNode),
+
+    timer:sleep(100),
+    {ok, Res1} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res1 =/= []),
+
+    %% retrieve redundancies
+    timer:sleep(100),
+    detach_1_1(30000),
+    ok.
 
 -endif.
