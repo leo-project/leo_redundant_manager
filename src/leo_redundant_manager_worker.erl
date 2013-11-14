@@ -352,22 +352,31 @@ maybe_sync_1_1(SyncInfo, State) ->
 gen_routing_table(#sync_info{target = TargetRing},_) when TargetRing /= ?SYNC_TARGET_RING_CUR,
                                                           TargetRing /= ?SYNC_TARGET_RING_PREV ->
     {error, invalid_target_ring};
-gen_routing_table(SyncInfo, State) ->
+gen_routing_table(#sync_info{target = Target} = SyncInfo, State) ->
     %% Retrieve ring from local's master [etc|mnesia]
-    {ok, CurRing} = leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR),
-    Checksum   = erlang:crc32(term_to_binary(CurRing)),
-    RingSize   = length(CurRing),
-    GroupSize  = leo_math:ceiling(RingSize / ?DEF_NUM_OF_DIV),
+    {ok, Ring_1} = leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR),
+    RingSize  = length(Ring_1),
+    GroupSize = leo_math:ceiling(RingSize / ?DEF_NUM_OF_DIV),
+
+    %% Calculate ring's checksum
+    Ring_2 = case Target of
+                 ?SYNC_TARGET_RING_CUR ->
+                     Ring_1;
+                 _ ->
+                     {ok, RingPrev} = leo_redundant_manager_api:get_ring(Target),
+                     RingPrev
+             end,
+    Checksum = erlang:crc32(term_to_binary(Ring_2)),
 
     %% Retrieve redundancies by addr-id
-    gen_routing_table_1(CurRing, SyncInfo, #ring_conf{id = 0,
-                                                      group_id   = 0,
-                                                      ring_size  = RingSize,
-                                                      group_size = GroupSize,
-                                                      index_list = [],
-                                                      table_list = [],
-                                                      from_addr_id = 0,
-                                                      checksum     = Checksum}, State).
+    gen_routing_table_1(Ring_1, SyncInfo, #ring_conf{id = 0,
+                                                     group_id   = 0,
+                                                     ring_size  = RingSize,
+                                                     group_size = GroupSize,
+                                                     index_list = [],
+                                                     table_list = [],
+                                                     from_addr_id = 0,
+                                                     checksum     = Checksum}, State).
 
 %% @private
 -spec(gen_routing_table_1(list(), #sync_info{}, #ring_conf{}, #state{}) ->
@@ -645,28 +654,31 @@ reply_redundancies(not_found,_,_) ->
     not_found;
 reply_redundancies({ok, #redundancies{nodes = Nodes} = Redundancies},
                    AddrId, #state{num_of_replicas = NumOfReplicas}) ->
-    reply_redundancies_1(Redundancies, AddrId, Nodes, NumOfReplicas, []).
+    reply_redundancies_1(Redundancies, AddrId, Nodes, NumOfReplicas, 0, []).
 
 %% @private
-reply_redundancies_1(Redundancies, AddrId, [], _NumOfReplicas, Acc) ->
+reply_redundancies_1(Redundancies, AddrId, [],_NumOfReplicas,_Index,Acc) ->
     {ok, Redundancies#redundancies{id = AddrId,
                                    nodes = lists:reverse(Acc)}};
-reply_redundancies_1(Redundancies, AddrId, [#redundant_node{node = Node}|Rest], NumOfReplicas, Acc) ->
-    CanReadRepair = (NumOfReplicas >= (length(Acc) + 1)),
 
+reply_redundancies_1(Redundancies, AddrId, [#redundant_node{node = Node}|Rest], NumOfReplicas, Index, Acc) ->
+    NextIndex = Index + 1,
     case leo_redundant_manager_table_member:lookup(Node) of
-        {ok, #member{state = ?STATE_RUNNING}} ->
-            reply_redundancies_1(Redundancies, AddrId, Rest, NumOfReplicas,
+        {ok, #member{state = State}} ->
+            Available = (State == ?STATE_RUNNING),
+            CanReadRepair = (NumOfReplicas >= (length(Acc) + 1)),
+            ConsensusRole = case Index of
+                                0 -> ?CNS_ROLE_LEADER;
+                                _ when CanReadRepair == true -> ?CNS_ROLE_FOLLOWER_1;
+                                _ when CanReadRepair /= true -> ?CNS_ROLE_OBSERBER
+                            end,
+            reply_redundancies_1(Redundancies, AddrId, Rest, NumOfReplicas, NextIndex,
                                  [#redundant_node{node = Node,
-                                                  available = true,
-                                                  can_read_repair = CanReadRepair}|Acc]);
-        {ok, #member{state = _State}} ->
-            reply_redundancies_1(Redundancies, AddrId, Rest, NumOfReplicas,
-                                 [#redundant_node{node = Node,
-                                                  available = false,
-                                                  can_read_repair = CanReadRepair}|Acc]);
+                                                  available = Available,
+                                                  can_read_repair = CanReadRepair,
+                                                  role = ConsensusRole}|Acc]);
         _ ->
-            reply_redundancies_1(Redundancies, AddrId, Rest, NumOfReplicas, Acc)
+            reply_redundancies_1(Redundancies, AddrId, Rest, NumOfReplicas, NextIndex, Acc)
     end.
 
 
