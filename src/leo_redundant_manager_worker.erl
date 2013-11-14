@@ -352,7 +352,7 @@ maybe_sync_1_1(SyncInfo, State) ->
 gen_routing_table(#sync_info{target = TargetRing},_) when TargetRing /= ?SYNC_TARGET_RING_CUR,
                                                           TargetRing /= ?SYNC_TARGET_RING_PREV ->
     {error, invalid_target_ring};
-gen_routing_table(#sync_info{target = _TargetRing} = SyncInfo, State) ->
+gen_routing_table(SyncInfo, State) ->
     %% Retrieve ring from local's master [etc|mnesia]
     {ok, CurRing} = leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR),
     Checksum   = erlang:crc32(term_to_binary(CurRing)),
