@@ -252,9 +252,13 @@ checksum(_) ->
 %%
 -spec(synchronize(sync_target(), list(tuple()), list(tuple())) ->
              {ok, list(tuple())} | {error, any()}).
-synchronize(?SYNC_TARGET_BOTH, SyncData, Conf) ->
+synchronize(?SYNC_TARGET_BOTH, SyncData, Options) ->
     %% set configurations
-    ok = set_options(Conf),
+    case Options of
+        [] -> void;
+        _ ->
+            ok = set_options(Options)
+    end,
 
     %% Synchronize current and previous members
     %%   Then Synchronize ring
@@ -280,6 +284,9 @@ synchronize(?SYNC_TARGET_BOTH, SyncData, Conf) ->
 
 -spec(synchronize(sync_target(), list(tuple())) ->
              {ok, list(tuple())} | {error, any()}).
+synchronize(?SYNC_TARGET_BOTH, SyncData) ->
+    synchronize(?SYNC_TARGET_BOTH, SyncData, []);
+
 synchronize(?SYNC_TARGET_MEMBER = SyncTarget, SyncData) ->
     case synchronize_1(SyncTarget, ?VER_CUR,  SyncData) of
         ok ->
@@ -515,6 +522,9 @@ rebalance_1_1([]) ->
     ok;
 rebalance_1_1([#member{state = ?STATE_ATTACHED}|Rest]) ->
     rebalance_1_1(Rest);
+rebalance_1_1([#member{state = ?STATE_DETACHED} = _Member|Rest]) ->
+    %% ok = leo_redundant_manager_chash:remove(table_info(?VER_PREV), Member),
+    rebalance_1_1(Rest);
 rebalance_1_1([#member{state = ?STATE_RESERVED}|Rest]) ->
     rebalance_1_1(Rest);
 rebalance_1_1([Member|Rest]) ->
@@ -563,11 +573,11 @@ get_members() ->
 
 -spec(get_members(?VER_CUR | ?VER_PREV) ->
              {ok, list()} | {error, any()}).
-get_members(?VER_CUR = Ver) ->
+get_members(Ver) when Ver == ?VER_CUR;
+                      Ver == ?VER_PREV ->
     leo_redundant_manager:get_members(Ver);
-
-get_members(?VER_PREV = Ver) ->
-    leo_redundant_manager:get_members(Ver).
+get_members(_) ->
+    {error, invalid_version}.
 
 
 %% @doc get a member by node-name.

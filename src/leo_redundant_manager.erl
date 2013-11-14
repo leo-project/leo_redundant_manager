@@ -234,13 +234,13 @@ handle_call({create,_Ver}, _From, State) ->
 handle_call({checksum, ?CHECKSUM_MEMBER}, _From, State) ->
     HashCur = case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
                   {ok, MembersCur} ->
-                      erlang:crc32(term_to_binary(MembersCur));
+                      erlang:crc32(term_to_binary(lists:sort(MembersCur)));
                   _ ->
                       -1
               end,
     HashPrv = case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
                   {ok, MembersPrev} ->
-                      erlang:crc32(term_to_binary(MembersPrev));
+                      erlang:crc32(term_to_binary(lists:sort(MembersPrev)));
                   _ ->
                       -1
               end,
@@ -258,13 +258,8 @@ handle_call({has_member, Node}, _From, State) ->
             end,
     {reply, Reply, State};
 
-
-handle_call({get_members, ?VER_CUR = Mode}, _From, State) ->
-    Reply = get_members_1(Mode),
-    {reply, Reply, State};
-
-handle_call({get_members, ?VER_PREV    = Mode}, _From, State) ->
-    Reply = get_members_1(Mode),
+handle_call({get_members, Ver}, _From, State) ->
+    Reply = get_members_1(Ver),
     {reply, Reply, State};
 
 handle_call({get_member_by_node, Node}, _From, State) ->
@@ -641,7 +636,7 @@ attach_2(TblInfo, #member{node = Node} = Member) ->
 attach_3(TblInfo, Member) ->
     case leo_redundant_manager_chash:add(TblInfo, Member) of
         ok ->
-            dump_ring_tabs(),
+            %% dump_ring_tabs(),
             ok;
         Error ->
             Error
@@ -668,7 +663,6 @@ detach_1({_, ?RING_TBL_PREV} = TblInfo, Member) ->
 detach_2(TblInfo, Member) ->
     case leo_redundant_manager_chash:remove(TblInfo, Member) of
         ok ->
-            dump_ring_tabs(),
             ok;
         Error ->
             Error
@@ -677,28 +671,14 @@ detach_2(TblInfo, Member) ->
 
 %% @doc Retrieve members
 %% @private
-get_members_1(?VER_CUR) ->
-    case leo_redundant_manager_table_member:find_all() of
+get_members_1(Ver) ->
+    case leo_redundant_manager_table_member:find_all(?member_table(Ver)) of
         {ok, Members} ->
             {ok, Members};
         not_found = Cause ->
             {error, Cause};
         Error ->
             Error
-    end;
-get_members_1(?VER_PREV) ->
-    case leo_redundant_manager_table_ring:tab2list(
-           leo_redundant_manager_api:table_info(?VER_PREV)) of
-        [] ->
-            not_found;
-        List ->
-            Hashtable = leo_hashtable:new(),
-            lists:foreach(fun({VNodeId, Node}) ->
-                                  leo_hashtable:append(Hashtable, Node, VNodeId)
-                          end, List),
-            {ok, lists:map(fun({Node, VNodes}) ->
-                                   #member{node = Node, num_of_vnodes = length(VNodes)}
-                           end, leo_hashtable:all(Hashtable))}
     end.
 
 

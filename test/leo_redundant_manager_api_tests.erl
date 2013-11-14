@@ -33,7 +33,8 @@
 redundant_manager_test_() ->
     {timeout, 300,
      {foreach, fun setup/0, fun teardown/1,
-      [{with, [T]} || T <- [fun redundant_manager_0_/1,
+      [{with, [T]} || T <- [
+                            fun redundant_manager_0_/1,
                             fun redundant_manager_1_/1,
                             fun attach_1_/1,
                             fun attach_2_/1,
@@ -107,7 +108,7 @@ attach_1_({Hostname}) ->
     ?assertEqual((9 * ?DEF_NUMBER_OF_VNODES), Size_2),
 
     %% execute
-    timer:sleep(1000),
+    timer:sleep(100),
     {ok, Res1} = leo_redundant_manager_api:rebalance(),
     ?assertEqual(true, Res1 =/= []),
     lists:foreach(fun(Item) ->
@@ -117,13 +118,12 @@ attach_1_({Hostname}) ->
                           ?assertEqual(true, Src  /= AttachNode),
                           ?assertEqual(true, Dest == AttachNode)
                   end, Res1),
-    {ok, MembersCur} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
+    {ok, MembersCur } = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
+    {ok, MembersPrev} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV),
 
-    %% re-create previous-ring
-    {ok, _MembersCur, _Hashs} = leo_redundant_manager_api:create(?VER_CUR),
-    {ok, MembersPrev,  Hashs} = leo_redundant_manager_api:create(?VER_PREV),
-    {RingHashCur, RingHashPrev} = leo_misc:get_value('ring', Hashs),
-    MemberHash = leo_misc:get_value('member', Hashs),
+    %% check
+    {ok, {RingHashCur,   RingHashPrev  }} = leo_redundant_manager_api:checksum(ring),
+    {ok, {MemberHashCur, MemberHashPrev}} = leo_redundant_manager_api:checksum(member),
 
     ?assertEqual(9, length(MembersCur)),
     ?assertEqual(8, length(MembersPrev)),
@@ -131,7 +131,8 @@ attach_1_({Hostname}) ->
     ?assertNotEqual(-1, RingHashCur),
     ?assertNotEqual(-1, RingHashPrev),
     ?assertNotEqual(RingHashCur, RingHashPrev),
-    ?assertNotEqual(-1, MemberHash),
+    ?assertNotEqual(-1, MemberHashCur),
+    ?assertNotEqual(-1, MemberHashPrev),
 
     %% retrieve redundancies
     timer:sleep(100),
@@ -146,12 +147,12 @@ attach_1_1(Index) ->
     {ok, R2} = leo_redundant_manager_api:get_redundancies_by_key(get, Key),
     case (R1#redundancies.nodes == R2#redundancies.nodes) of
         true ->
-            void;
+            ok;
         false ->
+            %% ?debugVal({Key, R1#redundancies.vnode_id_to,
+            %%            R1#redundancies.nodes, R2#redundancies.nodes})
             ?assertEqual(1, (length(R2#redundancies.nodes) -
-                                 length(R1#redundancies.nodes))),
-            ?debugVal({Key, R1#redundancies.vnode_id_to,
-                       R1#redundancies.nodes, R2#redundancies.nodes})
+                                 length(R1#redundancies.nodes)))
     end,
     attach_1_1(Index - 1).
 
@@ -187,10 +188,12 @@ attach_2_({Hostname}) ->
                           ?assertEqual(true,  lists:member(Dest, AttachedNodes))
                   end, Res1),
 
-    {ok, MembersCur,  _Hashs} = leo_redundant_manager_api:create(?VER_CUR),
-    {ok, MembersPrev,  Hashs} = leo_redundant_manager_api:create(?VER_PREV),
-    {RingHashCur, RingHashPrev} = leo_misc:get_value('ring', Hashs),
-    MemberHash = leo_misc:get_value('member', Hashs),
+
+    %% check
+    {ok, MembersCur } = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
+    {ok, MembersPrev} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV),
+    {ok, {RingHashCur,   RingHashPrev  }} = leo_redundant_manager_api:checksum(ring),
+    {ok, {MemberHashCur, MemberHashPrev}} = leo_redundant_manager_api:checksum(member),
 
     ?assertEqual(11, length(MembersCur)),
     ?assertEqual(8,  length(MembersPrev)),
@@ -198,7 +201,8 @@ attach_2_({Hostname}) ->
     ?assertNotEqual(-1, RingHashCur),
     ?assertNotEqual(-1, RingHashPrev),
     ?assertNotEqual(RingHashCur, RingHashPrev),
-    ?assertNotEqual(-1, MemberHash),
+    ?assertNotEqual(-1, MemberHashCur),
+    ?assertNotEqual(-1, MemberHashPrev),
 
     %% retrieve redundancies
     timer:sleep(100),
@@ -215,11 +219,11 @@ attach_2_1(Index) ->
         true ->
             void;
         false ->
+            %% ?debugVal({Key, R1#redundancies.vnode_id_to,
+            %%            R1#redundancies.nodes, R2#redundancies.nodes})
             Difference = (length(R2#redundancies.nodes) -
                               length(R1#redundancies.nodes)),
-            ?assertEqual(true, (Difference > 0 andalso Difference =< 3)),
-            ?debugVal({Key, R1#redundancies.vnode_id_to,
-                       R1#redundancies.nodes, R2#redundancies.nodes})
+            ?assertEqual(true, (Difference > 0 andalso Difference =< 3))
     end,
     attach_2_1(Index - 1).
 
@@ -232,11 +236,10 @@ detach_({Hostname}) ->
     %% 1. rebalance.detach
     DetachNode = list_to_atom("node_0@" ++ Hostname),
     ok = leo_redundant_manager_api:detach(DetachNode),
-    leo_redundant_manager_api:dump(?CHECKSUM_RING),
-    leo_redundant_manager_api:dump(?CHECKSUM_MEMBER),
 
     %% execute
     {ok, Res} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res =/= []),
     lists:foreach(fun(Item) ->
                           Src  = proplists:get_value('src',  Item),
                           Dest = proplists:get_value('dest', Item),
@@ -244,23 +247,29 @@ detach_({Hostname}) ->
                           ?assertEqual(true, Src  =/= DetachNode),
                           ?assertEqual(true, Dest =/= DetachNode)
                   end, Res),
-    {ok, MembersCur} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
+    {ok, MembersCur } = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
+    {ok, MembersPrev} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV),
+    %% MembersCur_1  = [N || #member{node = N} <- MembersCur ],
+    %% MembersPrev_1 = [N || #member{node = N} <- MembersPrev],
+    %% ?debugVal({MembersCur_1, MembersPrev_1}),
+
+    leo_redundant_manager_api:dump(?CHECKSUM_RING),
+    leo_redundant_manager_api:dump(?CHECKSUM_MEMBER),
 
     %% re-create previous-ring
-    {ok, MembersPrev, Hashs} = leo_redundant_manager_api:create(?VER_PREV),
-    {RingHashCur, RingHashPrev} = leo_misc:get_value('ring', Hashs),
-    MemberHash = leo_misc:get_value('member', Hashs),
+    {ok, {RingHashCur,   RingHashPrev  }} = leo_redundant_manager_api:checksum(ring),
+    {ok, {MemberHashCur, MemberHashPrev}} = leo_redundant_manager_api:checksum(member),
 
     ?assertEqual(8, length(MembersCur)),
-    ?assertEqual(8, length(MembersPrev)),
-    ?assertNotEqual([], MembersPrev),
+    ?assertEqual(7, length(MembersPrev)),
     ?assertNotEqual(-1, RingHashCur),
     ?assertNotEqual(-1, RingHashPrev),
     ?assertNotEqual(RingHashCur, RingHashPrev),
-    ?assertNotEqual(-1, MemberHash),
+    ?assertNotEqual(-1, MemberHashCur),
+    ?assertNotEqual(-1, MemberHashPrev),
 
     timer:sleep(100),
-    detach_1_1(50),
+    detach_1_1(100),
     ok.
 
 detach_1_1(0) ->
@@ -271,12 +280,16 @@ detach_1_1(Index) ->
     {ok, R2} = leo_redundant_manager_api:get_redundancies_by_key(get, Key),
     case (R1#redundancies.nodes == R2#redundancies.nodes) of
         true ->
-            void;
+            ok;
         false ->
-            ?assertEqual(1, (length(R2#redundancies.nodes) -
-                                 length(R1#redundancies.nodes))),
-            ?debugVal({Key, R1#redundancies.vnode_id_to,
-                       R1#redundancies.nodes, R2#redundancies.nodes})
+            R1Nodes = [N || #redundant_node{node = N} <- R1#redundancies.nodes],
+            R2Nodes = [N || #redundant_node{node = N} <- R2#redundancies.nodes],
+            D = lists:subtract(R2Nodes, R1Nodes),
+            ?debugVal({D, Key}),
+            ?debugVal({R1#redundancies.vnode_id_to,
+                       R2#redundancies.vnode_id_to,
+                       R1#redundancies.nodes,
+                       R2#redundancies.nodes})
     end,
     detach_1_1(Index - 1).
 
@@ -673,22 +686,23 @@ inspect0(Hostname) ->
     ?assertEqual('suspend', Node7#member.state),
 
     %% create routing-table > confirmations.
-    {ok, Members1, Chksums} = leo_redundant_manager_api:create(?VER_CUR),
-    {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
+    {ok, Members1, Chksums} = leo_redundant_manager_api:create(),
     ?assertEqual(8, length(Members1)),
     ?assertEqual(2, length(Chksums)),
 
     {ok, {Chksum2, Chksum3}} = leo_redundant_manager_api:checksum(?CHECKSUM_RING),
-    {ok, Chksum4} = leo_redundant_manager_api:checksum(member),
+    {ok, {Chksum4, Chksum5}} = leo_redundant_manager_api:checksum(member),
     leo_misc:set_env(?APP, ?PROP_RING_HASH, Chksum2),
 
     ?assertEqual(true, (-1 =< Chksum2)),
     ?assertEqual(true, (-1 =< Chksum3)),
     ?assertEqual(true, (-1 =< Chksum4)),
+    ?assertEqual(true, (-1 =< Chksum5)),
 
     ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR} )),
     ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), leo_redundant_manager_table_ring:size({ets, ?RING_TBL_PREV})),
 
+    timer:sleep(100),
     Max = leo_math:power(2, ?MD5),
     lists:foreach(fun(Num) ->
                           {ok, #redundancies{id = _Id0,
@@ -855,5 +869,93 @@ redundant_1(Members, St, End) ->
             ?debugVal(_Error)
     end,
     redundant_1(Members, St+1, End).
+
+
+redundant_manager_2_test_() ->
+        {timeout, 60000, ?_assertEqual(ok, begin
+                                               long_run_1()
+                                           end)}.
+redundant_manager_3_test_() ->
+        {timeout, 60000, ?_assertEqual(ok, begin
+                                               long_run_2()
+                                           end)}.
+redundant_manager_4_test_() ->
+        {timeout, 60000, ?_assertEqual(ok, begin
+                                               long_run_3()
+                                           end)}.
+
+long_run_1() ->
+    %% prepare
+    {Hostname} = setup(),
+
+    ok = prepare(Hostname, gateway),
+    {ok, _, _} = leo_redundant_manager_api:create(?VER_CUR),
+    {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
+    Size_1 = leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR}),
+    ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), Size_1),
+    timer:sleep(100),
+
+    %% rebalance.attach
+    AttachNode = list_to_atom("node_8@" ++ Hostname),
+    ok = leo_redundant_manager_api:attach(AttachNode),
+
+    timer:sleep(100),
+    {ok, Res1} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res1 =/= []),
+
+    %% retrieve redundancies
+    timer:sleep(100),
+    attach_1_1(30000),
+    ok.
+
+long_run_2() ->
+    %% prepare
+    {Hostname} = setup(),
+
+    ok = prepare(Hostname, gateway),
+    {ok, _, _} = leo_redundant_manager_api:create(?VER_CUR),
+    {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
+    Size_1 = leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR}),
+    ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), Size_1),
+    timer:sleep(100),
+
+    %% rebalance.attach
+    AttachedNodes = [list_to_atom("node_8@"  ++ Hostname),
+                     list_to_atom("node_9@"  ++ Hostname),
+                     list_to_atom("node_10@" ++ Hostname)],
+    lists:foreach(fun(_N) ->
+                          ok = leo_redundant_manager_api:attach(_N)
+                  end, AttachedNodes),
+
+    timer:sleep(100),
+    {ok, Res1} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res1 =/= []),
+
+    %% retrieve redundancies
+    timer:sleep(100),
+    attach_2_1(30000),
+    ok.
+
+long_run_3() ->
+    %% prepare
+    {Hostname} = setup(),
+
+    ok = prepare(Hostname, gateway),
+    {ok, _, _} = leo_redundant_manager_api:create(?VER_CUR),
+    {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
+    timer:sleep(100),
+
+    %% rebalance.detach
+    DetachNode = list_to_atom("node_0@" ++ Hostname),
+    ok = leo_redundant_manager_api:detach(DetachNode),
+
+    timer:sleep(100),
+    {ok, Res1} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res1 =/= []),
+
+    %% retrieve redundancies
+    timer:sleep(100),
+    detach_1_1(30000),
+    ok.
 
 -endif.
