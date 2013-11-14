@@ -38,18 +38,18 @@ redundant_manager_test_() ->
                             fun redundant_manager_1_/1,
                             fun attach_1_/1,
                             fun attach_2_/1,
-                            fun detach_/1
+                            fun detach_/1,
 
-                            %% fun members_table_/1,
-                            %% fun synchronize_0_/1,
-                            %% fun synchronize_1_/1,
-                            %% fun synchronize_2_/1,
-                            %% fun adjust_/1,
-                            %% fun append_/1,
-                            %% fun suspend_/1,
+                            fun members_table_/1,
+                            fun synchronize_0_/1,
+                            fun synchronize_1_/1,
+                            fun synchronize_2_/1,
+                            fun adjust_/1,
+                            fun append_/1,
+                            fun suspend_/1,
 
-                            %% fun rack_aware_1_/1,
-                            %% fun rack_aware_2_/1
+                            fun rack_aware_1_/1,
+                            fun rack_aware_2_/1
                            ]]}}.
 
 
@@ -248,9 +248,9 @@ detach_({Hostname}) ->
                   end, Res),
     {ok, MembersCur } = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
     {ok, MembersPrev} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV),
-    MembersCur_1  = [N || #member{node = N} <- MembersCur ],
-    MembersPrev_1 = [N || #member{node = N} <- MembersPrev],
-    ?debugVal({MembersCur_1, MembersPrev_1}),
+    %% MembersCur_1  = [N || #member{node = N} <- MembersCur ],
+    %% MembersPrev_1 = [N || #member{node = N} <- MembersPrev],
+    %% ?debugVal({MembersCur_1, MembersPrev_1}),
 
     leo_redundant_manager_api:dump(?CHECKSUM_RING),
     leo_redundant_manager_api:dump(?CHECKSUM_MEMBER),
@@ -268,7 +268,7 @@ detach_({Hostname}) ->
     ?assertNotEqual(-1, MemberHashPrev),
 
     timer:sleep(100),
-    detach_1_1(50),
+    detach_1_1(100),
     ok.
 
 detach_1_1(0) ->
@@ -279,7 +279,7 @@ detach_1_1(Index) ->
     {ok, R2} = leo_redundant_manager_api:get_redundancies_by_key(get, Key),
     case (R1#redundancies.nodes == R2#redundancies.nodes) of
         true ->
-            void;
+            ok;
         false ->
             R1Nodes = [N || #redundant_node{node = N} <- R1#redundancies.nodes],
             R2Nodes = [N || #redundant_node{node = N} <- R2#redundancies.nodes],
@@ -697,7 +697,6 @@ inspect0(Hostname) ->
     ?assertEqual(true, (-1 =< Chksum3)),
     ?assertEqual(true, (-1 =< Chksum4)),
     ?assertEqual(true, (-1 =< Chksum5)),
-    ?debugVal({Chksum2, Chksum3, Chksum4, Chksum5}),
 
     ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR} )),
     ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), leo_redundant_manager_table_ring:size({ets, ?RING_TBL_PREV})),

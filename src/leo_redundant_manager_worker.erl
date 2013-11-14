@@ -352,17 +352,14 @@ maybe_sync_1_1(SyncInfo, State) ->
 gen_routing_table(#sync_info{target = TargetRing},_) when TargetRing /= ?SYNC_TARGET_RING_CUR,
                                                           TargetRing /= ?SYNC_TARGET_RING_PREV ->
     {error, invalid_target_ring};
-gen_routing_table(#sync_info{target = TargetRing} = SyncInfo, State) ->
+gen_routing_table(#sync_info{target = _TargetRing} = SyncInfo, State) ->
     %% Retrieve ring from local's master [etc|mnesia]
-    {ok, Ring} = leo_redundant_manager_api:get_ring(TargetRing),
-    Checksum   = erlang:crc32(term_to_binary(Ring)),
-    RingSize   = length(Ring),
+    {ok, CurRing} = leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR),
+    Checksum   = erlang:crc32(term_to_binary(CurRing)),
+    RingSize   = length(CurRing),
     GroupSize  = leo_math:ceiling(RingSize / ?DEF_NUM_OF_DIV),
 
     %% Retrieve redundancies by addr-id
-    {ok, CurRing} = leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR),
-
-
     gen_routing_table_1(CurRing, SyncInfo, #ring_conf{id = 0,
                                                       group_id   = 0,
                                                       ring_size  = RingSize,
