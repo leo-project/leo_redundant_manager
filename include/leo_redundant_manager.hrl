@@ -246,7 +246,8 @@
           node                   :: atom(),      %% node name
           available       = true :: boolean(),   %% alive/dead
           can_read_repair = true :: boolean(),   %% able to execute read-repair in case of 'Get Operation'
-          role = ?CNS_ROLE_FOLLOWER_1 :: consensus_role() %% consensus's role [leader, follower_1. follower_2, observer]
+          role                   :: consensus_role() %% consensus's role
+                                                     %%   [leader, follower_1. follower_2, observer]
          }).
 
 -record(redundancies,
