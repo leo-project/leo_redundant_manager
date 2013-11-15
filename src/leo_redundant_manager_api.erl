@@ -336,6 +336,12 @@ synchronize_1(?SYNC_TARGET_MEMBER, Ver, SyncData) ->
                         Error ->
                             Error
                     end;
+                not_found ->
+                    lists:foreach(
+                      fun(#member{node = Node} = Member) ->
+                              leo_redundant_manager_table_member:insert(Table, {Node, Member})
+                      end, NewMembers),
+                    ok;
                 Error ->
                     Error
             end
