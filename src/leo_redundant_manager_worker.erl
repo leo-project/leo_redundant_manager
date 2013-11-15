@@ -52,7 +52,7 @@
 -define(DEF_SYNC_MIN_INTERVAL,  250).
 -define(DEF_SYNC_MAX_INTERVAL, 1500).
 
--define(DEF_TIMEOUT,           3000).
+-define(DEF_TIMEOUT, 3000).
 -endif.
 
 -define(DEF_NUM_OF_DIV, 32).

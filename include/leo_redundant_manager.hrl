@@ -150,6 +150,12 @@
                                 _ ->
                                     undefind
                             end).
+-define(ring_table_to_member_table(Tbl), case Tbl of
+                                             {_, ?RING_TBL_CUR} ->
+                                                 ?MEMBER_TBL_CUR;
+                                             {_, ?RING_TBL_PREV} ->
+                                                 ?MEMBER_TBL_PREV
+                                         end).
 
 %% Synchronization
 %%

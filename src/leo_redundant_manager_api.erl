@@ -495,6 +495,11 @@ rebalance() ->
         {ok, MembersCur} ->
             case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
                 {ok, MembersPrev} ->
+                    %% @TODO
+                    %% S1 = sets:from_list(MembersCur),
+                    %% S2 = sets:from_list(MembersPrev),
+                    %% MembersPrev_1 = lists:sort(sets:to_list(sets:union(S1,S2))),
+
                     rebalance_1(#rebalance{tbl_cur  = table_info(?VER_CUR),
                                            tbl_prev = table_info(?VER_PREV),
                                            members_cur  = MembersCur,
@@ -513,6 +518,8 @@ rebalance_1(RebalanceInfo) ->
     %% Then insert new members from current members
     case leo_redundant_manager_table_member:delete_all(?MEMBER_TBL_PREV) of
         ok ->
+            %% @TODO
+            %% case rebalance_1_1(RebalanceInfo#rebalance.members_prev) of
             case rebalance_1_1(RebalanceInfo#rebalance.members_cur) of
                 ok ->
                     leo_redundant_manager_chash:rebalance(RebalanceInfo);
@@ -525,11 +532,17 @@ rebalance_1(RebalanceInfo) ->
 
 %% @private
 rebalance_1_1([]) ->
+    %% re-create previous ring
+    %% case create(?VER_PREV) of
+    %%     {ok,_,_} ->
+    %%         ok;
+    %%     Error ->
+    %%         Error
+    %% end;
     ok;
 rebalance_1_1([#member{state = ?STATE_ATTACHED}|Rest]) ->
     rebalance_1_1(Rest);
 rebalance_1_1([#member{state = ?STATE_DETACHED} = _Member|Rest]) ->
-    %% ok = leo_redundant_manager_chash:remove(table_info(?VER_PREV), Member),
     rebalance_1_1(Rest);
 rebalance_1_1([#member{state = ?STATE_RESERVED}|Rest]) ->
     rebalance_1_1(Rest);

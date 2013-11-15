@@ -106,14 +106,16 @@ rebalance(RebalanceInfo) ->
     #rebalance{tbl_cur  = TblInfoCur,
                tbl_prev = TblInfoPrev} = RebalanceInfo,
 
-    RingSize  = leo_redundant_manager_table_ring:size(TblInfoCur),
+    %% force sync worker's ring
     ServerRef = leo_redundant_manager_api:get_server_id(),
-
     {_, TblNameCur } = TblInfoCur,
     {_, TblNamePrev} = TblInfoPrev,
+
     ok = leo_redundant_manager_worker:force_sync(ServerRef, TblNameCur),
     ok = leo_redundant_manager_worker:force_sync(ServerRef, TblNamePrev),
 
+    %% retrieve different node between current and previous ring
+    RingSize  = leo_redundant_manager_table_ring:size(TblInfoCur),
     rebalance_1(ServerRef, RebalanceInfo, RingSize, 0, []).
 
 %% @private
@@ -124,9 +126,10 @@ rebalance_1(_,_,0,_, Acc) ->
            ?VER_CUR, ?STATE_DETACHED) of
         {ok, DetachedNodes} ->
             Table = leo_redundant_manager_api:table_info(?VER_PREV),
-            ok = lists:foreach(fun(Member) ->
-                                       remove(Table, Member)
-                               end, DetachedNodes);
+            ok = lists:foreach(
+                   fun(Member) ->
+                           remove(Table, Member)
+                   end, DetachedNodes);
         {error, not_found} ->
             ok;
         {error, Cause} ->
@@ -153,15 +156,15 @@ rebalance_1(ServerRef, RebalanceInfo, RingSize, AddrId, Acc) ->
           ServerRef, ?ring_table(?SYNC_TARGET_RING_PREV), AddrId, MembersPrev),
 
     case lists:foldl(
-             fun(#redundant_node{node = N0}, Acc0) ->
-                     case lists:foldl(
-                            fun(#redundant_node{node = N1},_Acc1) when N0 == N1 -> true;
-                               (#redundant_node{node = N1}, Acc1) when N0 /= N1 -> Acc1
-                            end, false, PrevNodes) of
-                         true  -> Acc0;
-                         false -> [N0|Acc0]
-                     end
-             end, [], CurNodes) of
+           fun(#redundant_node{node = N0}, Acc0) ->
+                   case lists:foldl(
+                          fun(#redundant_node{node = N1},_Acc1) when N0 == N1 -> true;
+                             (#redundant_node{node = N1}, Acc1) when N0 /= N1 -> Acc1
+                          end, false, PrevNodes) of
+                       true  -> Acc0;
+                       false -> [N0|Acc0]
+                   end
+           end, [], CurNodes) of
         [] ->
             rebalance_1(ServerRef, RebalanceInfo, RingSize - 1, VNodeIdTo + 1, Acc);
         DestNodeList ->
