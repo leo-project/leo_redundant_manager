@@ -36,7 +36,7 @@
 -export([start_link/0, stop/0]).
 
 -export([create/1, checksum/1, has_member/1, get_members/0, get_members/1,
-         get_member_by_node/1, get_members_by_status/1,
+         get_member_by_node/1, get_members_by_status/2,
          update_member/1, update_members/1, update_member_by_node/3,
          delete_member_by_node/1, synchronize/3, adjust/3, dump/1]).
 
@@ -96,8 +96,8 @@ has_member(Node) ->
 get_members() ->
     gen_server:call(?MODULE, {get_members, ?VER_CUR}, ?DEF_TIMEOUT).
 
-get_members(Mode) ->
-    gen_server:call(?MODULE, {get_members, Mode}, ?DEF_TIMEOUT).
+get_members(Ver) ->
+    gen_server:call(?MODULE, {get_members, Ver}, ?DEF_TIMEOUT).
 
 
 %% @doc Retrieve a member by node.
@@ -110,10 +110,10 @@ get_member_by_node(Node) ->
 
 %% @doc Retrieve members by status.
 %%
--spec(get_members_by_status(atom()) ->
+-spec(get_members_by_status(?VER_CUR|?VER_PREV, atom()) ->
              {ok, list(#member{})} | not_found).
-get_members_by_status(Status) ->
-    gen_server:call(?MODULE, {get_members_by_status, Status}, ?DEF_TIMEOUT).
+get_members_by_status(Ver, Status) ->
+    gen_server:call(?MODULE, {get_members_by_status, Ver, Status}, ?DEF_TIMEOUT).
 
 
 %% @doc Modify a member.
@@ -273,10 +273,11 @@ handle_call({get_member_by_node, Node}, _From, State) ->
             end,
     {reply, Reply, State};
 
-handle_call({get_members_by_status, Status}, _From, State) ->
-    Reply = case leo_redundant_manager_table_member:find_by_status(Status) of
-                {ok, Member} ->
-                    {ok, Member};
+handle_call({get_members_by_status, Ver, Status}, _From, State) ->
+    Table = ?member_table(Ver),
+    Reply = case leo_redundant_manager_table_member:find_by_status(Table, Status) of
+                {ok, Members} ->
+                    {ok, Members};
                 not_found = Cause ->
                     {error, Cause};
                 Error ->

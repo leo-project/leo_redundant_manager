@@ -259,12 +259,11 @@ detach_({Hostname}) ->
     %% re-create previous-ring
     {ok, {RingHashCur,   RingHashPrev  }} = leo_redundant_manager_api:checksum(ring),
     {ok, {MemberHashCur, MemberHashPrev}} = leo_redundant_manager_api:checksum(member),
-
     ?assertEqual(8, length(MembersCur)),
     ?assertEqual(7, length(MembersPrev)),
+    ?assertEqual(RingHashCur, RingHashPrev),
     ?assertNotEqual(-1, RingHashCur),
     ?assertNotEqual(-1, RingHashPrev),
-    ?assertNotEqual(RingHashCur, RingHashPrev),
     ?assertNotEqual(-1, MemberHashCur),
     ?assertNotEqual(-1, MemberHashPrev),
 

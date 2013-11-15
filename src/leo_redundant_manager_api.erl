@@ -46,7 +46,7 @@
 
 -export([has_member/1, has_charge_of_node/1,
          get_members/0, get_members/1, get_member_by_node/1, get_members_count/0,
-         get_members_by_status/1,
+         get_members_by_status/1, get_members_by_status/2,
          update_member/1, update_members/1, update_member_by_node/3,
          delete_member_by_node/1, is_alive/0, table_info/1
         ]).
@@ -601,7 +601,12 @@ get_members_count() ->
 -spec(get_members_by_status(atom()) ->
              {ok, list(#member{})} | {error, any()}).
 get_members_by_status(Status) ->
-    leo_redundant_manager:get_members_by_status(Status).
+    get_members_by_status(?VER_CUR, Status).
+
+-spec(get_members_by_status(?VER_CUR | ?VER_PREV, atom()) ->
+             {ok, list(#member{})} | {error, any()}).
+get_members_by_status(Ver, Status) ->
+    leo_redundant_manager:get_members_by_status(Ver, Status).
 
 
 %% @doc update members.
