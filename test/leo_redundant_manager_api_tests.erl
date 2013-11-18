@@ -865,17 +865,27 @@ redundant_1(Members, St, End) ->
 
 
 redundant_manager_2_test_() ->
-        {timeout, 60000, ?_assertEqual(ok, begin
-                                               long_run_1()
-                                           end)}.
+    {timeout, 60000, ?_assertEqual(ok, begin
+                                           long_run_1()
+                                       end)}.
 redundant_manager_3_test_() ->
-        {timeout, 60000, ?_assertEqual(ok, begin
-                                               long_run_2()
-                                           end)}.
+    {timeout, 60000, ?_assertEqual(ok, begin
+                                           long_run_2()
+                                       end)}.
 redundant_manager_4_test_() ->
-        {timeout, 60000, ?_assertEqual(ok, begin
-                                               long_run_3()
-                                           end)}.
+    {timeout, 60000, ?_assertEqual(ok, begin
+                                           long_run_3()
+                                       end)}.
+
+redundant_manager_5_test_() ->
+    {timeout, 60000, ?_assertEqual(ok, begin
+                                           attach_to_detach()
+                                       end)}.
+
+redundant_manager_6_test_() ->
+    {timeout, 60000, ?_assertEqual(ok, begin
+                                           attach_to_attach()
+                                       end)}.
 
 long_run_1() ->
     %% prepare
@@ -950,5 +960,90 @@ long_run_3() ->
     timer:sleep(100),
     detach_1_1(30000),
     ok.
+
+
+attach_to_detach() ->
+    %% prepare
+    {Hostname} = setup(),
+
+    ok = prepare(Hostname, gateway),
+    {ok, _, _} = leo_redundant_manager_api:create(),
+    timer:sleep(100),
+
+    %% attach > rebalance
+    AttachNode = list_to_atom("node_8@" ++ Hostname),
+    ok = leo_redundant_manager_api:attach(AttachNode),
+    {ok, Res1} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res1 =/= []),
+
+    ok = leo_redundant_manager_api:update_member_by_node(
+           AttachNode, leo_date:clock(), ?STATE_RUNNING),
+
+    {ok, {RingHashCur_1, RingHashPrev_1}} = leo_redundant_manager_api:checksum(ring),
+    ?assertNotEqual(RingHashCur_1, RingHashPrev_1),
+
+    {ok, _}= leo_redundant_manager_api:get_member_by_node(AttachNode),
+
+    %% detach > rebalance
+    DetachNode = list_to_atom("node_0@" ++ Hostname),
+    ok = leo_redundant_manager_api:detach(DetachNode),
+    {ok, Res2} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res2 =/= []),
+
+    {ok, {RingHashCur_2, RingHashPrev_2}} = leo_redundant_manager_api:checksum(ring),
+    ?assertEqual(RingHashCur_2, RingHashPrev_2),
+
+    {error, not_found} = leo_redundant_manager_api:get_member_by_node(DetachNode),
+
+    %% retrieve redundancies
+    detach_1_1(30000),
+    ok.
+
+attach_to_attach() ->
+    %% prepare
+    {Hostname} = setup(),
+
+    ok = prepare(Hostname, gateway),
+    {ok, _, _} = leo_redundant_manager_api:create(),
+    timer:sleep(100),
+
+    %% attach#1 > rebalance
+    AttachNode_1 = list_to_atom("node_8@" ++ Hostname),
+    ok = leo_redundant_manager_api:attach(AttachNode_1),
+    {ok, Res1} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res1 =/= []),
+
+    ok = leo_redundant_manager_api:update_member_by_node(
+           AttachNode_1, leo_date:clock(), ?STATE_RUNNING),
+
+    {ok, {RingHashCur_1, RingHashPrev_1}} = leo_redundant_manager_api:checksum(ring),
+    ?assertNotEqual(RingHashCur_1, RingHashPrev_1),
+
+    {ok, _}= leo_redundant_manager_api:get_member_by_node(AttachNode_1),
+
+    %% attach#2 > rebalance
+    AttachNode_2 = list_to_atom("node_9@" ++ Hostname),
+    ok = leo_redundant_manager_api:attach(AttachNode_2),
+    {ok, Res2} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res2 =/= []),
+
+    ok = leo_redundant_manager_api:update_member_by_node(
+           AttachNode_2, leo_date:clock(), ?STATE_RUNNING),
+
+    {ok, {RingHashCur_2, RingHashPrev_2}} = leo_redundant_manager_api:checksum(ring),
+    ?assertNotEqual(RingHashCur_2, RingHashPrev_2),
+
+    {ok, _}= leo_redundant_manager_api:get_member_by_node(AttachNode_2),
+    {ok, Members} = leo_redundant_manager_api:get_members(),
+    ?assertEqual(10, length(Members)),
+
+    RingSize = leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR}),
+    ?assertEqual((10 * ?DEF_NUMBER_OF_VNODES), RingSize),
+
+    %% retrieve redundancies
+    timer:sleep(100),
+    attach_1_1(30000),
+    ok.
+
 
 -endif.
