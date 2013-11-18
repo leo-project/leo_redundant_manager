@@ -249,17 +249,11 @@ detach_({Hostname}) ->
                   end, Res),
     {ok, MembersCur } = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
     {ok, MembersPrev} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV),
-    %% MembersCur_1  = [N || #member{node = N} <- MembersCur ],
-    %% MembersPrev_1 = [N || #member{node = N} <- MembersPrev],
-    %% ?debugVal({MembersCur_1, MembersPrev_1}),
-
-    leo_redundant_manager_api:dump(?CHECKSUM_RING),
-    leo_redundant_manager_api:dump(?CHECKSUM_MEMBER),
 
     %% re-create previous-ring
     {ok, {RingHashCur,   RingHashPrev  }} = leo_redundant_manager_api:checksum(ring),
     {ok, {MemberHashCur, MemberHashPrev}} = leo_redundant_manager_api:checksum(member),
-    ?assertEqual(8, length(MembersCur)),
+    ?assertEqual(7, length(MembersCur)),
     ?assertEqual(7, length(MembersPrev)),
     ?assertEqual(RingHashCur, RingHashPrev),
     ?assertNotEqual(-1, RingHashCur),

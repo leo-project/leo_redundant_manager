@@ -83,6 +83,7 @@ create(Ver) when Ver == ?VER_CUR;
         ok ->
             case leo_redundant_manager_table_member:find_all(?member_table(Ver)) of
                 {ok, Members} ->
+                    ok = dump(both),
                     {ok, HashRing} = checksum(?CHECKSUM_RING),
                     ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, erlang:element(1, HashRing)),
                     {ok, HashMember} = checksum(?CHECKSUM_MEMBER),
@@ -402,8 +403,12 @@ get_ring(?SYNC_TARGET_RING_PREV) ->
 
 %% @doc Dump table-records.
 %%
--spec(dump(member | ring) ->
+-spec(dump(member | ring | both) ->
              ok).
+dump(both) ->
+    catch dump(member),
+    catch dump(ring),
+    ok;
 dump(Type) ->
     leo_redundant_manager:dump(Type).
 
@@ -495,11 +500,6 @@ rebalance() ->
         {ok, MembersCur} ->
             case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
                 {ok, MembersPrev} ->
-                    %% @TODO
-                    %% S1 = sets:from_list(MembersCur),
-                    %% S2 = sets:from_list(MembersPrev),
-                    %% MembersPrev_1 = lists:sort(sets:to_list(sets:union(S1,S2))),
-
                     rebalance_1(#rebalance{tbl_cur  = table_info(?VER_CUR),
                                            tbl_prev = table_info(?VER_PREV),
                                            members_cur  = MembersCur,
@@ -518,11 +518,26 @@ rebalance_1(RebalanceInfo) ->
     %% Then insert new members from current members
     case leo_redundant_manager_table_member:delete_all(?MEMBER_TBL_PREV) of
         ok ->
-            %% @TODO
-            %% case rebalance_1_1(RebalanceInfo#rebalance.members_prev) of
             case rebalance_1_1(RebalanceInfo#rebalance.members_cur) of
                 ok ->
-                    leo_redundant_manager_chash:rebalance(RebalanceInfo);
+                    case leo_redundant_manager_chash:rebalance(RebalanceInfo) of
+                        {ok, Ret} ->
+                            %% Synchronize previous-ring
+                            case synchronize_1(?SYNC_TARGET_RING_PREV, ?VER_PREV) of
+                                ok -> void;
+                                {error, Cause} ->
+                                    error_logger:warning_msg("~p,~p,~p,~p~n",
+                                                             [{module, ?MODULE_STRING},
+                                                              {function, "rebalance_1/1"},
+                                                              {line, ?LINE},
+                                                              {body, Cause}])
+                            end,
+                            %% dump ring and members
+                            ok = dump(both),
+                            {ok, Ret};
+                        Error ->
+                            Error
+                    end;
                 Error ->
                     Error
             end;
@@ -532,13 +547,6 @@ rebalance_1(RebalanceInfo) ->
 
 %% @private
 rebalance_1_1([]) ->
-    %% re-create previous ring
-    %% case create(?VER_PREV) of
-    %%     {ok,_,_} ->
-    %%         ok;
-    %%     Error ->
-    %%         Error
-    %% end;
     ok;
 rebalance_1_1([#member{state = ?STATE_ATTACHED}|Rest]) ->
     rebalance_1_1(Rest);
