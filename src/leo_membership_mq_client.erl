@@ -42,7 +42,7 @@
 -define(MQ_INSTANCE_ID_STORAGE, 'membership_storage').
 -define(MQ_DB_PATH,             "membership").
 
--type(type_of_server()   :: manager | gateway | storage).
+-type(type_of_server() :: manager | gateway | storage).
 
 -record(message, {node             :: atom(),
                   error            :: string(),

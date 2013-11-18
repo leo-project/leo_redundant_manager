@@ -331,7 +331,7 @@ delete(Table, Node) ->
 -spec(delete(?DB_ETS|?DB_MNESIA, member_table(), atom()) ->
              ok | {error, any}).
 delete(?DB_MNESIA, Table, Node) ->
-    case lookup(?DB_MNESIA, Node) of
+    case lookup(?DB_MNESIA, Table, Node) of
         {ok, Member} ->
             Fun = fun() ->
                           mnesia:delete_object(Table, Member, write)

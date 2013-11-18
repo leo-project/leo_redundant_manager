@@ -150,10 +150,15 @@
                                 _ ->
                                     undefind
                             end).
+-define(ring_table_to_member_table(Tbl), case Tbl of
+                                             {_, ?RING_TBL_CUR} ->
+                                                 ?MEMBER_TBL_CUR;
+                                             {_, ?RING_TBL_PREV} ->
+                                                 ?MEMBER_TBL_PREV
+                                         end).
 
 %% Synchronization
 %%
-%% Synchronous target
 -define(SYNC_TARGET_BOTH,      'both').
 -define(SYNC_TARGET_RING_CUR,  'ring_cur').
 -define(SYNC_TARGET_RING_PREV, 'ring_prev').
@@ -162,6 +167,18 @@
                        ?SYNC_TARGET_RING_CUR  |
                        ?SYNC_TARGET_RING_PREV |
                        ?SYNC_TARGET_MEMBER).
+
+%% Consensus Roles
+%%
+-define(CNS_ROLE_LEADER,     'L').
+-define(CNS_ROLE_FOLLOWER_1, 'FL').
+-define(CNS_ROLE_FOLLOWER_2, 'FR').
+-define(CNS_ROLE_OBSERBER,   'O').
+-type(consensus_role() :: ?CNS_ROLE_LEADER |
+                          ?CNS_ROLE_FOLLOWER_1 |
+                          ?CNS_ROLE_FOLLOWER_2 |
+                          ?CNS_ROLE_OBSERBER).
+
 
 %% Server Type
 %%
@@ -234,7 +251,9 @@
 -record(redundant_node, {
           node                   :: atom(),      %% node name
           available       = true :: boolean(),   %% alive/dead
-          can_read_repair = true :: boolean()    %% able to execute read-repair in case of 'Get Operation'
+          can_read_repair = true :: boolean(),   %% able to execute read-repair in case of 'Get Operation'
+          role                   :: consensus_role() %% consensus's role
+                                                     %%   [leader, follower_1. follower_2, observer]
          }).
 
 -record(redundancies,

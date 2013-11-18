@@ -46,7 +46,7 @@
 
 -export([has_member/1, has_charge_of_node/1,
          get_members/0, get_members/1, get_member_by_node/1, get_members_count/0,
-         get_members_by_status/1,
+         get_members_by_status/1, get_members_by_status/2,
          update_member/1, update_members/1, update_member_by_node/3,
          delete_member_by_node/1, is_alive/0, table_info/1
         ]).
@@ -83,6 +83,7 @@ create(Ver) when Ver == ?VER_CUR;
         ok ->
             case leo_redundant_manager_table_member:find_all(?member_table(Ver)) of
                 {ok, Members} ->
+                    ok = dump(both),
                     {ok, HashRing} = checksum(?CHECKSUM_RING),
                     ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, erlang:element(1, HashRing)),
                     {ok, HashMember} = checksum(?CHECKSUM_MEMBER),
@@ -336,6 +337,12 @@ synchronize_1(?SYNC_TARGET_MEMBER, Ver, SyncData) ->
                         Error ->
                             Error
                     end;
+                not_found ->
+                    lists:foreach(
+                      fun(#member{node = Node} = Member) ->
+                              leo_redundant_manager_table_member:insert(Table, {Node, Member})
+                      end, NewMembers),
+                    ok;
                 Error ->
                     Error
             end
@@ -396,8 +403,12 @@ get_ring(?SYNC_TARGET_RING_PREV) ->
 
 %% @doc Dump table-records.
 %%
--spec(dump(member | ring) ->
+-spec(dump(member | ring | both) ->
              ok).
+dump(both) ->
+    catch dump(member),
+    catch dump(ring),
+    ok;
 dump(Type) ->
     leo_redundant_manager:dump(Type).
 
@@ -509,7 +520,24 @@ rebalance_1(RebalanceInfo) ->
         ok ->
             case rebalance_1_1(RebalanceInfo#rebalance.members_cur) of
                 ok ->
-                    leo_redundant_manager_chash:rebalance(RebalanceInfo);
+                    case leo_redundant_manager_chash:rebalance(RebalanceInfo) of
+                        {ok, Ret} ->
+                            %% Synchronize previous-ring
+                            case synchronize_1(?SYNC_TARGET_RING_PREV, ?VER_PREV) of
+                                ok -> void;
+                                {error, Cause} ->
+                                    error_logger:warning_msg("~p,~p,~p,~p~n",
+                                                             [{module, ?MODULE_STRING},
+                                                              {function, "rebalance_1/1"},
+                                                              {line, ?LINE},
+                                                              {body, Cause}])
+                            end,
+                            %% dump ring and members
+                            ok = dump(both),
+                            {ok, Ret};
+                        Error ->
+                            Error
+                    end;
                 Error ->
                     Error
             end;
@@ -523,7 +551,6 @@ rebalance_1_1([]) ->
 rebalance_1_1([#member{state = ?STATE_ATTACHED}|Rest]) ->
     rebalance_1_1(Rest);
 rebalance_1_1([#member{state = ?STATE_DETACHED} = _Member|Rest]) ->
-    %% ok = leo_redundant_manager_chash:remove(table_info(?VER_PREV), Member),
     rebalance_1_1(Rest);
 rebalance_1_1([#member{state = ?STATE_RESERVED}|Rest]) ->
     rebalance_1_1(Rest);
@@ -601,7 +628,12 @@ get_members_count() ->
 -spec(get_members_by_status(atom()) ->
              {ok, list(#member{})} | {error, any()}).
 get_members_by_status(Status) ->
-    leo_redundant_manager:get_members_by_status(Status).
+    get_members_by_status(?VER_CUR, Status).
+
+-spec(get_members_by_status(?VER_CUR | ?VER_PREV, atom()) ->
+             {ok, list(#member{})} | {error, any()}).
+get_members_by_status(Ver, Status) ->
+    leo_redundant_manager:get_members_by_status(Ver, Status).
 
 
 %% @doc update members.
