@@ -188,7 +188,7 @@ inspect(TableType) ->
     ok = leo_redundant_manager_table_member:insert(TableType, OldTable, {?NODE_1, ?MEMBER_1}),
     ok = leo_redundant_manager_table_member:insert(TableType, OldTable, {?NODE_2, ?MEMBER_2}),
 
-    ok = leo_members_table_transformer:transform('0.16.0', '0.16.5'),
+    ok = leo_members_table_transformer:transform(),
     {ok, MembersOrg}  = leo_redundant_manager_table_member:find_all(OldTable),
     {ok, MembersCur}  = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
     {ok, MembersPrev} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV),

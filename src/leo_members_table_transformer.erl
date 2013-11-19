@@ -30,27 +30,25 @@
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([transform/2, transform/3]).
+-export([transform/0, transform/1]).
 
 
 %% @doc Transform records
 %%
--spec(transform(atom(), atom()) ->
+-spec(transform() ->
              ok | {error, any()}).
-transform(From, To) ->
-    transform(From, To, []).
+transform() ->
+    transform([]).
 
--spec(transform(atom(), atom(), list(atom())) ->
+-spec(transform(list(atom())) ->
              ok | {error, any()}).
-transform('0.16.0', '0.16.5', MnesiaNodes) ->
+transform(MnesiaNodes) ->
     OldTbl  = 'leo_members',
     NewTbls = [?MEMBER_TBL_CUR, ?MEMBER_TBL_PREV],
 
     Ret = mnesia:table_info(OldTbl, size),
-    transform_1(Ret, MnesiaNodes, OldTbl, NewTbls);
+    transform_1(Ret, MnesiaNodes, OldTbl, NewTbls).
 
-transform(_,_,_) ->
-    {error, not_support}.
 
 %% @private
 transform_1(0,_,_,_) ->
@@ -125,5 +123,3 @@ transform_4('$end_of_table',_OldTblInfo,_NewTblInfo) ->
     ok;
 transform_4(Node, OldTbl, NewTbls) ->
     transform_3(OldTbl, NewTbls, Node).
-
-
