@@ -301,15 +301,15 @@ synchronize(?SYNC_TARGET_MEMBER = SyncTarget, SyncData) ->
             Error
     end;
 
+
+synchronize(Target, []) when ?SYNC_TARGET_RING_CUR  == Target;
+                             ?SYNC_TARGET_RING_PREV == Target ->
+    synchronize_1(Target, ?sync_target_to_ver(Target));
+
 synchronize(Target, SyncData) when ?SYNC_TARGET_RING_CUR  == Target;
                                    ?SYNC_TARGET_RING_PREV == Target ->
-    Ver = case Target of
-              ?SYNC_TARGET_RING_CUR  -> ?VER_CUR;
-              ?SYNC_TARGET_RING_PREV -> ?VER_PREV
-          end,
     {ok, ChecksumMembers} = synchronize(?SYNC_TARGET_MEMBER, SyncData),
-
-    case synchronize_1(Target, Ver) of
+    case synchronize_1(Target, ?sync_target_to_ver(Target)) of
         ok ->
             {ok, ChecksumRing} = checksum(?CHECKSUM_RING),
             {ok, [{?CHECKSUM_MEMBER, ChecksumMembers},

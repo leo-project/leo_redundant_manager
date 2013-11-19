@@ -168,6 +168,36 @@ inspect(TableType) ->
     {ok, Ret17} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV),
     ?assertEqual(3, length(Ret17)),
     ?assertEqual(Ret15, Ret17),
+
+    %% migration test
+    ok = meck:new(leo_redundant_manager_api, [no_link]),
+    ok = meck:expect(leo_redundant_manager_api, synchronize, fun(_,[]) ->
+                                                                     ok
+                                                             end),
+    OldTable = 'leo_members',
+    ok = leo_redundant_manager_table_member:create_members(OldTable),
+    ok = leo_redundant_manager_table_member:delete_all(?MEMBER_TBL_CUR),
+    ok = leo_redundant_manager_table_member:delete_all(?MEMBER_TBL_PREV),
+
+    ok = leo_redundant_manager_table_member:insert(TableType, OldTable, {?NODE_0, ?MEMBER_0}),
+    ok = leo_redundant_manager_table_member:insert(TableType, OldTable, {?NODE_1, ?MEMBER_1}),
+    ok = leo_redundant_manager_table_member:insert(TableType, OldTable, {?NODE_2, ?MEMBER_2}),
+
+    ok = leo_members_table_transformer:transform('0.16.0', '0.16.5'),
+    {ok, MembersOrg}  = leo_redundant_manager_table_member:find_all(OldTable),
+    {ok, MembersCur}  = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
+    {ok, MembersPrev} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV),
+    ?assertEqual(length(MembersOrg), length(MembersCur )),
+    ?assertEqual(length(MembersOrg), length(MembersPrev)),
+
+    MembersOrgHash  = erlang:crc32(term_to_binary(lists:sort(MembersOrg))),
+    MembersCurHash  = erlang:crc32(term_to_binary(lists:sort(MembersCur))),
+    MembersPrevHash = erlang:crc32(term_to_binary(lists:sort(MembersPrev))),
+
+    ?assertEqual(MembersOrgHash, MembersCurHash ),
+    ?assertEqual(MembersOrgHash, MembersPrevHash),
+
+    meck:unload(),
     ok.
 
 -endif.

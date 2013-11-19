@@ -42,7 +42,9 @@
          replace/2, replace/3, replace/4,
          overwrite/2,
          table_size/0, table_size/1, table_size/2,
-         tab2list/0, tab2list/1, tab2list/2]).
+         tab2list/0, tab2list/1, tab2list/2,
+         first/1, next/2
+        ]).
 
 %% -define(TABLE, 'leo_members').
 
@@ -485,8 +487,6 @@ overwrite_1_1(?DB_ETS = DB, Table, [Member|Rest]) ->
     end.
 
 
-
-
 %% @doc Retrieve total of records.
 %%
 -spec(table_size() ->
@@ -540,3 +540,33 @@ tab2list(?DB_ETS, Table) ->
     ets:tab2list(Table);
 tab2list(_,_) ->
     {error, invalid_db}.
+
+
+%% Go to first record
+-spec(first(atom()) ->
+             tuple() | list() | {error, any()}).
+first(Table) ->
+    first(?table_type(), Table).
+
+%% @private
+-spec(first(?DB_MNESIA|?DB_ETS, atom()) ->
+             tuple() | list() | {error, any()}).
+first(?DB_MNESIA, Table) ->
+    mnesia:ets(fun ets:first/1, [Table]);
+first(?DB_ETS, Table) ->
+    ets:first(Table).
+
+
+%% Go to next record
+-spec(next(atom(), binary()) ->
+             tuple() | list() | {error, any()}).
+next(Table, MemberName) ->
+    next(?table_type(), Table, MemberName).
+
+%% @private
+-spec(next(?DB_MNESIA|?DB_ETS, atom(), binary()) ->
+             tuple() | list() | {error, any()}).
+next(?DB_MNESIA, Table, MemberName) ->
+    mnesia:ets(fun ets:next/2, [Table, MemberName]);
+next(?DB_ETS, Table, MemberName) ->
+    ets:next(Table, MemberName).
