@@ -174,6 +174,11 @@ inspect(TableType) ->
     ok = meck:expect(leo_redundant_manager_api, synchronize, fun(_,[]) ->
                                                                      ok
                                                              end),
+    ok = meck:new(mnesia, [no_link]),
+    ok = meck:expect(mnesia, table_info, fun(_,_) ->
+                                                 ok
+                                         end),
+
     OldTable = 'leo_members',
     ok = leo_redundant_manager_table_member:create_members(OldTable),
     ok = leo_redundant_manager_table_member:delete_all(?MEMBER_TBL_CUR),

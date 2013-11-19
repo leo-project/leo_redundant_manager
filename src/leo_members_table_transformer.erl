@@ -28,20 +28,60 @@
 -author('Yosuke Hara').
 
 -include("leo_redundant_manager.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
--export([transform/2]).
+-export([transform/2, transform/3]).
 
 
 %% @doc Transform records
 %%
-transform('0.16.0', '0.16.5') ->
+-spec(transform(atom(), atom()) ->
+             ok | {error, any()}).
+transform(From, To) ->
+    transform(From, To, []).
+
+-spec(transform(atom(), atom(), list(atom())) ->
+             ok | {error, any()}).
+transform('0.16.0', '0.16.5', MnesiaNodes) ->
     OldTbl  = 'leo_members',
     NewTbls = [?MEMBER_TBL_CUR, ?MEMBER_TBL_PREV],
 
+    Ret = mnesia:table_info(OldTbl, size),
+    transform_1(Ret, MnesiaNodes, OldTbl, NewTbls);
+
+transform(_,_,_) ->
+    {error, not_support}.
+
+%% @private
+transform_1(0,_,_,_) ->
+    ok;
+transform_1(_, MnesiaNodes, OldTbl, NewTbls) ->
+    case MnesiaNodes of
+        [] -> void;
+        _  ->
+            leo_redundant_manager_table_member:create_members(
+              disc_copies, MnesiaNodes, ?MEMBER_TBL_CUR),
+            leo_redundant_manager_table_member:create_members(
+              disc_copies, MnesiaNodes, ?MEMBER_TBL_PREV)
+    end,
+    case catch mnesia:table_info(?MEMBER_TBL_CUR, all) of
+        {'EXIT', _Cause} ->
+            ok;
+        _ ->
+            case catch mnesia:table_info(?MEMBER_TBL_PREV, all) of
+                {'EXIT', _Cause} ->
+                    ok;
+                _ ->
+                    transform_2(OldTbl, NewTbls)
+            end
+    end.
+
+%% @private
+transform_2(OldTbl, NewTbls) ->
     case (leo_redundant_manager_table_member:table_size(OldTbl) > 0) of
         true ->
             Node = leo_redundant_manager_table_member:first(OldTbl),
-            case transform_1(OldTbl, NewTbls, Node) of
+            case transform_3(OldTbl, NewTbls, Node) of
                 ok ->
                     %% recreate prev-ring and current-ring
                     ok = leo_redundant_manager_api:synchronize(?SYNC_TARGET_RING_CUR,  []),
@@ -52,19 +92,16 @@ transform('0.16.0', '0.16.5') ->
             end;
         false ->
             ok
-    end;
-transform(_,_) ->
-    {error, not_support}.
-
+    end.
 
 %% @private
-transform_1(OldTbl, NewTbls, Node) ->
+transform_3(OldTbl, NewTbls, Node) ->
     case leo_redundant_manager_table_member:lookup(OldTbl, Node) of
         {ok, Member} ->
-            case transform_1_1(NewTbls, Member) of
+            case transform_3_1(NewTbls, Member) of
                 ok ->
                     Ret = leo_redundant_manager_table_member:next(OldTbl, Node),
-                    transform_2(Ret, OldTbl, NewTbls);
+                    transform_4(Ret, OldTbl, NewTbls);
                 Error ->
                     Error
             end;
@@ -73,20 +110,20 @@ transform_1(OldTbl, NewTbls, Node) ->
     end.
 
 %% @private
-transform_1_1([],_) ->
+transform_3_1([],_) ->
     ok;
-transform_1_1([Tbl|Rest], #member{node = Node} = Member) ->
+transform_3_1([Tbl|Rest], #member{node = Node} = Member) ->
     case leo_redundant_manager_table_member:insert(Tbl, {Node, Member}) of
         ok ->
-            transform_1_1(Rest, Member);
+            transform_3_1(Rest, Member);
         Error ->
             Error
     end.
 
 %% @private
-transform_2('$end_of_table',_OldTblInfo,_NewTblInfo) ->
+transform_4('$end_of_table',_OldTblInfo,_NewTblInfo) ->
     ok;
-transform_2(Node, OldTbl, NewTbls) ->
-    transform_1(OldTbl, NewTbls, Node).
+transform_4(Node, OldTbl, NewTbls) ->
+    transform_3(OldTbl, NewTbls, Node).
 
 
