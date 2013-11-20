@@ -41,7 +41,8 @@
 
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
          get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2,
-         range_of_vnodes/1, rebalance/0
+         range_of_vnodes/1, rebalance/0,
+         get_alias/1, get_alias/2
         ]).
 
 -export([has_member/1, has_charge_of_node/1,
@@ -498,12 +499,23 @@ range_of_vnodes(ToVNodeId) ->
 rebalance() ->
     case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
         {ok, MembersCur} ->
-            case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
-                {ok, MembersPrev} ->
-                    rebalance_1(#rebalance{tbl_cur  = table_info(?VER_CUR),
-                                           tbl_prev = table_info(?VER_PREV),
-                                           members_cur  = MembersCur,
-                                           members_prev = MembersPrev});
+            %% If "attach" and "detach" are included in members,
+            %% then update current-members
+            %% because attach-node need to take over detach-node's data.
+            case takeover_status(MembersCur, []) of
+                {ok, {MembersCur_1, MembersPrev, TakeOverList}} ->
+                    case rebalance_1(#rebalance{tbl_cur  = table_info(?VER_CUR),
+                                                tbl_prev = table_info(?VER_PREV),
+                                                members_cur  = MembersCur_1,
+                                                members_prev = MembersPrev
+                                               }) of
+                        {ok, Ret} ->
+                            %% After exec rebalance
+                            ok = after_rebalance(TakeOverList),
+                            {ok, Ret};
+                        Error ->
+                            Error
+                    end;
                 Error ->
                     Error
             end;
@@ -532,8 +544,6 @@ rebalance_1(RebalanceInfo) ->
                                                               {line, ?LINE},
                                                               {body, Cause}])
                             end,
-                            %% dump ring and members
-                            ok = dump(both),
                             {ok, Ret};
                         Error ->
                             Error
@@ -561,6 +571,130 @@ rebalance_1_1([Member|Rest]) ->
             rebalance_1_1(Rest);
         Error ->
             Error
+    end.
+
+
+%% @private
+takeover_status([], TakeOverList) ->
+    case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
+        {ok, MembersCur} ->
+            case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
+                {ok, MembersPrev} ->
+                    {ok, {MembersCur, MembersPrev, TakeOverList}};
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end;
+takeover_status([#member{state = ?STATE_ATTACHED,
+                         node  = Node,
+                         alias = Alias} = Member|Rest], TakeOverList) ->
+    case get_alias(Node) of
+        {ok, {SrcMember, Alias_1}} when Alias /= Alias_1 ->
+            %% Takeover vnodes:
+            %%     Remove vnodes by old-alias,
+            %%     then insert vnodes by new-alias
+            RingTblCur = table_info(?VER_CUR),
+            Member_1 = Member#member{alias = Alias_1},
+
+            ok = leo_redundant_manager_chash:remove(RingTblCur,  Member),
+            ok = leo_redundant_manager_chash:add(RingTblCur,  Member_1),
+            ok = leo_redundant_manager_table_member:insert(?MEMBER_TBL_CUR,  {Node, Member_1}),
+            case SrcMember of
+                [] -> void;
+                #member{node = SrcNode} ->
+                    ok = leo_redundant_manager_table_member:insert(
+                           ?MEMBER_TBL_CUR, {SrcNode, SrcMember#member{alias = []}})
+            end,
+            takeover_status([], [{Member, Member_1, SrcMember}|TakeOverList]);
+        _ ->
+            takeover_status(Rest, TakeOverList)
+    end;
+takeover_status([_|Rest], TakeOverList) ->
+    takeover_status(Rest, TakeOverList).
+
+
+%% @private
+after_rebalance([]) ->
+    %% if previous-ring and current-ring has "detached-node(s)",
+    %% then remove them, as same as memebers
+    case leo_redundant_manager_api:get_members_by_status(
+           ?VER_CUR, ?STATE_DETACHED) of
+        {ok, DetachedNodes} ->
+            TblCur  = leo_redundant_manager_api:table_info(?VER_CUR),
+            TblPrev = leo_redundant_manager_api:table_info(?VER_PREV),
+            ok = lists:foreach(
+                   fun(#member{node = Node} = Member) ->
+                           %% remove detached node from members
+                           leo_redundant_manager_table_member:delete(?MEMBER_TBL_CUR,  Node),
+                           leo_redundant_manager_table_member:delete(?MEMBER_TBL_PREV, Node),
+                           %% remove detached node from ring
+                           leo_redundant_manager_chash:remove(TblCur,  Member),
+                           leo_redundant_manager_chash:remove(TblPrev, Member)
+                   end, DetachedNodes);
+        {error, not_found} ->
+            ok;
+        {error, Cause} ->
+            error_logger:warning_msg("~p,~p,~p,~p~n",
+                                     [{module, ?MODULE_STRING},
+                                      {function, "rebalance_1/5"},
+                                      {line, ?LINE}, {body, Cause}]),
+            ok
+    end,
+
+    %% Export ring and members
+    ok = dump(both),
+    ok;
+after_rebalance([{#member{node = Node} = Member_1, Member_2, SrcMember}|Rest]) ->
+    try
+        %% After exec taking over data from detach-node to attach-node
+        RingTblPrev = table_info(?VER_PREV),
+        MembersTblPrev = ?MEMBER_TBL_PREV,
+        ok = leo_redundant_manager_chash:remove(RingTblPrev, Member_1),
+        ok = leo_redundant_manager_chash:add(RingTblPrev, Member_2),
+        ok = leo_redundant_manager_table_member:insert(MembersTblPrev, {Node, Member_2}),
+        case SrcMember of
+            [] -> void;
+            #member{node = SrcNode} ->
+                ok = leo_redundant_manager_table_member:insert(
+                       MembersTblPrev,{SrcNode, SrcMember#member{alias = []}})
+        end
+    catch _:_ -> void
+    end,
+    after_rebalance(Rest).
+
+
+%% @doc Generate an alian from 'node'
+%%
+get_alias(Node) ->
+    get_alias(?MEMBER_TBL_CUR, Node).
+
+get_alias(Table, Node) ->
+    case leo_redundant_manager_table_member:find_by_status(
+           Table, ?STATE_DETACHED) of
+        not_found ->
+            get_alias_1([], Table, Node);
+        {ok, Members} ->
+            get_alias_1(Members, Table, Node);
+        {error, Cause} ->
+            {error, Cause}
+    end.
+
+get_alias_1([],_,Node) ->
+    PartOfAlias = string:substr(
+                    leo_hex:binary_to_hex(
+                      crypto:hash(md5, lists:append([atom_to_list(Node)]))),1,8),
+    {ok, {[], lists:append([?NODE_ALIAS_PREFIX, PartOfAlias])}};
+get_alias_1([#member{node  = Node_1}|Rest], Table, Node) when Node == Node_1 ->
+    get_alias_1(Rest, Table, Node);
+get_alias_1([#member{alias = Alias,
+                 node  = Node_1}|Rest], Table, Node) when Node /= Node_1 ->
+    case leo_redundant_manager_table_member:find_by_alias(Alias) of
+        {ok, [Member]} ->
+            {ok, {Member, Member#member.alias}};
+        _ ->
+            get_alias_1(Rest, Table, Node)
     end.
 
 

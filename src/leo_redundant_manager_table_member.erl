@@ -37,6 +37,7 @@
          find_by_status/1, find_by_status/2, find_by_status/3,
          find_by_level1/2, find_by_level1/3, find_by_level1/4,
          find_by_level2/1, find_by_level2/2, find_by_level2/3,
+         find_by_alias/1, find_by_alias/2, find_by_alias/3,
          insert/1, insert/2, insert/3,
          delete/1, delete/2, delete/3, delete_all/1, delete_all/2,
          replace/2, replace/3, replace/4,
@@ -287,6 +288,45 @@ find_by_level2(?DB_ETS, Table, L2) ->
             {ok, Ret}
     end;
 find_by_level2(_,_,_) ->
+    {error, invalid_db}.
+
+
+%% @doc Retrieve records by alias
+%%
+-spec(find_by_alias(string()) ->
+             {ok, list()} | not_found | {error, any()}).
+find_by_alias(Alias) ->
+    find_by_alias(?MEMBER_TBL_CUR, Alias).
+
+-spec(find_by_alias(atom(), string()) ->
+             {ok, list()} | not_found | {error, any()}).
+find_by_alias(Table, Alias) ->
+    find_by_alias(?table_type(), Table, Alias).
+
+-spec(find_by_alias(?DB_MNESIA|?DB_ETS, atom(), string()) ->
+             {ok, list()} | not_found | {error, any()}).
+find_by_alias(?DB_MNESIA, Table, Alias) ->
+    F = fun() ->
+                Q = qlc:q([X || X <- mnesia:table(Table),
+                                X#member.alias == Alias]),
+                qlc:e(Q)
+        end,
+    leo_mnesia:read(F);
+find_by_alias(?DB_ETS, Table, Alias) ->
+    case catch ets:foldl(
+                 fun({_, #member{alias = Alias_1} = Member}, Acc) when Alias == Alias_1 ->
+                         [Member|Acc];
+                    (_, Acc) ->
+                         Acc
+                 end, [], Table) of
+        {'EXIT', Cause} ->
+            {error, Cause};
+        [] ->
+            not_found;
+        Ret ->
+            {ok, Ret}
+    end;
+find_by_alias(_,_,_) ->
     {error, invalid_db}.
 
 

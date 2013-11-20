@@ -120,32 +120,6 @@ rebalance(RebalanceInfo) ->
 
 %% @private
 rebalance_1(_,_,0,_, Acc) ->
-    %% if previous-ring and current-ring has "detached-node(s)",
-    %% then remove them, as same as memebers
-    case leo_redundant_manager_api:get_members_by_status(
-           ?VER_CUR, ?STATE_DETACHED) of
-        {ok, DetachedNodes} ->
-            TblCur  = leo_redundant_manager_api:table_info(?VER_CUR),
-            TblPrev = leo_redundant_manager_api:table_info(?VER_PREV),
-            ok = lists:foreach(
-                   fun(#member{node = Node} = Member) ->
-                           %% remove detached node from members
-                           leo_redundant_manager_table_member:delete(?MEMBER_TBL_CUR,  Node),
-                           leo_redundant_manager_table_member:delete(?MEMBER_TBL_PREV, Node),
-                           %% remove detached node from ring
-                           remove(TblCur,  Member),
-                           remove(TblPrev, Member)
-                   end, DetachedNodes);
-        {error, not_found} ->
-            ok;
-        {error, Cause} ->
-            error_logger:warning_msg("~p,~p,~p,~p~n",
-                                     [{module, ?MODULE_STRING},
-                                      {function, "rebalance_1/5"},
-                                      {line, ?LINE}, {body, Cause}]),
-            ok
-    end,
-    %% return different redundancies
     {ok, lists:reverse(Acc)};
 rebalance_1(ServerRef, RebalanceInfo, RingSize, AddrId, Acc) ->
     #rebalance{tbl_cur      = TblInfoCur,

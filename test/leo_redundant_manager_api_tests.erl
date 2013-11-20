@@ -887,6 +887,14 @@ redundant_manager_6_test_() ->
                                            attach_to_attach()
                                        end)}.
 
+redundant_manager_7_test_() ->
+    {timeout, 60000, ?_assertEqual(ok, begin
+                                           attach_and_detach()
+                                       end)}.
+
+%% -define(NUM_OF_RECURSIVE_CALLS, 100).
+-define(NUM_OF_RECURSIVE_CALLS, 30000).
+
 long_run_1() ->
     %% prepare
     {Hostname} = setup(),
@@ -908,7 +916,7 @@ long_run_1() ->
 
     %% retrieve redundancies
     timer:sleep(100),
-    attach_1_1(30000),
+    attach_1_1(?NUM_OF_RECURSIVE_CALLS),
     ok.
 
 long_run_2() ->
@@ -936,7 +944,7 @@ long_run_2() ->
 
     %% retrieve redundancies
     timer:sleep(100),
-    attach_2_1(30000),
+    attach_2_1(?NUM_OF_RECURSIVE_CALLS),
     ok.
 
 long_run_3() ->
@@ -958,7 +966,7 @@ long_run_3() ->
 
     %% retrieve redundancies
     timer:sleep(100),
-    detach_1_1(30000),
+    detach_1_1(?NUM_OF_RECURSIVE_CALLS),
     ok.
 
 
@@ -996,7 +1004,7 @@ attach_to_detach() ->
     {error, not_found} = leo_redundant_manager_api:get_member_by_node(DetachNode),
 
     %% retrieve redundancies
-    detach_1_1(30000),
+    detach_1_1(?NUM_OF_RECURSIVE_CALLS),
     ok.
 
 attach_to_attach() ->
@@ -1042,8 +1050,41 @@ attach_to_attach() ->
 
     %% retrieve redundancies
     timer:sleep(100),
-    attach_1_1(30000),
+    attach_1_1(?NUM_OF_RECURSIVE_CALLS),
     ok.
 
+attach_and_detach() ->
+    os:cmd("rm ./log/ring/*"),
+
+    %% prepare
+    {Hostname} = setup(),
+
+    ok = prepare(Hostname, gateway),
+    {ok, _, _} = leo_redundant_manager_api:create(),
+    timer:sleep(1000),
+
+    %% attach and detach > rebalance
+    AttachNode = list_to_atom("node_8@" ++ Hostname),
+    DetachNode = list_to_atom("node_0@" ++ Hostname),
+
+    ok = leo_redundant_manager_api:attach(AttachNode),
+    ok = leo_redundant_manager_api:detach(DetachNode),
+
+    {ok, Res1} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res1 =/= []),
+
+    lists:foreach(fun(Item) ->
+                          Src  = proplists:get_value('src',  Item),
+                          Dest = proplists:get_value('dest', Item),
+                          ?assertEqual(true, Src  /= Dest),
+                          ?assertEqual(true, Src  /= DetachNode),
+                          ?assertEqual(true, Dest /= DetachNode),
+                          ?assertEqual(true, Src  /= AttachNode),
+                          ?assertEqual(true, Dest == AttachNode)
+                  end, Res1),
+
+    %% retrieve redundancies
+    detach_1_1(?NUM_OF_RECURSIVE_CALLS),
+    ok.
 
 -endif.
