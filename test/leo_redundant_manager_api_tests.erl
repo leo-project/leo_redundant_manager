@@ -1084,6 +1084,7 @@ attach_and_detach() ->
                   end, Res1),
 
     %% retrieve redundancies
+    timer:sleep(1000),
     detach_1_1(?NUM_OF_RECURSIVE_CALLS),
     ok.
 
