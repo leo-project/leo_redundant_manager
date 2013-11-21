@@ -135,7 +135,7 @@ attach_1_({Hostname}) ->
     ?assertNotEqual(-1, MemberHashPrev),
 
     %% retrieve redundancies
-    timer:sleep(100),
+    timer:sleep(500),
     attach_1_1(50),
     ok.
 
@@ -161,7 +161,7 @@ attach_2_({Hostname}) ->
     ok = prepare(Hostname, gateway),
     {ok, _, _} = leo_redundant_manager_api:create(?VER_CUR),
     {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
-    timer:sleep(100),
+    timer:sleep(500),
 
     %% rebalance.attach
     AttachedNodes = [list_to_atom("node_8@"  ++ Hostname),
@@ -205,7 +205,7 @@ attach_2_({Hostname}) ->
     ?assertNotEqual(-1, MemberHashPrev),
 
     %% retrieve redundancies
-    timer:sleep(100),
+    timer:sleep(500),
     attach_2_1(50),
     ok.
 
@@ -261,7 +261,7 @@ detach_({Hostname}) ->
     ?assertNotEqual(-1, MemberHashCur),
     ?assertNotEqual(-1, MemberHashPrev),
 
-    timer:sleep(100),
+    timer:sleep(500),
     detach_1_1(100),
     ok.
 
@@ -277,12 +277,7 @@ detach_1_1(Index) ->
         false ->
             R1Nodes = [N || #redundant_node{node = N} <- R1#redundancies.nodes],
             R2Nodes = [N || #redundant_node{node = N} <- R2#redundancies.nodes],
-            D = lists:subtract(R2Nodes, R1Nodes),
-            ?debugVal({D, Key}),
-            ?debugVal({R1#redundancies.vnode_id_to,
-                       R2#redundancies.vnode_id_to,
-                       R1#redundancies.nodes,
-                       R2#redundancies.nodes})
+            ?debugVal({R1Nodes, R2Nodes})
     end,
     detach_1_1(Index - 1).
 
@@ -898,7 +893,7 @@ redundant_manager_8_test_() ->
                                        end)}.
 
 %% -define(NUM_OF_RECURSIVE_CALLS, 100).
--define(NUM_OF_RECURSIVE_CALLS, 30000).
+-define(NUM_OF_RECURSIVE_CALLS, 20000).
 
 long_run_1() ->
     %% prepare
@@ -920,7 +915,7 @@ long_run_1() ->
     ?assertEqual(true, Res1 =/= []),
 
     %% retrieve redundancies
-    timer:sleep(100),
+    timer:sleep(1000),
     attach_1_1(?NUM_OF_RECURSIVE_CALLS),
     ok.
 
@@ -943,12 +938,12 @@ long_run_2() ->
                           ok = leo_redundant_manager_api:attach(_N)
                   end, AttachedNodes),
 
-    timer:sleep(100),
+    timer:sleep(1000),
     {ok, Res1} = leo_redundant_manager_api:rebalance(),
     ?assertEqual(true, Res1 =/= []),
 
     %% retrieve redundancies
-    timer:sleep(100),
+    timer:sleep(1000),
     attach_2_1(?NUM_OF_RECURSIVE_CALLS),
     ok.
 
@@ -970,7 +965,7 @@ long_run_3() ->
     ?assertEqual(true, Res1 =/= []),
 
     %% retrieve redundancies
-    timer:sleep(100),
+    timer:sleep(1000),
     detach_1_1(?NUM_OF_RECURSIVE_CALLS),
     ok.
 
@@ -1054,13 +1049,11 @@ attach_to_attach() ->
     ?assertEqual((10 * ?DEF_NUMBER_OF_VNODES), RingSize),
 
     %% retrieve redundancies
-    timer:sleep(100),
+    timer:sleep(1000),
     attach_1_1(?NUM_OF_RECURSIVE_CALLS),
     ok.
 
 attach_and_detach() ->
-    os:cmd("rm ./log/ring/*"),
-
     %% prepare
     {Hostname} = setup(),
 
@@ -1090,7 +1083,7 @@ attach_and_detach() ->
 
     %% retrieve redundancies
     timer:sleep(1000),
-    detach_1_1(?NUM_OF_RECURSIVE_CALLS),
+    %% detach_1_1(?NUM_OF_RECURSIVE_CALLS),
     ok.
 
 detach_after_attach_same_node() ->
