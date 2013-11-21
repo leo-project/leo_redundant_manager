@@ -1107,6 +1107,7 @@ attach_to_attach() ->
 
 attach_and_detach() ->
     %% prepare
+    os:cmd("rm -rf ./log/ring/*"),
     {Hostname} = setup(),
 
     ok = prepare(Hostname, gateway),
@@ -1145,8 +1146,13 @@ attach_and_detach() ->
                   end, Res1),
 
     %% retrieve redundancies
-    timer:sleep(1000),
-    attach_1_1(?NUM_OF_RECURSIVE_CALLS),
+    timer:sleep(500),
+    ok = leo_redundant_manager_api:update_member_by_node(
+           AttachNode, leo_date:clock(), ?STATE_RUNNING),
+
+    timer:sleep(500),
+    leo_redundant_manager_api:dump(both),
+    detach_1_1(?NUM_OF_RECURSIVE_CALLS),
     ok.
 
 detach_after_attach_same_node() ->
@@ -1197,7 +1203,11 @@ detach_after_attach_same_node() ->
     ?assertNotEqual(RingHashCur, RingHashPrev),
 
     %% retrieve redundancies
-    timer:sleep(1000),
+    timer:sleep(500),
+    ok = leo_redundant_manager_api:update_member_by_node(
+           AttachNode, leo_date:clock(), ?STATE_RUNNING),
+
+    timer:sleep(500),
     attach_1_1(?NUM_OF_RECURSIVE_CALLS),
     ok.
 

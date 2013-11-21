@@ -595,7 +595,8 @@ create_3(Ver, [Member|Rest]) ->
 
 %% @doc Add a node into storage-cluster
 %% @private
-attach_1(TblInfo, #member{node = Node} = Member) ->
+attach_1(TblInfo, #member{node  = Node,
+                          alias = []} = Member) ->
     NodeStr = atom_to_list(Node),
     IP = case (string:chr(NodeStr, $@) > 0) of
              true ->
@@ -611,11 +612,15 @@ attach_1(TblInfo, #member{node = Node} = Member) ->
                                             ip    = IP});
         {error, Cause} ->
             {error, Cause}
-    end.
+    end;
+attach_1(TblInfo, Member) ->
+    attach_2(TblInfo, Member).
+
 
 %% @private
 attach_2(TblInfo, #member{node = Node} = Member) ->
     case leo_redundant_manager_table_member:insert(
+           ?ring_table_to_member_table(TblInfo),
            {Node, Member#member{clock = leo_date:clock()}}) of
         ok ->
             attach_3(TblInfo, Member);
@@ -627,7 +632,6 @@ attach_2(TblInfo, #member{node = Node} = Member) ->
 attach_3(TblInfo, Member) ->
     case leo_redundant_manager_chash:add(TblInfo, Member) of
         ok ->
-            %% dump_ring_tabs(),
             ok;
         Error ->
             Error
