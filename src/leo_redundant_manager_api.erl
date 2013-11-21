@@ -40,7 +40,7 @@
         ]).
 
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
-         get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2,
+         get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2, get_redundancies_by_addr_id/3,
          range_of_vnodes/1, rebalance/0,
          get_alias/1, get_alias/2
         ]).
@@ -431,9 +431,9 @@ get_redundancies_by_key(Method, Key) ->
     case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         {ok, Options} ->
             BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
-            AddrId = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
-
-            get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options);
+            AddrId    = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
+            ServerRef = get_server_id(AddrId),
+            get_redundancies_by_addr_id_1(ServerRef, ring_table(Method), AddrId, Options);
         _ ->
             {error, not_found}
     end.
@@ -447,17 +447,21 @@ get_redundancies_by_addr_id(AddrId) ->
 -spec(get_redundancies_by_addr_id(method(), integer()) ->
              {ok, list(), integer(), integer(), list()} | {error, any()}).
 get_redundancies_by_addr_id(Method, AddrId) ->
+    ServerRef = get_server_id(AddrId),
+    get_redundancies_by_addr_id(ServerRef, Method, AddrId).
+
+-spec(get_redundancies_by_addr_id(atom(), method(), integer()) ->
+             {ok, list(), integer(), integer(), list()} | {error, any()}).
+get_redundancies_by_addr_id(ServerRef, Method, AddrId) ->
     case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         {ok, Options} ->
-            get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options);
+            get_redundancies_by_addr_id_1(ServerRef, ring_table(Method), AddrId, Options);
         _ ->
             {error, not_found}
     end.
 
-
 %% @private
-get_redundancies_by_addr_id_1(TblInfo, AddrId, Options) ->
-    ServerRef = get_server_id(AddrId),
+get_redundancies_by_addr_id_1(ServerRef, TblInfo, AddrId, Options) ->
     N = leo_misc:get_value(?PROP_N, Options),
     R = leo_misc:get_value(?PROP_R, Options),
     W = leo_misc:get_value(?PROP_W, Options),
