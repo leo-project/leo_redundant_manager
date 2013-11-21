@@ -892,8 +892,13 @@ redundant_manager_7_test_() ->
                                            attach_and_detach()
                                        end)}.
 
-%% -define(NUM_OF_RECURSIVE_CALLS, 100).
--define(NUM_OF_RECURSIVE_CALLS, 30000).
+redundant_manager_8_test_() ->
+    {timeout, 60000, ?_assertEqual(ok, begin
+                                           detach_after_attach_same_node()
+                                       end)}.
+
+-define(NUM_OF_RECURSIVE_CALLS, 100).
+%% -define(NUM_OF_RECURSIVE_CALLS, 30000).
 
 long_run_1() ->
     %% prepare
@@ -1086,6 +1091,47 @@ attach_and_detach() ->
     %% retrieve redundancies
     timer:sleep(1000),
     detach_1_1(?NUM_OF_RECURSIVE_CALLS),
+    ok.
+
+detach_after_attach_same_node() ->
+    %% prepare
+    {Hostname} = setup(),
+
+    ok = prepare(Hostname, gateway),
+    {ok, _, _} = leo_redundant_manager_api:create(),
+    timer:sleep(100),
+
+    %% detach > rebalance
+    DetachNode = list_to_atom("node_0@" ++ Hostname),
+    ok = leo_redundant_manager_api:detach(DetachNode),
+    {ok, Res2} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res2 =/= []),
+
+    %% attach > rebalance
+    AttachNode = list_to_atom("node_0@" ++ Hostname),
+    ok = leo_redundant_manager_api:attach(AttachNode),
+
+    timer:sleep(5000),
+    {ok, Res1} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res1 =/= []),
+
+    lists:foreach(fun(Item) ->
+                          Src  = proplists:get_value('src',  Item),
+                          Dest = proplists:get_value('dest', Item),
+                          ?assertEqual(true, Src  /= Dest),
+                          ?assertEqual(true, Src  /= AttachNode),
+                          ?assertEqual(true, Dest == AttachNode)
+                  end, Res1),
+
+    ok = leo_redundant_manager_api:update_member_by_node(
+           AttachNode, leo_date:clock(), ?STATE_RUNNING),
+
+    {ok, {RingHashCur, RingHashPrev}} = leo_redundant_manager_api:checksum(ring),
+    ?assertNotEqual(RingHashCur, RingHashPrev),
+
+    %% retrieve redundancies
+    timer:sleep(1000),
+    attach_1_1(?NUM_OF_RECURSIVE_CALLS),
     ok.
 
 -endif.
