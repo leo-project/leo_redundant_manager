@@ -81,15 +81,6 @@
          }).
 
 
--ifdef(TEST).
--define(output_error_log(Line, Fun, Msg), void).
--else.
--define(output_error_log(Line, Fun, Msg),
-        error_logger:warning_msg("~p,~p,~p,~p~n",
-                                 [{module, ?MODULE_STRING}, {function, Fun},
-                                  {line, Line}, {body, Msg}])).
--endif.
-
 -compile({inline, [lookup_fun/5, find_redundancies_by_addr_id/2,
                    reply_redundancies/3,first_fun/1, last_fun/1,
                    gen_routing_table/2, gen_routing_table_1/4, gen_routing_table_2/2,
@@ -434,8 +425,6 @@ gen_routing_table_1([{AddrId,_Node}|Rest], SyncInfo, RingConf, State) ->
                                              RingConf#ring_conf{addr_id = AddrId}),
             gen_routing_table_1(Rest, SyncInfo, RingConf_1, State);
         Error ->
-            ?output_error_log(?LINE, "gen_routing_table_1/4",
-                              ?ERROR_COULD_NOT_GET_REDUNDANCIES),
             Error
     end.
 
