@@ -913,6 +913,16 @@ long_run_1() ->
     timer:sleep(100),
     {ok, Res1} = leo_redundant_manager_api:rebalance(),
     ?assertEqual(true, Res1 =/= []),
+    SrcNodes = lists:sort(
+                 lists:foldl(fun(Item, Acc) ->
+                                     Src = proplists:get_value('src',  Item),
+                                     case lists:member(Src, Acc) of
+                                         true  -> Acc;
+                                         false -> [Src|Acc]
+                                     end
+                             end, [], Res1)),
+    ?debugVal(SrcNodes),
+    ?assertEqual(8, length(SrcNodes)),
 
     %% retrieve redundancies
     timer:sleep(1000),
@@ -941,6 +951,16 @@ long_run_2() ->
     timer:sleep(1000),
     {ok, Res1} = leo_redundant_manager_api:rebalance(),
     ?assertEqual(true, Res1 =/= []),
+    SrcNodes = lists:sort(
+                 lists:foldl(fun(Item, Acc) ->
+                                     Src = proplists:get_value('src',  Item),
+                                     case lists:member(Src, Acc) of
+                                         true  -> Acc;
+                                         false -> [Src|Acc]
+                                     end
+                             end, [], Res1)),
+    ?debugVal(SrcNodes),
+    ?assertEqual(8, length(SrcNodes)),
 
     %% retrieve redundancies
     timer:sleep(1000),
@@ -963,6 +983,16 @@ long_run_3() ->
     timer:sleep(100),
     {ok, Res1} = leo_redundant_manager_api:rebalance(),
     ?assertEqual(true, Res1 =/= []),
+    SrcNodes = lists:sort(
+                 lists:foldl(fun(Item, Acc) ->
+                                     Src = proplists:get_value('src',  Item),
+                                     case lists:member(Src, Acc) of
+                                         true  -> Acc;
+                                         false -> [Src|Acc]
+                                     end
+                             end, [], Res1)),
+    ?debugVal(SrcNodes),
+    ?assertEqual(7, length(SrcNodes)),
 
     %% retrieve redundancies
     timer:sleep(1000),
@@ -997,6 +1027,17 @@ attach_to_detach() ->
     ok = leo_redundant_manager_api:detach(DetachNode),
     {ok, Res2} = leo_redundant_manager_api:rebalance(),
     ?assertEqual(true, Res2 =/= []),
+
+    SrcNodes = lists:sort(
+                 lists:foldl(fun(Item, Acc) ->
+                                     Src = proplists:get_value('src',  Item),
+                                     case lists:member(Src, Acc) of
+                                         true  -> Acc;
+                                         false -> [Src|Acc]
+                                     end
+                             end, [], Res2)),
+    ?debugVal(SrcNodes),
+    ?assertEqual(7, length(SrcNodes)),
 
     {ok, {RingHashCur_2, RingHashPrev_2}} = leo_redundant_manager_api:checksum(ring),
     ?assertEqual(RingHashCur_2, RingHashPrev_2),
@@ -1035,6 +1076,17 @@ attach_to_attach() ->
     {ok, Res2} = leo_redundant_manager_api:rebalance(),
     ?assertEqual(true, Res2 =/= []),
 
+    SrcNodes = lists:sort(
+                 lists:foldl(fun(Item, Acc) ->
+                                     Src = proplists:get_value('src',  Item),
+                                     case lists:member(Src, Acc) of
+                                         true  -> Acc;
+                                         false -> [Src|Acc]
+                                     end
+                             end, [], Res2)),
+    ?debugVal(SrcNodes),
+    ?assertEqual(8, length(SrcNodes)),
+
     ok = leo_redundant_manager_api:update_member_by_node(
            AttachNode_2, leo_date:clock(), ?STATE_RUNNING),
 
@@ -1071,6 +1123,17 @@ attach_and_detach() ->
     {ok, Res1} = leo_redundant_manager_api:rebalance(),
     ?assertEqual(true, Res1 =/= []),
 
+    SrcNodes = lists:sort(
+                 lists:foldl(fun(Item, Acc) ->
+                                     Src = proplists:get_value('src',  Item),
+                                     case lists:member(Src, Acc) of
+                                         true  -> Acc;
+                                         false -> [Src|Acc]
+                                     end
+                             end, [], Res1)),
+    ?debugVal(SrcNodes),
+    ?assertEqual(7, length(SrcNodes)),
+
     lists:foreach(fun(Item) ->
                           Src  = proplists:get_value('src',  Item),
                           Dest = proplists:get_value('dest', Item),
@@ -1083,7 +1146,7 @@ attach_and_detach() ->
 
     %% retrieve redundancies
     timer:sleep(1000),
-    %% detach_1_1(?NUM_OF_RECURSIVE_CALLS),
+    attach_1_1(?NUM_OF_RECURSIVE_CALLS),
     ok.
 
 detach_after_attach_same_node() ->
@@ -1107,6 +1170,17 @@ detach_after_attach_same_node() ->
     timer:sleep(5000),
     {ok, Res1} = leo_redundant_manager_api:rebalance(),
     ?assertEqual(true, Res1 =/= []),
+
+    SrcNodes = lists:sort(
+                 lists:foldl(fun(Item, Acc) ->
+                                     Src = proplists:get_value('src',  Item),
+                                     case lists:member(Src, Acc) of
+                                         true  -> Acc;
+                                         false -> [Src|Acc]
+                                     end
+                             end, [], Res1)),
+    ?debugVal(SrcNodes),
+    ?assertEqual(7, length(SrcNodes)),
 
     lists:foreach(fun(Item) ->
                           Src  = proplists:get_value('src',  Item),
