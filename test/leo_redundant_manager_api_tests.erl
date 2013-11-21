@@ -897,8 +897,8 @@ redundant_manager_8_test_() ->
                                            detach_after_attach_same_node()
                                        end)}.
 
--define(NUM_OF_RECURSIVE_CALLS, 100).
-%% -define(NUM_OF_RECURSIVE_CALLS, 30000).
+%% -define(NUM_OF_RECURSIVE_CALLS, 100).
+-define(NUM_OF_RECURSIVE_CALLS, 30000).
 
 long_run_1() ->
     %% prepare
