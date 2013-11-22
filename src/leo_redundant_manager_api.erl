@@ -620,8 +620,6 @@ before_rebalance_1([]) ->
     end;
 before_rebalance_1([#member{state = ?STATE_ATTACHED}|Rest]) ->
     before_rebalance_1(Rest);
-%% before_rebalance_1([#member{state = ?STATE_DETACHED} = _Member|Rest]) ->
-%%     before_rebalance_1(Rest);
 before_rebalance_1([#member{state = ?STATE_RESERVED}|Rest]) ->
     before_rebalance_1(Rest);
 before_rebalance_1([#member{node = Node} = Member|Rest]) ->
