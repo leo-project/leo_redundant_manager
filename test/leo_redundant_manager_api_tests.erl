@@ -149,8 +149,6 @@ attach_1_1(Index) ->
         true ->
             ok;
         false ->
-            %% ?debugVal({Key, R1#redundancies.vnode_id_to,
-            %%            R1#redundancies.nodes, R2#redundancies.nodes})
             ?assertEqual(1, (length(R2#redundancies.nodes) -
                                  length(R1#redundancies.nodes)))
     end,
@@ -219,8 +217,6 @@ attach_2_1(Index) ->
         true ->
             void;
         false ->
-            %% ?debugVal({Key, R1#redundancies.vnode_id_to,
-            %%            R1#redundancies.nodes, R2#redundancies.nodes})
             Difference = (length(R2#redundancies.nodes) -
                               length(R1#redundancies.nodes)),
             ?assertEqual(true, (Difference > 0 andalso Difference =< 3))
@@ -888,8 +884,14 @@ redundant_manager_7_test_() ->
 
 redundant_manager_8_test_() ->
     {timeout, 60000, ?_assertEqual(ok, begin
+                                           attach_and_attach()
+                                       end)}.
+
+redundant_manager_9_test_() ->
+    {timeout, 60000, ?_assertEqual(ok, begin
                                            detach_after_attach_same_node()
                                        end)}.
+
 
 %% -define(NUM_OF_RECURSIVE_CALLS, 100).
 -define(NUM_OF_RECURSIVE_CALLS, 1000).
@@ -1162,6 +1164,58 @@ attach_and_detach() ->
     leo_redundant_manager_api:dump(both),
     detach_1_1(?NUM_OF_RECURSIVE_CALLS),
     ok.
+
+attach_and_attach() ->
+    %% prepare
+    {Hostname} = setup(),
+
+    ok = prepare(Hostname, gateway),
+    {ok, _, _} = leo_redundant_manager_api:create(),
+    timer:sleep(1000),
+
+    %% attach and detach > rebalance
+    AttachNode_1 = list_to_atom("node_8@" ++ Hostname),
+    AttachNode_2 = list_to_atom("node_9@" ++ Hostname),
+
+    ok = leo_redundant_manager_api:attach(AttachNode_1),
+    ok = leo_redundant_manager_api:attach(AttachNode_2),
+
+    {ok, Res1} = leo_redundant_manager_api:rebalance(),
+    ?assertEqual(true, Res1 =/= []),
+
+    SrcNodes = lists:sort(
+                 lists:foldl(fun(Item, Acc) ->
+                                     Src  = proplists:get_value('src', Item),
+                                     case lists:member(Src, Acc) of
+                                         true  -> Acc;
+                                         false -> [Src|Acc]
+                                     end
+                             end, [], Res1)),
+    ?debugVal(SrcNodes),
+    ?assertEqual(8, length(SrcNodes)),
+
+    lists:foreach(fun(Item) ->
+                          Src  = proplists:get_value('src',  Item),
+                          Dest = proplists:get_value('dest', Item),
+                          ?assertEqual(true, Src  /= Dest),
+                          ?assertEqual(true, Src  /= AttachNode_1),
+                          ?assertEqual(true, Src  /= AttachNode_2),
+                          ?assertEqual(true, (Dest == AttachNode_1 orelse
+                                              Dest == AttachNode_2))
+                  end, Res1),
+
+    %% retrieve redundancies
+    timer:sleep(500),
+    ok = leo_redundant_manager_api:update_member_by_node(
+           AttachNode_1, leo_date:clock(), ?STATE_RUNNING),
+    ok = leo_redundant_manager_api:update_member_by_node(
+           AttachNode_2, leo_date:clock(), ?STATE_RUNNING),
+
+    timer:sleep(500),
+    leo_redundant_manager_api:dump(both),
+    attach_2_1(?NUM_OF_RECURSIVE_CALLS),
+    ok.
+
 
 detach_after_attach_same_node() ->
     %% prepare
