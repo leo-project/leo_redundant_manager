@@ -540,13 +540,13 @@ before_rebalance(MembersCur) ->
             %% then update current-members
             %% because attach-node need to take over detach-node's data.
             case takeover_status(MembersCur, []) of
-                {ok, {MembersCur_1, MembersPrev, TakeOverList}} ->
+                {ok, {MembersCur_1, TakeOverList}} ->
                     %% Remove all previous members,
                     %% Then insert new members from current members
                     case leo_redundant_manager_table_member:delete_all(?MEMBER_TBL_PREV) of
                         ok ->
                             case before_rebalance_1(MembersCur_1) of
-                                ok ->
+                                {ok, MembersPrev} ->
                                     {ok, {MembersCur_1, MembersPrev, TakeOverList}};
                                 Error ->
                                     Error
@@ -566,12 +566,7 @@ before_rebalance(MembersCur) ->
 takeover_status([], TakeOverList) ->
     case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
         {ok, MembersCur} ->
-            case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
-                {ok, MembersPrev} ->
-                    {ok, {MembersCur, MembersPrev, TakeOverList}};
-                Error ->
-                    Error
-            end;
+            {ok, {MembersCur, TakeOverList}};
         Error ->
             Error
     end;
@@ -606,16 +601,32 @@ takeover_status([_|Rest], TakeOverList) ->
 
 %% @private
 before_rebalance_1([]) ->
-    ok;
+    %% Synchronize previous-ring
+    case synchronize_1(?SYNC_TARGET_RING_PREV, ?VER_PREV) of
+        ok -> void;
+        {error, Reason} ->
+            error_logger:warning_msg("~p,~p,~p,~p~n",
+                                     [{module, ?MODULE_STRING},
+                                      {function, "after_rebalance_1/0"},
+                                      {line, ?LINE},
+                                      {body, Reason}])
+    end,
+
+    case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
+        {ok, MembersPrev} ->
+            {ok, MembersPrev};
+        Error ->
+            Error
+    end;
 before_rebalance_1([#member{state = ?STATE_ATTACHED}|Rest]) ->
     before_rebalance_1(Rest);
-before_rebalance_1([#member{state = ?STATE_DETACHED} = _Member|Rest]) ->
-    before_rebalance_1(Rest);
+%% before_rebalance_1([#member{state = ?STATE_DETACHED} = _Member|Rest]) ->
+%%     before_rebalance_1(Rest);
 before_rebalance_1([#member{state = ?STATE_RESERVED}|Rest]) ->
     before_rebalance_1(Rest);
-before_rebalance_1([Member|Rest]) ->
-    #member{node = Node} = Member,
-    case leo_redundant_manager_table_member:insert(?MEMBER_TBL_PREV, {Node, Member}) of
+before_rebalance_1([#member{node = Node} = Member|Rest]) ->
+    case leo_redundant_manager_table_member:insert(?MEMBER_TBL_PREV,
+                                                   {Node, Member#member{state = ?STATE_RUNNING}}) of
         ok ->
             before_rebalance_1(Rest);
         Error ->

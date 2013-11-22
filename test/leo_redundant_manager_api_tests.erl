@@ -236,10 +236,9 @@ detach_({Hostname}) ->
     %% 1. rebalance.detach
     DetachNode = list_to_atom("node_0@" ++ Hostname),
     ok = leo_redundant_manager_api:detach(DetachNode),
-
-    %% execute
     {ok, Res} = leo_redundant_manager_api:rebalance(),
     ?assertEqual(true, Res =/= []),
+
     lists:foreach(fun(Item) ->
                           Src  = proplists:get_value('src',  Item),
                           Dest = proplists:get_value('dest', Item),
@@ -893,7 +892,7 @@ redundant_manager_8_test_() ->
                                        end)}.
 
 %% -define(NUM_OF_RECURSIVE_CALLS, 100).
--define(NUM_OF_RECURSIVE_CALLS, 20000).
+-define(NUM_OF_RECURSIVE_CALLS, 1000).
 
 long_run_1() ->
     %% prepare
@@ -1022,9 +1021,9 @@ attach_to_detach() ->
 
     {ok, _}= leo_redundant_manager_api:get_member_by_node(AttachNode),
 
-    %% detach > rebalance
     DetachNode = list_to_atom("node_0@" ++ Hostname),
     ok = leo_redundant_manager_api:detach(DetachNode),
+
     {ok, Res2} = leo_redundant_manager_api:rebalance(),
     ?assertEqual(true, Res2 =/= []),
 
@@ -1037,7 +1036,7 @@ attach_to_detach() ->
                                      end
                              end, [], Res2)),
     ?debugVal(SrcNodes),
-    ?assertEqual(7, length(SrcNodes)),
+    ?assertEqual(8, length(SrcNodes)),
 
     {ok, {RingHashCur_2, RingHashPrev_2}} = leo_redundant_manager_api:checksum(ring),
     ?assertEqual(RingHashCur_2, RingHashPrev_2),
@@ -1050,6 +1049,7 @@ attach_to_detach() ->
 
 attach_to_attach() ->
     %% prepare
+    os:cmd("rm -rf ./log/ring/*"),
     {Hostname} = setup(),
 
     ok = prepare(Hostname, gateway),
@@ -1069,6 +1069,7 @@ attach_to_attach() ->
     ?assertNotEqual(RingHashCur_1, RingHashPrev_1),
 
     {ok, _}= leo_redundant_manager_api:get_member_by_node(AttachNode_1),
+    timer:sleep(1000),
 
     %% attach#2 > rebalance
     AttachNode_2 = list_to_atom("node_9@" ++ Hostname),
@@ -1078,14 +1079,22 @@ attach_to_attach() ->
 
     SrcNodes = lists:sort(
                  lists:foldl(fun(Item, Acc) ->
-                                     Src = proplists:get_value('src',  Item),
+                                     Src  = proplists:get_value('src', Item),
+                                     Dest = proplists:get_value('dest',Item),
+                                     case Src of
+                                         AttachNode_1 when Dest == AttachNode_2 ->
+                                             ?debugVal({Src, Dest});
+                                         _ ->
+                                             void
+                                     end,
+
                                      case lists:member(Src, Acc) of
                                          true  -> Acc;
                                          false -> [Src|Acc]
                                      end
                              end, [], Res2)),
     ?debugVal(SrcNodes),
-    ?assertEqual(8, length(SrcNodes)),
+    ?assertEqual(9, length(SrcNodes)),
 
     ok = leo_redundant_manager_api:update_member_by_node(
            AttachNode_2, leo_date:clock(), ?STATE_RUNNING),
@@ -1107,7 +1116,6 @@ attach_to_attach() ->
 
 attach_and_detach() ->
     %% prepare
-    os:cmd("rm -rf ./log/ring/*"),
     {Hostname} = setup(),
 
     ok = prepare(Hostname, gateway),

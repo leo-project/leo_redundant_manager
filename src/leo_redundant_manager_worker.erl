@@ -623,13 +623,15 @@ get_node_by_vnodeid(Table, VNodeId) ->
              {atom, list(atom())}).
 get_redundancies([],_,_) ->
     not_found;
-get_redundancies([#member{node = Node_0,
+get_redundancies([#member{node  = Node_0,
                           state = State,
                           grp_level_2 = L2}|_], Node_1, SetL2) when Node_0 == Node_1,
                                                                     State  /= ?STATE_DETACHED ->
     case lists:member(L2, SetL2) of
-        false  -> {Node_0, [L2|SetL2]};
-        _Other -> {Node_0, SetL2}
+        false  ->
+            {Node_0, [L2|SetL2]};
+        _Other ->
+            {Node_0, SetL2}
     end;
 get_redundancies([#member{node = Node_0}|T], Node_1, SetL2) when Node_0 /= Node_1 ->
     get_redundancies(T, Node_1, SetL2).
