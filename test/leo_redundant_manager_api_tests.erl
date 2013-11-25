@@ -615,6 +615,9 @@ rack_aware_2_({Hostname}) ->
 %% INNER FUNCTION
 %% -------------------------------------------------------------------
 prepare(Hostname, ServerType) ->
+    prepare(Hostname, ServerType, 8).
+
+prepare(Hostname, ServerType, NumOfNodes) ->
     catch ets:delete(?MEMBER_TBL_CUR),
     catch ets:delete(?MEMBER_TBL_PREV),
     catch ets:delete('leo_ring_cur'),
@@ -634,14 +637,20 @@ prepare(Hostname, ServerType) ->
                                            {w ,2},
                                            {d, 2},
                                            {bit_of_ring, 128}]),
+
     leo_redundant_manager_api:attach(list_to_atom("node_0@" ++ Hostname)),
     leo_redundant_manager_api:attach(list_to_atom("node_1@" ++ Hostname)),
     leo_redundant_manager_api:attach(list_to_atom("node_2@" ++ Hostname)),
-    leo_redundant_manager_api:attach(list_to_atom("node_3@" ++ Hostname)),
-    leo_redundant_manager_api:attach(list_to_atom("node_4@" ++ Hostname)),
-    leo_redundant_manager_api:attach(list_to_atom("node_5@" ++ Hostname)),
-    leo_redundant_manager_api:attach(list_to_atom("node_6@" ++ Hostname)),
-    leo_redundant_manager_api:attach(list_to_atom("node_7@" ++ Hostname)),
+    case NumOfNodes of
+        8 ->
+            leo_redundant_manager_api:attach(list_to_atom("node_3@" ++ Hostname)),
+            leo_redundant_manager_api:attach(list_to_atom("node_4@" ++ Hostname)),
+            leo_redundant_manager_api:attach(list_to_atom("node_5@" ++ Hostname)),
+            leo_redundant_manager_api:attach(list_to_atom("node_6@" ++ Hostname)),
+            leo_redundant_manager_api:attach(list_to_atom("node_7@" ++ Hostname));
+        _ ->
+            void
+    end,
     ?debugVal(leo_redundant_manager_table_member:table_size()),
 
     timer:sleep(500),
@@ -891,6 +900,7 @@ redundant_manager_9_test_() ->
     {timeout, 60000, ?_assertEqual(ok, begin
                                            detach_after_attach_same_node()
                                        end)}.
+
 
 
 %% -define(NUM_OF_RECURSIVE_CALLS, 100).
@@ -1169,7 +1179,7 @@ attach_and_attach() ->
     %% prepare
     {Hostname} = setup(),
 
-    ok = prepare(Hostname, gateway),
+    ok = prepare(Hostname, gateway, 3),
     {ok, _, _} = leo_redundant_manager_api:create(),
     timer:sleep(1000),
 
@@ -1192,7 +1202,7 @@ attach_and_attach() ->
                                      end
                              end, [], Res1)),
     ?debugVal(SrcNodes),
-    ?assertEqual(8, length(SrcNodes)),
+    ?assertEqual(3, length(SrcNodes)),
 
     lists:foreach(fun(Item) ->
                           Src  = proplists:get_value('src',  Item),

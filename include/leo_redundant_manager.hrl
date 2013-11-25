@@ -33,8 +33,8 @@
 -define(ERROR_COULD_NOT_UPDATE_RING,      "Could not update ring").
 -define(ERROR_COULD_NOT_GET_REDUNDANCIES, "Could not get redundancies").
 
--define(ERR_TYPE_INCONSISTENT_HASH,   inconsistent_hash).
--define(ERR_TYPE_NODE_DOWN,           nodedown).
+-define(ERR_TYPE_INCONSISTENT_HASH, inconsistent_hash).
+-define(ERR_TYPE_NODE_DOWN,         nodedown).
 
 
 %% Property name
