@@ -37,12 +37,15 @@
          find_by_status/1, find_by_status/2, find_by_status/3,
          find_by_level1/2, find_by_level1/3, find_by_level1/4,
          find_by_level2/1, find_by_level2/2, find_by_level2/3,
+         find_by_alias/1, find_by_alias/2, find_by_alias/3,
          insert/1, insert/2, insert/3,
          delete/1, delete/2, delete/3, delete_all/1, delete_all/2,
          replace/2, replace/3, replace/4,
          overwrite/2,
          table_size/0, table_size/1, table_size/2,
-         tab2list/0, tab2list/1, tab2list/2]).
+         tab2list/0, tab2list/1, tab2list/2,
+         first/1, next/2
+        ]).
 
 %% -define(TABLE, 'leo_members').
 
@@ -288,6 +291,45 @@ find_by_level2(_,_,_) ->
     {error, invalid_db}.
 
 
+%% @doc Retrieve records by alias
+%%
+-spec(find_by_alias(string()) ->
+             {ok, list()} | not_found | {error, any()}).
+find_by_alias(Alias) ->
+    find_by_alias(?MEMBER_TBL_CUR, Alias).
+
+-spec(find_by_alias(atom(), string()) ->
+             {ok, list()} | not_found | {error, any()}).
+find_by_alias(Table, Alias) ->
+    find_by_alias(?table_type(), Table, Alias).
+
+-spec(find_by_alias(?DB_MNESIA|?DB_ETS, atom(), string()) ->
+             {ok, list()} | not_found | {error, any()}).
+find_by_alias(?DB_MNESIA, Table, Alias) ->
+    F = fun() ->
+                Q = qlc:q([X || X <- mnesia:table(Table),
+                                X#member.alias == Alias]),
+                qlc:e(Q)
+        end,
+    leo_mnesia:read(F);
+find_by_alias(?DB_ETS, Table, Alias) ->
+    case catch ets:foldl(
+                 fun({_, #member{alias = Alias_1} = Member}, Acc) when Alias == Alias_1 ->
+                         [Member|Acc];
+                    (_, Acc) ->
+                         Acc
+                 end, [], Table) of
+        {'EXIT', Cause} ->
+            {error, Cause};
+        [] ->
+            not_found;
+        Ret ->
+            {ok, Ret}
+    end;
+find_by_alias(_,_,_) ->
+    {error, invalid_db}.
+
+
 %% @doc Insert a record into the table.
 %%
 -spec(insert({atom(), #member{}}) ->
@@ -485,8 +527,6 @@ overwrite_1_1(?DB_ETS = DB, Table, [Member|Rest]) ->
     end.
 
 
-
-
 %% @doc Retrieve total of records.
 %%
 -spec(table_size() ->
@@ -540,3 +580,33 @@ tab2list(?DB_ETS, Table) ->
     ets:tab2list(Table);
 tab2list(_,_) ->
     {error, invalid_db}.
+
+
+%% Go to first record
+-spec(first(atom()) ->
+             tuple() | list() | {error, any()}).
+first(Table) ->
+    first(?table_type(), Table).
+
+%% @private
+-spec(first(?DB_MNESIA|?DB_ETS, atom()) ->
+             tuple() | list() | {error, any()}).
+first(?DB_MNESIA, Table) ->
+    mnesia:ets(fun ets:first/1, [Table]);
+first(?DB_ETS, Table) ->
+    ets:first(Table).
+
+
+%% Go to next record
+-spec(next(atom(), binary()) ->
+             tuple() | list() | {error, any()}).
+next(Table, MemberName) ->
+    next(?table_type(), Table, MemberName).
+
+%% @private
+-spec(next(?DB_MNESIA|?DB_ETS, atom(), binary()) ->
+             tuple() | list() | {error, any()}).
+next(?DB_MNESIA, Table, MemberName) ->
+    mnesia:ets(fun ets:next/2, [Table, MemberName]);
+next(?DB_ETS, Table, MemberName) ->
+    ets:next(Table, MemberName).

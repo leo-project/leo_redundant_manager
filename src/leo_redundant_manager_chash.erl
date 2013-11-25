@@ -115,39 +115,10 @@ rebalance(RebalanceInfo) ->
     ok = leo_redundant_manager_worker:force_sync(ServerRef, TblNamePrev),
 
     %% retrieve different node between current and previous ring
-    RingSize  = leo_redundant_manager_table_ring:size(TblInfoCur),
-    rebalance_1(ServerRef, RebalanceInfo, RingSize, 0, []).
+    rebalance_1(ServerRef, RebalanceInfo, 0, []).
 
-%% @private
-rebalance_1(_,_,0,_, Acc) ->
-    %% if previous-ring and current-ring has "detached-node(s)",
-    %% then remove them, as same as memebers
-    case leo_redundant_manager_api:get_members_by_status(
-           ?VER_CUR, ?STATE_DETACHED) of
-        {ok, DetachedNodes} ->
-            TblCur  = leo_redundant_manager_api:table_info(?VER_CUR),
-            TblPrev = leo_redundant_manager_api:table_info(?VER_PREV),
-            ok = lists:foreach(
-                   fun(#member{node = Node} = Member) ->
-                           %% remove detached node from members
-                           leo_redundant_manager_table_member:delete(?MEMBER_TBL_CUR,  Node),
-                           leo_redundant_manager_table_member:delete(?MEMBER_TBL_PREV, Node),
-                           %% remove detached node from ring
-                           remove(TblCur,  Member),
-                           remove(TblPrev, Member)
-                   end, DetachedNodes);
-        {error, not_found} ->
-            ok;
-        {error, Cause} ->
-            error_logger:warning_msg("~p,~p,~p,~p~n",
-                                     [{module, ?MODULE_STRING},
-                                      {function, "rebalance_1/5"},
-                                      {line, ?LINE}, {body, Cause}]),
-            ok
-    end,
-    %% return different redundancies
-    {ok, lists:reverse(Acc)};
-rebalance_1(ServerRef, RebalanceInfo, RingSize, AddrId, Acc) ->
+%% %% @private
+rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
     #rebalance{tbl_cur      = TblInfoCur,
                members_cur  = MembersCur,
                members_prev = MembersPrev} = RebalanceInfo,
@@ -161,24 +132,36 @@ rebalance_1(ServerRef, RebalanceInfo, RingSize, AddrId, Acc) ->
         leo_redundant_manager_worker:redundancies(
           ServerRef, ?ring_table(?SYNC_TARGET_RING_PREV), AddrId, MembersPrev),
 
-    case lists:foldl(
-           fun(#redundant_node{node = N0}, Acc0) ->
-                   case lists:foldl(
-                          fun(#redundant_node{node = N1},_Acc1) when N0 == N1 -> true;
-                             (#redundant_node{node = N1}, Acc1) when N0 /= N1 -> Acc1
-                          end, false, PrevNodes) of
-                       true  -> Acc0;
-                       false -> [N0|Acc0]
-                   end
-           end, [], CurNodes) of
-        [] ->
-            rebalance_1(ServerRef, RebalanceInfo, RingSize - 1, VNodeIdTo + 1, Acc);
-        DestNodeList ->
-            %% set one or plural target node(s)
-            SrcNode = active_node(MembersCur, PrevNodes),
-            Acc_1 = rebalance_1_1(VNodeIdTo, SrcNode, DestNodeList, Acc),
-            rebalance_1(ServerRef, RebalanceInfo, RingSize - 1, VNodeIdTo + 1, Acc_1)
+    IsEndOfAddrId = (VNodeIdTo < AddrId),
+    Acc_1 = case lists:foldl(
+                   fun(#redundant_node{node = N0}, SoFar_1) ->
+                           case lists:foldl(
+                                  fun(#redundant_node{node = N1},_SoFar_2) when N0 == N1 -> true;
+                                     (#redundant_node{node = N1}, SoFar_2) when N0 /= N1 -> SoFar_2
+                                  end, false, PrevNodes) of
+                               true  -> SoFar_1;
+                               false -> [N0|SoFar_1]
+                           end
+                   end, [], CurNodes) of
+                [] ->
+                    Acc;
+                DestNodeList ->
+                    %% Set one or plural target node(s)
+                    SrcNode = active_node(MembersCur, PrevNodes),
+                    VNodeIdTo_1 = case IsEndOfAddrId of
+                                      true  -> leo_math:power(2, ?MD5);
+                                      false -> VNodeIdTo
+                                  end,
+                    rebalance_1_1(VNodeIdTo_1, SrcNode, DestNodeList, Acc)
+            end,
+
+    case (VNodeIdTo < AddrId) of
+        true ->
+            {ok, lists:reverse(Acc_1)};
+        false  ->
+            rebalance_1(ServerRef, RebalanceInfo, VNodeIdTo + 1, Acc_1)
     end.
+
 
 %% @private
 rebalance_1_1(_VNodeIdTo,_SrcNode, [], Acc) ->

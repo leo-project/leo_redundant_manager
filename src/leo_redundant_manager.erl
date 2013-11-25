@@ -549,11 +549,15 @@ create_2(Ver, Members) ->
              ok | {ok, list()}).
 create_2(Ver,[], Acc) ->
     create_3(Ver, Acc);
+
+create_2( Ver, [#member{state = ?STATE_DETACHED}|Rest], Acc) ->
+    create_2(Ver, Rest, Acc);
+create_2( Ver, [#member{state = ?STATE_RESERVED}|Rest], Acc) ->
+    create_2(Ver, Rest, Acc);
 create_2( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
     %% Modify/Add a member into 'member-table'
     Table = ?member_table(Ver),
     Ret_2 = case leo_redundant_manager_table_member:lookup(Table, Node) of
-    %% Ret_2 = case leo_redundant_manager_table_member:lookup(Node) of
                 {error, Cause} ->
                     {error, Cause};
                 Ret_1 ->
@@ -589,30 +593,10 @@ create_3(Ver, [Member|Rest]) ->
     end.
 
 
-%% @doc Generate an alian from 'node'
-%% @private
-alias(Table, Node) ->
-    case leo_redundant_manager_table_member:find_by_status(Table, ?STATE_DETACHED) of
-        not_found ->
-            PartOfAlias = string:substr(
-                            leo_hex:binary_to_hex(
-                              crypto:hash(md5, lists:append([atom_to_list(Node)]))),1,8),
-            {ok, lists:append([?NODE_ALIAS_PREFIX, PartOfAlias])};
-        {ok, [#member{node = Node_1}|_]} when Node == Node_1 ->
-            PartOfAlias = string:substr(
-                            leo_hex:binary_to_hex(
-                              crypto:hash(md5, lists:append([atom_to_list(Node)]))),1,8),
-            {ok, lists:append([?NODE_ALIAS_PREFIX, PartOfAlias])};
-        {ok, [#member{node = Node_1} = M|_]} when Node /= Node_1 ->
-            {ok, M#member.alias};
-        {error, Cause} ->
-            {error, Cause}
-    end.
-
-
 %% @doc Add a node into storage-cluster
 %% @private
-attach_1(TblInfo, #member{node = Node} = Member) ->
+attach_1(TblInfo, #member{node  = Node,
+                          alias = []} = Member) ->
     NodeStr = atom_to_list(Node),
     IP = case (string:chr(NodeStr, $@) > 0) of
              true ->
@@ -621,17 +605,22 @@ attach_1(TblInfo, #member{node = Node} = Member) ->
                  []
          end,
 
-    case alias(?ring_table_to_member_table(TblInfo), Node) of
-        {ok, Alias} ->
+    case leo_redundant_manager_api:get_alias(
+           ?ring_table_to_member_table(TblInfo), Node) of
+        {ok, {_Member, Alias}} ->
             attach_2(TblInfo, Member#member{alias = Alias,
                                             ip    = IP});
         {error, Cause} ->
             {error, Cause}
-    end.
+    end;
+attach_1(TblInfo, Member) ->
+    attach_2(TblInfo, Member).
+
 
 %% @private
 attach_2(TblInfo, #member{node = Node} = Member) ->
     case leo_redundant_manager_table_member:insert(
+           ?ring_table_to_member_table(TblInfo),
            {Node, Member#member{clock = leo_date:clock()}}) of
         ok ->
             attach_3(TblInfo, Member);
@@ -643,7 +632,6 @@ attach_2(TblInfo, #member{node = Node} = Member) ->
 attach_3(TblInfo, Member) ->
     case leo_redundant_manager_chash:add(TblInfo, Member) of
         ok ->
-            %% dump_ring_tabs(),
             ok;
         Error ->
             Error

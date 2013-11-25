@@ -40,15 +40,17 @@
         ]).
 
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
-         get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2,
-         range_of_vnodes/1, rebalance/0
+         get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2, get_redundancies_by_addr_id/3,
+         range_of_vnodes/1, rebalance/0,
+         get_alias/1, get_alias/2
         ]).
 
 -export([has_member/1, has_charge_of_node/1,
          get_members/0, get_members/1, get_member_by_node/1, get_members_count/0,
          get_members_by_status/1, get_members_by_status/2,
          update_member/1, update_members/1, update_member_by_node/3,
-         delete_member_by_node/1, is_alive/0, table_info/1
+         delete_member_by_node/1, is_alive/0, table_info/1,
+         force_sync_workers/0
         ]).
 
 -export([get_server_id/0, get_server_id/1]).
@@ -301,15 +303,15 @@ synchronize(?SYNC_TARGET_MEMBER = SyncTarget, SyncData) ->
             Error
     end;
 
+
+synchronize(Target, []) when ?SYNC_TARGET_RING_CUR  == Target;
+                             ?SYNC_TARGET_RING_PREV == Target ->
+    synchronize_1(Target, ?sync_target_to_ver(Target));
+
 synchronize(Target, SyncData) when ?SYNC_TARGET_RING_CUR  == Target;
                                    ?SYNC_TARGET_RING_PREV == Target ->
-    Ver = case Target of
-              ?SYNC_TARGET_RING_CUR  -> ?VER_CUR;
-              ?SYNC_TARGET_RING_PREV -> ?VER_PREV
-          end,
     {ok, ChecksumMembers} = synchronize(?SYNC_TARGET_MEMBER, SyncData),
-
-    case synchronize_1(Target, Ver) of
+    case synchronize_1(Target, ?sync_target_to_ver(Target)) of
         ok ->
             {ok, ChecksumRing} = checksum(?CHECKSUM_RING),
             {ok, [{?CHECKSUM_MEMBER, ChecksumMembers},
@@ -429,9 +431,9 @@ get_redundancies_by_key(Method, Key) ->
     case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         {ok, Options} ->
             BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
-            AddrId = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
-
-            get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options);
+            AddrId    = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
+            ServerRef = get_server_id(AddrId),
+            get_redundancies_by_addr_id_1(ServerRef, ring_table(Method), AddrId, Options);
         _ ->
             {error, not_found}
     end.
@@ -445,17 +447,21 @@ get_redundancies_by_addr_id(AddrId) ->
 -spec(get_redundancies_by_addr_id(method(), integer()) ->
              {ok, list(), integer(), integer(), list()} | {error, any()}).
 get_redundancies_by_addr_id(Method, AddrId) ->
+    ServerRef = get_server_id(AddrId),
+    get_redundancies_by_addr_id(ServerRef, Method, AddrId).
+
+-spec(get_redundancies_by_addr_id(atom(), method(), integer()) ->
+             {ok, list(), integer(), integer(), list()} | {error, any()}).
+get_redundancies_by_addr_id(ServerRef, Method, AddrId) ->
     case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         {ok, Options} ->
-            get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options);
+            get_redundancies_by_addr_id_1(ServerRef, ring_table(Method), AddrId, Options);
         _ ->
             {error, not_found}
     end.
 
-
 %% @private
-get_redundancies_by_addr_id_1(TblInfo, AddrId, Options) ->
-    ServerRef = get_server_id(AddrId),
+get_redundancies_by_addr_id_1(ServerRef, TblInfo, AddrId, Options) ->
     N = leo_misc:get_value(?PROP_N, Options),
     R = leo_misc:get_value(?PROP_R, Options),
     W = leo_misc:get_value(?PROP_W, Options),
@@ -498,42 +504,18 @@ range_of_vnodes(ToVNodeId) ->
 rebalance() ->
     case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
         {ok, MembersCur} ->
-            case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
-                {ok, MembersPrev} ->
-                    rebalance_1(#rebalance{tbl_cur  = table_info(?VER_CUR),
-                                           tbl_prev = table_info(?VER_PREV),
-                                           members_cur  = MembersCur,
-                                           members_prev = MembersPrev});
-                Error ->
-                    Error
-            end;
-        Error ->
-            Error
-    end.
-
-
-%% @private
-rebalance_1(RebalanceInfo) ->
-    %% Remove all previous members,
-    %% Then insert new members from current members
-    case leo_redundant_manager_table_member:delete_all(?MEMBER_TBL_PREV) of
-        ok ->
-            case rebalance_1_1(RebalanceInfo#rebalance.members_cur) of
-                ok ->
-                    case leo_redundant_manager_chash:rebalance(RebalanceInfo) of
+            %% Before exec rebalance
+            case before_rebalance(MembersCur) of
+                {ok, {MembersCur_1, MembersPrev, TakeOverList}} ->
+                    %% Exec rebalance
+                    case leo_redundant_manager_chash:rebalance(
+                           #rebalance{tbl_cur  = table_info(?VER_CUR),
+                                      tbl_prev = table_info(?VER_PREV),
+                                      members_cur  = MembersCur_1,
+                                      members_prev = MembersPrev}) of
                         {ok, Ret} ->
-                            %% Synchronize previous-ring
-                            case synchronize_1(?SYNC_TARGET_RING_PREV, ?VER_PREV) of
-                                ok -> void;
-                                {error, Cause} ->
-                                    error_logger:warning_msg("~p,~p,~p,~p~n",
-                                                             [{module, ?MODULE_STRING},
-                                                              {function, "rebalance_1/1"},
-                                                              {line, ?LINE},
-                                                              {body, Cause}])
-                            end,
-                            %% dump ring and members
-                            ok = dump(both),
+                            %% After exec rebalance
+                            ok = after_rebalance(TakeOverList),
                             {ok, Ret};
                         Error ->
                             Error
@@ -545,22 +527,223 @@ rebalance_1(RebalanceInfo) ->
             Error
     end.
 
+
+%% @doc Before execute rebalance:
+%%      1. Update current-members when included status of 'attached' and 'detached'
+%%      2. Retrieve status of takeover
+%%      3. Update previous-members from current-members
 %% @private
-rebalance_1_1([]) ->
-    ok;
-rebalance_1_1([#member{state = ?STATE_ATTACHED}|Rest]) ->
-    rebalance_1_1(Rest);
-rebalance_1_1([#member{state = ?STATE_DETACHED} = _Member|Rest]) ->
-    rebalance_1_1(Rest);
-rebalance_1_1([#member{state = ?STATE_RESERVED}|Rest]) ->
-    rebalance_1_1(Rest);
-rebalance_1_1([Member|Rest]) ->
-    #member{node = Node} = Member,
-    case leo_redundant_manager_table_member:insert(?MEMBER_TBL_PREV, {Node, Member}) of
-        ok ->
-            rebalance_1_1(Rest);
+before_rebalance(MembersCur) ->
+    case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
+        {ok, MembersCur} ->
+            %% If "attach" and "detach" are included in members,
+            %% then update current-members
+            %% because attach-node need to take over detach-node's data.
+            case takeover_status(MembersCur, []) of
+                {ok, {MembersCur_1, TakeOverList}} ->
+                    %% Remove all previous members,
+                    %% Then insert new members from current members
+                    case leo_redundant_manager_table_member:delete_all(?MEMBER_TBL_PREV) of
+                        ok ->
+                            case before_rebalance_1(MembersCur_1) of
+                                {ok, MembersPrev} ->
+                                    {ok, {MembersCur_1, MembersPrev, TakeOverList}};
+                                Error ->
+                                    Error
+                            end;
+                        Error ->
+                            Error
+                    end;
+                Error ->
+                    Error
+            end;
         Error ->
             Error
+    end.
+
+
+%% @private
+takeover_status([], TakeOverList) ->
+    case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
+        {ok, MembersCur} ->
+            {ok, {MembersCur, TakeOverList}};
+        Error ->
+            Error
+    end;
+takeover_status([#member{state = ?STATE_ATTACHED,
+                         node  = Node,
+                         alias = Alias} = Member|Rest], TakeOverList) ->
+    case get_alias(Node) of
+        {ok, {SrcMember, Alias_1}} when Alias /= Alias_1 ->
+            %% Takeover vnodes:
+            %%     Remove vnodes by old-alias,
+            %%     then insert vnodes by new-alias
+            RingTblCur = table_info(?VER_CUR),
+            Member_1 = Member#member{alias = Alias_1},
+
+            ok = leo_redundant_manager_chash:remove(RingTblCur,  Member),
+            ok = leo_redundant_manager_chash:add(RingTblCur,  Member_1),
+            ok = leo_redundant_manager_table_member:insert(?MEMBER_TBL_CUR, {Node, Member_1}),
+
+            case SrcMember of
+                [] -> void;
+                #member{node = SrcNode} ->
+                    ok = leo_redundant_manager_table_member:insert(
+                           ?MEMBER_TBL_CUR, {SrcNode, SrcMember#member{alias = []}})
+            end,
+            takeover_status(Rest, [{Member, Member_1, SrcMember}|TakeOverList]);
+        _ ->
+            takeover_status(Rest, TakeOverList)
+    end;
+takeover_status([_|Rest], TakeOverList) ->
+    takeover_status(Rest, TakeOverList).
+
+
+%% @private
+before_rebalance_1([]) ->
+    %% Synchronize previous-ring
+    case synchronize_1(?SYNC_TARGET_RING_PREV, ?VER_PREV) of
+        ok -> void;
+        {error, Reason} ->
+            error_logger:warning_msg("~p,~p,~p,~p~n",
+                                     [{module, ?MODULE_STRING},
+                                      {function, "after_rebalance_1/0"},
+                                      {line, ?LINE},
+                                      {body, Reason}])
+    end,
+
+    case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
+        {ok, MembersPrev} ->
+            {ok, MembersPrev};
+        Error ->
+            Error
+    end;
+before_rebalance_1([#member{state = ?STATE_ATTACHED}|Rest]) ->
+    before_rebalance_1(Rest);
+before_rebalance_1([#member{state = ?STATE_RESERVED}|Rest]) ->
+    before_rebalance_1(Rest);
+before_rebalance_1([#member{node = Node} = Member|Rest]) ->
+    case leo_redundant_manager_table_member:insert(?MEMBER_TBL_PREV,
+                                                   {Node, Member#member{state = ?STATE_RUNNING}}) of
+        ok ->
+            before_rebalance_1(Rest);
+        Error ->
+            Error
+    end.
+
+
+%% @doc After execute rebalance#2:
+%%      1. After exec taking over data from detach-node to attach-node
+%%      2. Remove detached-nodes fomr ring and members
+%%      3. Synchronize previous-ring
+%%      4. Export members and ring
+%% @private
+after_rebalance([]) ->
+    %% if previous-ring and current-ring has "detached-node(s)",
+    %% then remove them, as same as memebers
+    case leo_redundant_manager_api:get_members_by_status(
+           ?VER_CUR, ?STATE_DETACHED) of
+        {ok, DetachedNodes} ->
+            TblCur  = leo_redundant_manager_api:table_info(?VER_CUR),
+            TblPrev = leo_redundant_manager_api:table_info(?VER_PREV),
+            ok = lists:foreach(
+                   fun(#member{node  = Node,
+                               alias = Alias} = Member) ->
+                           %% remove detached node from members
+                           leo_redundant_manager_table_member:delete(?MEMBER_TBL_CUR,  Node),
+                           leo_redundant_manager_table_member:delete(?MEMBER_TBL_PREV, Node),
+                           %% remove detached node from ring
+                           case Alias of
+                               [] -> void;
+                               _  ->
+                                   leo_redundant_manager_chash:remove(TblCur,  Member),
+                                   leo_redundant_manager_chash:remove(TblPrev, Member)
+                           end
+                   end, DetachedNodes);
+        {error, not_found} ->
+            ok;
+        {error, Cause} ->
+            error_logger:warning_msg("~p,~p,~p,~p~n",
+                                     [{module, ?MODULE_STRING},
+                                      {function, "rebalance_1/5"},
+                                      {line, ?LINE}, {body, Cause}]),
+            ok
+    end,
+
+    %% Synchronize previous-ring
+    case synchronize_1(?SYNC_TARGET_RING_PREV, ?VER_PREV) of
+        ok -> void;
+        {error, Reason} ->
+            error_logger:warning_msg("~p,~p,~p,~p~n",
+                                     [{module, ?MODULE_STRING},
+                                      {function, "after_rebalance_1/0"},
+                                      {line, ?LINE},
+                                      {body, Reason}])
+    end,
+
+    %% Export ring and members
+    ok = dump(both),
+    ok;
+after_rebalance([{#member{node = Node} = Member_1, Member_2, SrcMember}|Rest]) ->
+    try
+        %% After exec taking over data from detach-node to attach-node
+        RingTblPrev = table_info(?VER_PREV),
+        MembersTblPrev = ?MEMBER_TBL_PREV,
+
+        ok = leo_redundant_manager_chash:remove(RingTblPrev, Member_1),
+        ok = leo_redundant_manager_chash:add(RingTblPrev, Member_2),
+        ok = leo_redundant_manager_table_member:insert(MembersTblPrev, {Node, Member_2}),
+
+        case SrcMember of
+            [] -> void;
+            #member{node = SrcNode} ->
+                ok = leo_redundant_manager_table_member:insert(
+                       MembersTblPrev,{SrcNode, SrcMember#member{alias = []}})
+        end
+    catch
+        _:Cause ->
+            error_logger:warning_msg("~p,~p,~p,~p~n",
+                                     [{module, ?MODULE_STRING},
+                                      {function, "after_rebalance_1/0"},
+                                      {line, ?LINE},
+                                      {body, Cause}])
+    end,
+    after_rebalance(Rest).
+
+
+%% @doc Generate an alian from 'node'
+%%
+get_alias(Node) ->
+    get_alias(?MEMBER_TBL_CUR, Node).
+
+get_alias(Table, Node) ->
+    case leo_redundant_manager_table_member:find_by_status(
+           Table, ?STATE_DETACHED) of
+        not_found ->
+            get_alias_1([], Table, Node);
+        {ok, Members} ->
+            get_alias_1(Members, Table, Node);
+        {error, Cause} ->
+            {error, Cause}
+    end.
+
+get_alias_1([],_,Node) ->
+    PartOfAlias = string:substr(
+                    leo_hex:binary_to_hex(
+                      crypto:hash(md5, lists:append([atom_to_list(Node)]))),1,8),
+    {ok, {[], lists:append([?NODE_ALIAS_PREFIX, PartOfAlias])}};
+get_alias_1([#member{node  = Node_1}|Rest], Table, Node) when Node == Node_1 ->
+    get_alias_1(Rest, Table, Node);
+get_alias_1([#member{alias = [],
+                     node  = Node_1}|Rest], Table, Node) when Node /= Node_1 ->
+    get_alias_1(Rest, Table, Node);
+get_alias_1([#member{alias = Alias,
+                     node  = Node_1}|Rest], Table, Node) when Node /= Node_1 ->
+    case leo_redundant_manager_table_member:find_by_alias(Alias) of
+        {ok, [Member]} ->
+            {ok, {Member, Member#member.alias}};
+        _ ->
+            get_alias_1(Rest, Table, Node)
     end.
 
 
@@ -710,10 +893,32 @@ table_info(?VER_PREV) ->
 -endif.
 
 
-%% @doc Retrieve a srever id
+%% @doc Force sync ring-workers
+%%
+-spec(force_sync_workers() ->
+             ok).
+force_sync_workers() ->
+    force_sync_workers_1(?RING_WORKER_POOL_SIZE - 1).
+
 %% @private
+force_sync_workers_1(-1) ->
+    ok;
+force_sync_workers_1(Index) ->
+    ServerRef = list_to_atom(lists:append([?WORKER_POOL_NAME_PREFIX,
+                                           integer_to_list(Index)])),
+    ok = leo_redundant_manager_worker:force_sync(ServerRef, ?RING_TBL_CUR),
+    timer:sleep(erlang:phash2(leo_date:clock(), 64)),
+    force_sync_workers_1(Index - 1).
+
+
+%% @doc Retrieve a srever id
+%%
+-spec(get_server_id() ->
+             atom()).
 get_server_id() ->
     get_server_id(leo_date:clock()).
+-spec(get_server_id(pos_integer()) ->
+             atom()).
 get_server_id(AddrId) ->
     Procs = ?RING_WORKER_POOL_SIZE,
     Index = erlang:phash2(AddrId, Procs),
