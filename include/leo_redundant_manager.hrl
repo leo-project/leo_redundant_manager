@@ -276,10 +276,18 @@
          ring_hash = -1        :: pos_integer()  %% ring-hash when writing an object
         }).
 
+
 -record(ring,
-        {vnode_id = -1         :: pos_integer(),
-         node                  :: atom()
+        {vnode_id = -1 :: pos_integer(),
+         node          :: atom()
         }).
+-record(ring_0_16_8,
+        {vnode_id = -1 :: pos_integer(),
+         node          :: atom(),
+         clock = 0     :: pos_integer()
+        }).
+-define(RING, 'ring_0_16_8').
+
 
 -record(rebalance, {members_cur  = []  :: list(),
                     members_prev = []  :: list(),

@@ -34,9 +34,9 @@
          set_options/1, get_options/0,
          attach/1, attach/2, attach/3, attach/4,
          reserve/3, reserve/5, detach/1, detach/2,
-         suspend/1, suspend/2, append/3,
+         suspend/1, suspend/2,
          checksum/1, synchronize/2, synchronize/3,
-         adjust/1, get_ring/0, get_ring/1, dump/1
+         get_ring/0, get_ring/1, dump/1
         ]).
 
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
@@ -221,19 +221,6 @@ suspend(Node, Clock) ->
     end.
 
 
-%% @doc append a node into the ring.
-%%
--spec(append(?VER_CUR | ?VER_PREV, integer(), atom()) ->
-             ok | {error, invalid_version}).
-append(Ver, VNodeId, Node) when Ver == ?VER_CUR;
-                                Ver == ?VER_PREV ->
-    TblInfo = table_info(Ver),
-    ok = leo_redundant_manager_chash:append(TblInfo, VNodeId, Node),
-    ok;
-append(_,_,_) ->
-    {error, invalid_version}.
-
-
 %% @doc get routing_table's checksum.
 %%
 -spec(checksum(?CHECKSUM_RING |?CHECKSUM_MEMBER) ->
@@ -241,12 +228,13 @@ append(_,_,_) ->
 checksum(?CHECKSUM_MEMBER = Type) ->
     leo_redundant_manager:checksum(Type);
 checksum(?CHECKSUM_RING) ->
-    TblInfo0 = table_info(?VER_CUR),
-    TblInfo1 = table_info(?VER_PREV),
+    TblInfoCur  = table_info(?VER_CUR),
+    TblInfoPrev = table_info(?VER_PREV),
 
-    {ok, Chksum0} = leo_redundant_manager_chash:checksum(TblInfo0),
-    {ok, Chksum1} = leo_redundant_manager_chash:checksum(TblInfo1),
-    {ok, {Chksum0, Chksum1}};
+    {ok, RingHashCur } = leo_redundant_manager_chash:checksum(TblInfoCur),
+    {ok, RingHashPrev} = leo_redundant_manager_chash:checksum(TblInfoPrev),
+    {ok, {RingHashCur, RingHashPrev}};
+
 checksum(_) ->
     {error, invalid_type}.
 
@@ -366,22 +354,6 @@ synchronize_1(Target, Ver) when Target == ?SYNC_TARGET_RING_CUR;
     end;
 synchronize_1(_,_) ->
     {error, invalid_target}.
-
-
-%% @doc Adjust current vnode to previous vnode.
-%%
--spec(adjust(integer()) ->
-             ok | {error, any()}).
-adjust(VNodeId) ->
-    TblInfo0 = table_info(?VER_CUR),
-    TblInfo1 = table_info(?VER_PREV),
-
-    case leo_redundant_manager:adjust(TblInfo0, TblInfo1, VNodeId) of
-        ok ->
-            ok;
-        Error ->
-            Error
-    end.
 
 
 %% @doc Retrieve Ring

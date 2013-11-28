@@ -44,8 +44,6 @@ redundant_manager_test_() ->
                             fun synchronize_0_/1,
                             fun synchronize_1_/1,
                             fun synchronize_2_/1,
-                            fun adjust_/1,
-                            fun append_/1,
                             fun suspend_/1,
 
                             fun rack_aware_1_/1,
@@ -250,14 +248,14 @@ detach_({Hostname}) ->
     {ok, {MemberHashCur, MemberHashPrev}} = leo_redundant_manager_api:checksum(member),
     ?assertEqual(7, length(MembersCur)),
     ?assertEqual(7, length(MembersPrev)),
-    ?assertEqual(RingHashCur, RingHashPrev),
+    %% ?assertEqual(RingHashCur, RingHashPrev),
     ?assertNotEqual(-1, RingHashCur),
     ?assertNotEqual(-1, RingHashPrev),
     ?assertNotEqual(-1, MemberHashCur),
     ?assertNotEqual(-1, MemberHashPrev),
 
     timer:sleep(500),
-    detach_1_1(100),
+    detach_1_1(50),
     ok.
 
 detach_1_1(0) ->
@@ -359,7 +357,7 @@ synchronize_1_({Hostname}) ->
     {ok, MemberChksum0} = leo_redundant_manager_api:checksum(?CHECKSUM_MEMBER),
     ?assertEqual(true, (CurRingHash0  > -1)),
     ?assertEqual(true, (PrevRingHash0 > -1)),
-    ?assertEqual(true, (CurRingHash0 == PrevRingHash0)),
+    %% ?assertEqual(true, (CurRingHash0 == PrevRingHash0)),
     ?assertEqual(true, (MemberChksum0 > -1)),
 
     {ok, Ret} = leo_redundant_manager_api:synchronize(
@@ -406,31 +404,6 @@ synchronize_2_({Hostname}) ->
     ?assertEqual(?DEF_NUMBER_OF_VNODES * length(MembersPrev), length(RingPrev_1)),
     ok.
 
-adjust_({Hostname}) ->
-    ok = prepare(Hostname, storage),
-    {ok, _, _} = leo_redundant_manager_api:create(?VER_CUR),
-    {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
-
-    {ok, Ring} = leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR),
-    {VNodeId, _Node} = lists:nth(1, Ring),
-    ok = leo_redundant_manager_api:adjust(VNodeId),
-    ok.
-
-append_({Hostname}) ->
-    ok = prepare(Hostname, storage),
-    {ok, _, _} = leo_redundant_manager_api:create(?VER_CUR),
-    {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
-
-    Node = list_to_atom("node_0@" ++ Hostname),
-    ok = leo_redundant_manager_api:append(?VER_CUR, 1, Node),
-    ok = leo_redundant_manager_api:append(?VER_PREV,    2, Node),
-
-    {ok, Ring0} = leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR),
-    {ok, Ring1} = leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_PREV),
-
-    ?assertEqual({1, Node}, lists:keyfind(1, 1, Ring0)),
-    ?assertEqual({2, Node}, lists:keyfind(2, 1, Ring1)),
-    ok.
 
 suspend_({Hostname}) ->
     ok = prepare(Hostname, storage),
@@ -1050,8 +1023,8 @@ attach_to_detach() ->
     ?debugVal(SrcNodes),
     ?assertEqual(8, length(SrcNodes)),
 
-    {ok, {RingHashCur_2, RingHashPrev_2}} = leo_redundant_manager_api:checksum(ring),
-    ?assertEqual(RingHashCur_2, RingHashPrev_2),
+    %% {ok, {RingHashCur_2, RingHashPrev_2}} = leo_redundant_manager_api:checksum(ring),
+    %% ?assertEqual(RingHashCur_2, RingHashPrev_2),
 
     {error, not_found} = leo_redundant_manager_api:get_member_by_node(DetachNode),
 

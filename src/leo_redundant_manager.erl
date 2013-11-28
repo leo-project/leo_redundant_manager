@@ -38,7 +38,7 @@
 -export([create/1, checksum/1, has_member/1, get_members/0, get_members/1,
          get_member_by_node/1, get_members_by_status/2,
          update_member/1, update_members/1, update_member_by_node/3,
-         delete_member_by_node/1, synchronize/3, adjust/3, dump/1]).
+         delete_member_by_node/1, synchronize/3, dump/1]).
 
 -export([attach/4, attach/5, reserve/5, detach/2, detach/3, suspend/2]).
 
@@ -152,12 +152,6 @@ delete_member_by_node(Node) ->
 %%
 synchronize(TblInfo, Ring0, Ring1) ->
     gen_server:call(?MODULE, {synchronize, TblInfo, Ring0, Ring1}, ?DEF_TIMEOUT).
-
-
-%% @doc Adjust prev-ring's vnode-id.
-%%
-adjust(CurRingTable, PrevRingTable, VNodeId) ->
-    gen_server:call(?MODULE, {adjust, CurRingTable, PrevRingTable, VNodeId}, ?DEF_TIMEOUT).
 
 
 %% @doc Dump files which are member and ring.
@@ -368,11 +362,6 @@ handle_call({synchronize, TblInfo, MgrRing, MyRing}, _From, State) ->
                   end, MgrRing),
     dump_ring_tabs(),
     {reply, ok, State};
-
-
-handle_call({adjust, CurRingTable, PrevRingTable, VNodeId}, _From, State) ->
-    Reply = leo_redundant_manager_chash:adjust(CurRingTable, PrevRingTable, VNodeId),
-    {reply, Reply, State};
 
 
 handle_call({dump, member}, _From, State) ->

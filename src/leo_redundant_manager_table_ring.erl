@@ -48,11 +48,12 @@ create_ring_current(Mode, Nodes) ->
       ?RING_TBL_CUR,
       [{Mode, Nodes},
        {type, ordered_set},
-       {record_name, ring},
-       {attributes, record_info(fields, ring)},
+       {record_name, ?RING},
+       {attributes, record_info(fields, ?RING)},
        {user_properties,
-        [{vnode_id,      {integer,   undefined},  false, primary,   undefined, identity,  integer},
-         {atom,          {varchar,   undefined},  false, undefined, undefined, undefined, atom   }
+        [{vnode_id, {integer,   undefined},  false, primary,   undefined, identity,  integer},
+         {atom,     {varchar,   undefined},  false, undefined, undefined, undefined, atom   },
+         {clock,    {integer,   undefined},  false, undefined, undefined, undefined, integer}
         ]}
       ]).
 
@@ -68,11 +69,12 @@ create_ring_prev(Mode, Nodes) ->
       ?RING_TBL_PREV,
       [{Mode, Nodes},
        {type, ordered_set},
-       {record_name, ring},
-       {attributes, record_info(fields, ring)},
+       {record_name, ?RING},
+       {attributes, record_info(fields, ?RING)},
        {user_properties,
-        [{vnode_id,      {integer,   undefined},  false, primary,   undefined, identity,  integer},
-         {atom,          {varchar,   undefined},  false, undefined, undefined, undefined, atom   }
+        [{vnode_id, {integer,   undefined},  false, primary,   undefined, identity,  integer},
+         {atom,     {varchar,   undefined},  false, undefined, undefined, undefined, atom   },
+         {clock,    {integer,   undefined},  false, undefined, undefined, undefined, integer}
         ]}
       ]).
 
@@ -81,8 +83,8 @@ create_ring_prev(Mode, Nodes) ->
 %%
 lookup({mnesia, Table}, VNodeId) ->
     case catch mnesia:ets(fun ets:lookup/2, [Table, VNodeId]) of
-        [#ring{node = Node}|_] ->
-            Node;
+        [#?RING{} = Ring|_] ->
+            Ring;
         [] = Reply ->
             Reply;
         {'EXIT', Cause} ->
@@ -90,8 +92,10 @@ lookup({mnesia, Table}, VNodeId) ->
     end;
 lookup({ets, Table}, VNodeId) ->
     case catch ets:lookup(Table, VNodeId) of
-        [{_VNodeId, Node}|_] ->
-            Node;
+        [{VNodeId, Node, Clock}|_] ->
+            #?RING{vnode_id = VNodeId,
+                   node     = Node,
+                   clock    = Clock};
         [] = Reply ->
             Reply;
         {'EXIT', Cause} ->
@@ -100,21 +104,21 @@ lookup({ets, Table}, VNodeId) ->
 
 %% @doc Insert a record into the table.
 %%
-insert({mnesia, Table}, {VNodeId, Node}) ->
-    Fun = fun() -> mnesia:write(Table, #ring{vnode_id = VNodeId,
-                                             node     = Node}, write) end,
+insert({mnesia, Table}, {VNodeId, Node, Clock}) ->
+    Fun = fun() -> mnesia:write(Table, #?RING{vnode_id = VNodeId,
+                                              node     = Node,
+                                              clock    = Clock}, write) end,
     leo_mnesia:write(Fun),
     true;
-insert({ets, Table}, {VNodeId, Node}) ->
-    ets:insert(Table, {VNodeId, Node}).
+insert({ets, Table}, {VNodeId, Node, Clock}) ->
+    ets:insert(Table, {VNodeId, Node, Clock}).
 
 %% @doc Remove a record from the table.
 %%
 delete({mnesia, Table}, VNodeId) ->
-    Node = lookup({mnesia, Table}, VNodeId),
+    Ring = lookup({mnesia, Table}, VNodeId),
     Fun = fun() ->
-                  mnesia:delete_object(Table, #ring{vnode_id = VNodeId,
-                                                    node     = Node}, write)
+                  mnesia:delete_object(Table, Ring, write)
           end,
     leo_mnesia:delete(Fun),
     true;
@@ -183,8 +187,10 @@ tab2list({mnesia, Table}) ->
         [] ->
             [];
         List when is_list(List) ->
-            lists:map(fun(#ring{vnode_id = VNodeId, node = Node}) ->
-                              {VNodeId, Node}
+            lists:map(fun(#?RING{vnode_id = VNodeId,
+                                 node = Node,
+                                 clock = Clock}) ->
+                              {VNodeId, Node, Clock}
                       end, List);
         Error ->
             Error
