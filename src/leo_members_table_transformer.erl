@@ -18,10 +18,6 @@
 %% specific language governing permissions and limitations
 %% under the License.
 %%
-%% ---------------------------------------------------------------------
-%% Leo Redundant Manager - ETS/Mnesia Handler for Member
-%% @doc
-%% @end
 %%======================================================================
 -module(leo_members_table_transformer).
 

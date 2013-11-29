@@ -37,7 +37,8 @@
 
 -export([create/1, checksum/1, has_member/1, get_members/0, get_members/1,
          get_member_by_node/1, get_members_by_status/2,
-         update_member/1, update_members/1, update_member_by_node/3,
+         update_member/1, update_members/1,
+         update_member_by_node/2, update_member_by_node/3,
          delete_member_by_node/1, synchronize/3, dump/1]).
 
 -export([attach/4, attach/5, reserve/5, detach/2, detach/3, suspend/2]).
@@ -134,6 +135,11 @@ update_members(Members) ->
 
 %% @doc Modify a member by node.
 %%
+-spec(update_member_by_node(atom(), atom()) ->
+             ok | {error, any()}).
+update_member_by_node(Node, NodeState) ->
+    gen_server:call(?MODULE, {update_member_by_node, Node, NodeState}, ?DEF_TIMEOUT).
+
 -spec(update_member_by_node(atom(), integer(), atom()) ->
              ok | {error, any()}).
 update_member_by_node(Node, Clock, NodeState) ->
@@ -302,22 +308,12 @@ handle_call({update_members, Members}, _From, State) ->
             end,
     {reply, Reply, State};
 
+handle_call({update_member_by_node, Node, NodeState}, _From, State) ->
+    Reply = update_member_by_node_1(Node, NodeState),
+    {reply, Reply, State};
+
 handle_call({update_member_by_node, Node, Clock, NodeState}, _From, State) ->
-    Reply = case leo_redundant_manager_table_member:lookup(Node) of
-                {ok, Member} ->
-                    case leo_redundant_manager_table_member:insert(
-                           {Node, Member#member{clock = Clock,
-                                                state = NodeState}}) of
-                        ok ->
-                            ok;
-                        Error ->
-                            Error
-                    end;
-                not_found = Cause ->
-                    {error, Cause};
-                Error ->
-                    Error
-            end,
+    Reply = update_member_by_node_1(Node, Clock, NodeState),
     {reply, Reply, State};
 
 handle_call({delete_member_by_node, Node}, _From, State) ->
@@ -457,12 +453,11 @@ handle_call({detach, TblInfo, Node, Clock}, _From, State) ->
     {reply, Reply, State};
 
 
-handle_call({suspend, Node, Clock}, _From, State) ->
+handle_call({suspend, Node, _Clock}, _From, State) ->
     Reply = case leo_redundant_manager_table_member:lookup(Node) of
                 {ok, Member} ->
                     case leo_redundant_manager_table_member:insert(
-                           {Node, Member#member{clock = Clock,
-                                                state = ?STATE_SUSPEND}}) of
+                           {Node, Member#member{state = ?STATE_SUSPEND}}) of
                         ok ->
                             ok;
                         Error ->
@@ -607,10 +602,11 @@ attach_1(TblInfo, Member) ->
 
 
 %% @private
-attach_2(TblInfo, #member{node = Node} = Member) ->
+attach_2(TblInfo, #member{node  = Node,
+                          clock = Clock} = Member) ->
     case leo_redundant_manager_table_member:insert(
            ?ring_table_to_member_table(TblInfo),
-           {Node, Member#member{clock = leo_date:clock()}}) of
+           {Node, Member#member{clock = Clock}}) of
         ok ->
             attach_3(TblInfo, Member);
         Error ->
@@ -659,6 +655,30 @@ get_members_1(Ver) ->
     case leo_redundant_manager_table_member:find_all(?member_table(Ver)) of
         {ok, Members} ->
             {ok, Members};
+        not_found = Cause ->
+            {error, Cause};
+        Error ->
+            Error
+    end.
+
+
+update_member_by_node_1(Node, NodeState) ->
+    update_member_by_node_1(Node, -1, NodeState).
+
+update_member_by_node_1(Node, Clock, NodeState) ->
+    case leo_redundant_manager_table_member:lookup(Node) of
+        {ok, Member} ->
+            Member_1 = case Clock of
+                           -1 -> Member#member{state = NodeState};
+                           _  -> Member#member{clock = Clock,
+                                               state = NodeState}
+                       end,
+            case leo_redundant_manager_table_member:insert({Node, Member_1}) of
+                ok ->
+                    ok;
+                Error ->
+                    Error
+            end;
         not_found = Cause ->
             {error, Cause};
         Error ->

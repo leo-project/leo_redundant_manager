@@ -31,6 +31,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -export([create_ring_current/1, create_ring_current/2,
+         create_ring_old_for_test/3,
          create_ring_prev/1, create_ring_prev/2,
          lookup/2, insert/2, delete/2, first/1, last/1, prev/2, next/2,
          delete_all/1, size/1, tab2list/1]).
@@ -57,7 +58,6 @@ create_ring_current(Mode, Nodes) ->
         ]}
       ]).
 
-
 %% @doc create ring-prev table.
 %%
 -spec(create_ring_prev(mnesia_copies()) -> ok).
@@ -79,11 +79,27 @@ create_ring_prev(Mode, Nodes) ->
       ]).
 
 
+%% @doc create table for the test
+%%
+create_ring_old_for_test(Mode, Nodes, Table) ->
+    mnesia:create_table(
+      Table,
+      [{Mode, Nodes},
+       {type, ordered_set},
+       {record_name, ring},
+       {attributes, record_info(fields, ring)},
+       {user_properties,
+        [{vnode_id, {integer,   undefined},  false, primary,   undefined, identity,  integer},
+         {atom,     {varchar,   undefined},  false, undefined, undefined, undefined, atom   }
+        ]}
+      ]).
+
+
 %% Retrieve a record by key from the table.
 %%
 lookup({mnesia, Table}, VNodeId) ->
     case catch mnesia:ets(fun ets:lookup/2, [Table, VNodeId]) of
-        [#?RING{} = Ring|_] ->
+        [Ring|_] ->
             Ring;
         [] = Reply ->
             Reply;
@@ -104,6 +120,11 @@ lookup({ets, Table}, VNodeId) ->
 
 %% @doc Insert a record into the table.
 %%
+insert({mnesia, Table}, Ring) when is_record(Ring, ring);
+                                   is_record(Ring, ring_0_16_8) ->
+    Fun = fun() -> mnesia:write(Table, Ring, write) end,
+    leo_mnesia:write(Fun),
+    true;
 insert({mnesia, Table}, {VNodeId, Node, Clock}) ->
     Fun = fun() -> mnesia:write(Table, #?RING{vnode_id = VNodeId,
                                               node     = Node,
