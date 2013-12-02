@@ -29,10 +29,10 @@
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([add/2, append/3, adjust/3, remove/2,
+-export([add/2, remove/2,
          redundancies/3, range_of_vnodes/2, rebalance/1,
          checksum/1, vnode_id/1, vnode_id/2]).
--export([export/2, import/2]).
+-export([export/2]).
 
 
 %%====================================================================
@@ -48,33 +48,11 @@ add(Table, Member) ->
 add(N,_Table, #member{num_of_vnodes = NumOfVNodes}) when NumOfVNodes == N ->
     ok;
 add(N, Table, #member{alias = Alias,
-                      node  = Node} = Member) ->
+                      node  = Node,
+                      clock = Clock} = Member) ->
     VNodeId = vnode_id(lists:append([Alias, "_", integer_to_list(N)])),
-    true = leo_redundant_manager_table_ring:insert(Table, {VNodeId, Node}),
+    true = leo_redundant_manager_table_ring:insert(Table, {VNodeId, Node, Clock}),
     add(N + 1, Table, Member).
-
-
-%% @doc Append a node.
-%%
--spec(append(atom(), integer(), atom()) ->
-             ok).
-append(Table, VNodeId, Node) ->
-    true = leo_redundant_manager_table_ring:insert(Table, {VNodeId, Node}),
-    ok.
-
-
-%% @doc Adjust a vnode-id.
-%%
--spec(adjust(atom(), atom(), integer()) ->
-             ok).
-adjust(CurRingTable, PrevRingTable, VNodeId) ->
-    case leo_redundant_manager_table_ring:lookup(CurRingTable, VNodeId) of
-        {error, _Cause} ->
-            void;
-        []   -> true = leo_redundant_manager_table_ring:delete(PrevRingTable, VNodeId);
-        Node -> true = leo_redundant_manager_table_ring:insert(PrevRingTable, {VNodeId, Node})
-    end,
-    ok.
 
 
 %% @doc Remove a node.
@@ -92,13 +70,13 @@ remove(N, Table, #member{alias = Alias} = Member) ->
     remove(N + 1, Table, Member).
 
 
-%% %% @doc Retrieve redundancies by vnode-id.
-%% %%
+%% @doc Retrieve redundancies by vnode-id.
+%%
 redundancies(ServerRef, {_,Table}, VNodeId) ->
     leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId).
 
 
-%% @doc Do rebalance
+%% @doc Execute rebalance
 %% @private
 -spec(rebalance(#rebalance{}) ->
              {ok, list()} | {error, any()}).
@@ -117,7 +95,7 @@ rebalance(RebalanceInfo) ->
     %% retrieve different node between current and previous ring
     rebalance_1(ServerRef, RebalanceInfo, 0, []).
 
-%% %% @private
+%% @private
 rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
     #rebalance{tbl_cur      = TblInfoCur,
                members_cur  = MembersCur,
@@ -212,27 +190,6 @@ export(Table, FileName) ->
         _ ->
             List0 = leo_redundant_manager_table_ring:tab2list(Table),
             leo_file:file_unconsult(FileName, List0)
-    end.
-
-
-%% @doc Import from a file.
-%%
--spec(import(atom(), string()) ->
-             ok | {error, any()}).
-import(Table, FileName) ->
-    case (leo_redundant_manager_table_ring:size(Table) == 0) of
-        true ->
-            ok;
-        false ->
-            true = leo_redundant_manager_table_ring:delete_all(Table),
-            case file:consult(FileName) of
-                {ok, List} ->
-                    lists:foreach(fun({VNodeId, Node}) ->
-                                          append(Table, VNodeId, Node)
-                                  end, List);
-                Error ->
-                    Error
-            end
     end.
 
 

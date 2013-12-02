@@ -257,7 +257,7 @@
           available       = true :: boolean(),   %% alive/dead
           can_read_repair = true :: boolean(),   %% able to execute read-repair in case of 'Get Operation'
           role                   :: consensus_role() %% consensus's role
-                                                     %%   [leader, follower_1. follower_2, observer]
+                                    %%   [leader, follower_1. follower_2, observer]
          }).
 
 -record(redundancies,
@@ -276,10 +276,18 @@
          ring_hash = -1        :: pos_integer()  %% ring-hash when writing an object
         }).
 
+
 -record(ring,
-        {vnode_id = -1         :: pos_integer(),
-         node                  :: atom()
+        {vnode_id = -1 :: pos_integer(),
+         node          :: atom()
         }).
+-record(ring_0_16_8,
+        {vnode_id = -1 :: pos_integer(),
+         node          :: atom(),
+         clock = 0     :: pos_integer()
+        }).
+-define(RING, 'ring_0_16_8').
+
 
 -record(rebalance, {members_cur  = []  :: list(),
                     members_prev = []  :: list(),

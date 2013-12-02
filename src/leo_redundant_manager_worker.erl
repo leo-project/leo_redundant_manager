@@ -331,7 +331,7 @@ maybe_sync_1_1(SyncInfo, State) ->
             State#state{cur  = RingInfo};
         {ok, RingInfo} when TargetRing == ?SYNC_TARGET_RING_PREV ->
             State#state{prev = RingInfo};
-        _ ->
+        _Error ->
             State
     end.
 
@@ -390,7 +390,7 @@ gen_routing_table_1([], #sync_info{target = TargetRing}, #ring_conf{index_list =
                     last_vnode_id   = LastAddrId,
                     members         = Members}};
 
-gen_routing_table_1([{AddrId,_Node}|Rest], SyncInfo, RingConf, State) ->
+gen_routing_table_1([{AddrId,_Node,_Clock}|Rest], SyncInfo, RingConf, State) ->
     TargetRing       = SyncInfo#sync_info.target,
     MembersCur       = (State#state.cur)#ring_info.members,
     NumOfReplicas    = State#state.num_of_replicas,
@@ -508,7 +508,7 @@ redundancies(Table, VNodeId_0, NumOfReplicas, L2, Members) ->
                 {error, Cause} ->
                     {error, Cause}
             end;
-        Node ->
+        #?RING{node = Node} ->
             redundancies_1_1(Table, VNodeId_0, VNodeId_0,
                              NumOfReplicas, L2, Members, Node)
     end.
@@ -526,7 +526,7 @@ redundancies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members) ->
                 {error, Cause} ->
                     {error, Cause}
             end;
-        Node ->
+        #?RING{node = Node} ->
             redundancies_1_1(Table, VNodeId_Org, VNodeId_Hop,
                              NumOfReplicas, L2, Members, Node)
     end.
@@ -565,7 +565,7 @@ redundancies_2(Table, NumOfReplicas, L2, Members, VNodeId_0, R) ->
                         {error, Cause} ->
                             {error, Cause}
                     end;
-                Node ->
+                #?RING{node = Node} ->
                     redundancies_3(Table, NumOfReplicas, L2, Members, VNodeId_1, Node, R)
             end;
         _ ->

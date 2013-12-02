@@ -31,6 +31,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -export([create_ring_current/1, create_ring_current/2,
+         create_ring_old_for_test/3,
          create_ring_prev/1, create_ring_prev/2,
          lookup/2, insert/2, delete/2, first/1, last/1, prev/2, next/2,
          delete_all/1, size/1, tab2list/1]).
@@ -48,14 +49,14 @@ create_ring_current(Mode, Nodes) ->
       ?RING_TBL_CUR,
       [{Mode, Nodes},
        {type, ordered_set},
-       {record_name, ring},
-       {attributes, record_info(fields, ring)},
+       {record_name, ?RING},
+       {attributes, record_info(fields, ?RING)},
        {user_properties,
-        [{vnode_id,      {integer,   undefined},  false, primary,   undefined, identity,  integer},
-         {atom,          {varchar,   undefined},  false, undefined, undefined, undefined, atom   }
+        [{vnode_id, {integer,   undefined},  false, primary,   undefined, identity,  integer},
+         {atom,     {varchar,   undefined},  false, undefined, undefined, undefined, atom   },
+         {clock,    {integer,   undefined},  false, undefined, undefined, undefined, integer}
         ]}
       ]).
-
 
 %% @doc create ring-prev table.
 %%
@@ -68,11 +69,28 @@ create_ring_prev(Mode, Nodes) ->
       ?RING_TBL_PREV,
       [{Mode, Nodes},
        {type, ordered_set},
+       {record_name, ?RING},
+       {attributes, record_info(fields, ?RING)},
+       {user_properties,
+        [{vnode_id, {integer,   undefined},  false, primary,   undefined, identity,  integer},
+         {atom,     {varchar,   undefined},  false, undefined, undefined, undefined, atom   },
+         {clock,    {integer,   undefined},  false, undefined, undefined, undefined, integer}
+        ]}
+      ]).
+
+
+%% @doc create table for the test
+%%
+create_ring_old_for_test(Mode, Nodes, Table) ->
+    mnesia:create_table(
+      Table,
+      [{Mode, Nodes},
+       {type, ordered_set},
        {record_name, ring},
        {attributes, record_info(fields, ring)},
        {user_properties,
-        [{vnode_id,      {integer,   undefined},  false, primary,   undefined, identity,  integer},
-         {atom,          {varchar,   undefined},  false, undefined, undefined, undefined, atom   }
+        [{vnode_id, {integer,   undefined},  false, primary,   undefined, identity,  integer},
+         {atom,     {varchar,   undefined},  false, undefined, undefined, undefined, atom   }
         ]}
       ]).
 
@@ -81,8 +99,8 @@ create_ring_prev(Mode, Nodes) ->
 %%
 lookup({mnesia, Table}, VNodeId) ->
     case catch mnesia:ets(fun ets:lookup/2, [Table, VNodeId]) of
-        [#ring{node = Node}|_] ->
-            Node;
+        [Ring|_] ->
+            Ring;
         [] = Reply ->
             Reply;
         {'EXIT', Cause} ->
@@ -90,8 +108,10 @@ lookup({mnesia, Table}, VNodeId) ->
     end;
 lookup({ets, Table}, VNodeId) ->
     case catch ets:lookup(Table, VNodeId) of
-        [{_VNodeId, Node}|_] ->
-            Node;
+        [{VNodeId, Node, Clock}|_] ->
+            #?RING{vnode_id = VNodeId,
+                   node     = Node,
+                   clock    = Clock};
         [] = Reply ->
             Reply;
         {'EXIT', Cause} ->
@@ -100,21 +120,26 @@ lookup({ets, Table}, VNodeId) ->
 
 %% @doc Insert a record into the table.
 %%
-insert({mnesia, Table}, {VNodeId, Node}) ->
-    Fun = fun() -> mnesia:write(Table, #ring{vnode_id = VNodeId,
-                                             node     = Node}, write) end,
+insert({mnesia, Table}, Ring) when is_record(Ring, ring);
+                                   is_record(Ring, ring_0_16_8) ->
+    Fun = fun() -> mnesia:write(Table, Ring, write) end,
     leo_mnesia:write(Fun),
     true;
-insert({ets, Table}, {VNodeId, Node}) ->
-    ets:insert(Table, {VNodeId, Node}).
+insert({mnesia, Table}, {VNodeId, Node, Clock}) ->
+    Fun = fun() -> mnesia:write(Table, #?RING{vnode_id = VNodeId,
+                                              node     = Node,
+                                              clock    = Clock}, write) end,
+    leo_mnesia:write(Fun),
+    true;
+insert({ets, Table}, {VNodeId, Node, Clock}) ->
+    ets:insert(Table, {VNodeId, Node, Clock}).
 
 %% @doc Remove a record from the table.
 %%
 delete({mnesia, Table}, VNodeId) ->
-    Node = lookup({mnesia, Table}, VNodeId),
+    Ring = lookup({mnesia, Table}, VNodeId),
     Fun = fun() ->
-                  mnesia:delete_object(Table, #ring{vnode_id = VNodeId,
-                                                    node     = Node}, write)
+                  mnesia:delete_object(Table, Ring, write)
           end,
     leo_mnesia:delete(Fun),
     true;
@@ -183,8 +208,10 @@ tab2list({mnesia, Table}) ->
         [] ->
             [];
         List when is_list(List) ->
-            lists:map(fun(#ring{vnode_id = VNodeId, node = Node}) ->
-                              {VNodeId, Node}
+            lists:map(fun(#?RING{vnode_id = VNodeId,
+                                 node = Node,
+                                 clock = Clock}) ->
+                              {VNodeId, Node, Clock}
                       end, List);
         Error ->
             Error
