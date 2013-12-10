@@ -38,6 +38,7 @@
          find_by_level1/2, find_by_level1/3, find_by_level1/4,
          find_by_level2/1, find_by_level2/2, find_by_level2/3,
          find_by_alias/1, find_by_alias/2, find_by_alias/3,
+         find_by_name/2, find_by_name/3,
          insert/1, insert/2, insert/3,
          delete/1, delete/2, delete/3, delete_all/1, delete_all/2,
          replace/2, replace/3, replace/4,
@@ -327,6 +328,40 @@ find_by_alias(?DB_ETS, Table, Alias) ->
             {ok, Ret}
     end;
 find_by_alias(_,_,_) ->
+    {error, invalid_db}.
+
+
+%% @doc Retrieve records by name
+%%
+-spec(find_by_name(atom(), atom()) ->
+             {ok, list()} | not_found | {error, any()}).
+find_by_name(Table, Name) ->
+    find_by_name(?table_type(), Table, Name).
+
+-spec(find_by_name(?DB_MNESIA|?DB_ETS, atom(), atom()) ->
+             {ok, list()} | not_found | {error, any()}).
+find_by_name(?DB_MNESIA, Table, Name) ->
+    F = fun() ->
+                Q = qlc:q([X || X <- mnesia:table(Table),
+                                X#member.node == Name]),
+                qlc:e(Q)
+        end,
+    leo_mnesia:read(F);
+find_by_name(?DB_ETS, Table, Name) ->
+    case catch ets:foldl(
+                 fun({_, #member{node = Name_1} = Member}, Acc) when Name == Name_1 ->
+                         [Member|Acc];
+                    (_, Acc) ->
+                         Acc
+                 end, [], Table) of
+        {'EXIT', Cause} ->
+            {error, Cause};
+        [] ->
+            not_found;
+        Ret ->
+            {ok, Ret}
+    end;
+find_by_name(_,_,_) ->
     {error, invalid_db}.
 
 
