@@ -44,9 +44,26 @@ transform() ->
                      ?RING_TBL_PREV,
                      fun transform/1, record_info(fields, ?RING), ?RING),
 
+    %% execute migration of ring-data
+    migrate_ring().
+
+%% @private
+transform(#?RING{} = Ring) ->
+    Ring;
+transform(#ring{vnode_id = VNodeId,
+                node     = Node}) ->
+    #ring_0_16_8{vnode_id = VNodeId,
+                 node     = Node,
+                 clock    = 0}.
+
+
+%% @doc Migrate ring's data
+%%
+%% @private
+migrate_ring() ->
     %% Migrate ring-data both current-ring and previous-ring
     timer:sleep(erlang:phash2(leo_date:clock(), 1000)),
-    case leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR) of
+    case catch leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR) of
         {ok, RingCur} ->
             case migrate_ring(RingCur, ?RING_TBL_CUR) of
                 ok ->
@@ -60,20 +77,11 @@ transform() ->
                     {error, Cause}
             end;
         {error, Cause} ->
+            {error, Cause};
+        {'EXIT', Cause} ->
             {error, Cause}
     end.
 
-%% @private
-transform(#?RING{} = Ring) ->
-    Ring;
-transform(#ring{vnode_id = VNodeId,
-                node     = Node}) ->
-    #ring_0_16_8{vnode_id = VNodeId,
-                 node     = Node,
-                 clock    = 0}.
-
-
-%% Migrate ring's data
 %% @private
 migrate_ring([], _) ->
     ok;
@@ -82,14 +90,18 @@ migrate_ring([{VNodeId, Node, _}|Rest], RingTbl) ->
                     ?RING_TBL_CUR  -> ?MEMBER_TBL_CUR;
                     ?RING_TBL_PREV -> ?MEMBER_TBL_PREV
                 end,
-
     case leo_redundant_manager_table_member:find_by_name(MemberTbl, Node) of
         {ok, [#member{clock = Clock}|_]} ->
             true = leo_redundant_manager_table_ring:insert(
                      {mnesia, RingTbl}, {VNodeId, Node, Clock}),
             migrate_ring(Rest, RingTbl);
         not_found ->
-            {error, "Member not found"};
+            Cause = "Member not found - " ++ atom_to_list(Node),
+            error_logger:warning_msg("~p,~p,~p,~p~n",
+                                     [{module, ?MODULE_STRING},
+                                      {function, "migrate_ring/2"},
+                                      {line, ?LINE}, {body, Cause}]),
+            {error, Cause};
         {error, Cause} ->
             error_logger:warning_msg("~p,~p,~p,~p~n",
                                      [{module, ?MODULE_STRING},
@@ -97,3 +109,4 @@ migrate_ring([{VNodeId, Node, _}|Rest], RingTbl) ->
                                       {line, ?LINE}, {body, Cause}]),
             {error, "Could not get a member"}
     end.
+

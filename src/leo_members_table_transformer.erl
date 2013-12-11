@@ -77,9 +77,6 @@ transform_2(OldTbl, NewTbls) ->
             Node = leo_redundant_manager_table_member:first(OldTbl),
             case transform_3(OldTbl, NewTbls, Node) of
                 ok ->
-                    %% recreate prev-ring and current-ring
-                    ok = leo_redundant_manager_api:synchronize(?SYNC_TARGET_RING_CUR,  []),
-                    ok = leo_redundant_manager_api:synchronize(?SYNC_TARGET_RING_PREV, []),
                     ok;
                 Error ->
                     Error
