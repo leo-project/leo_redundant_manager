@@ -42,7 +42,7 @@
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
          get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2, get_redundancies_by_addr_id/3,
          range_of_vnodes/1, rebalance/0,
-         get_alias/1, get_alias/2
+         get_alias/2, get_alias/3
         ]).
 
 -export([has_member/1, has_charge_of_node/1,
@@ -544,8 +544,9 @@ takeover_status([], TakeOverList) ->
     end;
 takeover_status([#member{state = ?STATE_ATTACHED,
                          node  = Node,
-                         alias = Alias} = Member|Rest], TakeOverList) ->
-    case get_alias(Node) of
+                         alias = Alias,
+                         grp_level_2 = GrpL2} = Member|Rest], TakeOverList) ->
+    case get_alias(Node, GrpL2) of
         {ok, {SrcMember, Alias_1}} when Alias /= Alias_1 ->
             %% Takeover vnodes:
             %%     Remove vnodes by old-alias,
@@ -685,38 +686,50 @@ after_rebalance([{#member{node = Node} = Member_1, Member_2, SrcMember}|Rest]) -
 
 %% @doc Generate an alian from 'node'
 %%
-get_alias(Node) ->
-    get_alias(?MEMBER_TBL_CUR, Node).
+-spec(get_alias(atom(), string()) ->
+             {ok, tuple()} | {error, any()}).
+get_alias(Node, GrpL2) ->
+    get_alias(?MEMBER_TBL_CUR, Node, GrpL2).
 
-get_alias(Table, Node) ->
+get_alias(Table, Node, GrpL2) ->
     case leo_redundant_manager_table_member:find_by_status(
            Table, ?STATE_DETACHED) of
         not_found ->
-            get_alias_1([], Table, Node);
+            get_alias_1([], Table, Node, GrpL2);
         {ok, Members} ->
-            get_alias_1(Members, Table, Node);
+            get_alias_1(Members, Table, Node, GrpL2);
         {error, Cause} ->
             {error, Cause}
     end.
 
-get_alias_1([],_,Node) ->
+%% @private
+get_alias_1([],_,Node,_GrpL2) ->
     PartOfAlias = string:substr(
                     leo_hex:binary_to_hex(
                       crypto:hash(md5, lists:append([atom_to_list(Node)]))),1,8),
     {ok, {[], lists:append([?NODE_ALIAS_PREFIX, PartOfAlias])}};
-get_alias_1([#member{node  = Node_1}|Rest], Table, Node) when Node == Node_1 ->
-    get_alias_1(Rest, Table, Node);
+
+get_alias_1([#member{node  = Node_1}|Rest], Table, Node, GrpL2) when Node == Node_1 ->
+    get_alias_1(Rest, Table, Node, GrpL2);
+
 get_alias_1([#member{alias = [],
-                     node  = Node_1}|Rest], Table, Node) when Node /= Node_1 ->
-    get_alias_1(Rest, Table, Node);
+                     node  = Node_1}|Rest], Table, Node, GrpL2) when Node /= Node_1 ->
+    get_alias_1(Rest, Table, Node, GrpL2);
+
 get_alias_1([#member{alias = Alias,
-                     node  = Node_1}|Rest], Table, Node) when Node /= Node_1 ->
+                     node  = Node_1,
+                     grp_level_2 = GrpL2_1}|Rest], Table, Node, GrpL2) when Node  /= Node_1 andalso
+                                                                            GrpL2 == GrpL2_1 ->
     case leo_redundant_manager_table_member:find_by_alias(Alias) of
-        {ok, [Member]} ->
+        {ok, [Member|_]} ->
             {ok, {Member, Member#member.alias}};
         _ ->
-            get_alias_1(Rest, Table, Node)
-    end.
+            get_alias_1(Rest, Table, Node, GrpL2)
+    end;
+
+get_alias_1([_|Rest], Table, Node, GrpL2) ->
+    get_alias_1(Rest, Table, Node, GrpL2).
+
 
 
 %%--------------------------------------------------------------------

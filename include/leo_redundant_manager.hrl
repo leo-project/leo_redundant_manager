@@ -212,8 +212,8 @@
          clock = 0             :: pos_integer(), %% joined at
          state = null          :: node_state(),  %% current-status
          num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
-         grp_level_1 = []      :: string(),      %% Group of level_1
-         grp_level_2 = []      :: string()       %% Group of level_2
+         grp_level_1 = []      :: string(),      %% Group of level_1 for multi-dc replication
+         grp_level_2 = []      :: string()       %% Group of level_2 for rack-awareness replication
         }).
 
 -record(sync_info, {

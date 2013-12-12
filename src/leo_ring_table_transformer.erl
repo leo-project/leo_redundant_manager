@@ -26,7 +26,7 @@
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([transform/0, transform/1]).
+-export([transform/0]).
 
 
 %%--------------------------------------------------------------------
@@ -36,13 +36,16 @@
 %%
 -spec(transform() -> ok).
 transform() ->
-        {atomic, ok} = mnesia:transform_table(
+    timer:sleep(erlang:phash2(leo_date:clock(), 3000)),
+    {atomic, ok} = mnesia:transform_table(
                      ?RING_TBL_CUR,
-                         fun transform/1, record_info(fields, ?RING), ?RING),
-        {atomic, ok} = mnesia:transform_table(
+                     fun transform/1, record_info(fields, ?RING), ?RING),
+    {atomic, ok} = mnesia:transform_table(
                      ?RING_TBL_PREV,
-                         fun transform/1, record_info(fields, ?RING), ?RING),
-        ok.
+                     fun transform/1, record_info(fields, ?RING), ?RING),
+
+    %% execute migration of ring-data
+    migrate_ring().
 
 %% @private
 transform(#?RING{} = Ring) ->
@@ -52,4 +55,58 @@ transform(#ring{vnode_id = VNodeId,
     #ring_0_16_8{vnode_id = VNodeId,
                  node     = Node,
                  clock    = 0}.
+
+
+%% @doc Migrate ring's data
+%%
+%% @private
+migrate_ring() ->
+    %% Migrate ring-data both current-ring and previous-ring
+    timer:sleep(erlang:phash2(leo_date:clock(), 1000)),
+    case catch leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR) of
+        {ok, RingCur} ->
+            case migrate_ring(RingCur, ?RING_TBL_CUR) of
+                ok ->
+                    case leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_PREV) of
+                        {ok, []} ->
+                            ok;
+                        {ok, RingPrev} ->
+                            migrate_ring(RingPrev, ?RING_TBL_PREV)
+                    end;
+                {error, Cause} ->
+                    {error, Cause}
+            end;
+        {error, Cause} ->
+            {error, Cause};
+        {'EXIT', Cause} ->
+            {error, Cause}
+    end.
+
+%% @private
+migrate_ring([], _) ->
+    ok;
+migrate_ring([{VNodeId, Node, _}|Rest], RingTbl) ->
+    MemberTbl = case RingTbl of
+                    ?RING_TBL_CUR  -> ?MEMBER_TBL_CUR;
+                    ?RING_TBL_PREV -> ?MEMBER_TBL_PREV
+                end,
+    case leo_redundant_manager_table_member:find_by_name(MemberTbl, Node) of
+        {ok, [#member{clock = Clock}|_]} ->
+            true = leo_redundant_manager_table_ring:insert(
+                     {mnesia, RingTbl}, {VNodeId, Node, Clock}),
+            migrate_ring(Rest, RingTbl);
+        not_found ->
+            Cause = "Member not found - " ++ atom_to_list(Node),
+            error_logger:warning_msg("~p,~p,~p,~p~n",
+                                     [{module, ?MODULE_STRING},
+                                      {function, "migrate_ring/2"},
+                                      {line, ?LINE}, {body, Cause}]),
+            {error, Cause};
+        {error, Cause} ->
+            error_logger:warning_msg("~p,~p,~p,~p~n",
+                                     [{module, ?MODULE_STRING},
+                                      {function, "migrate_ring/2"},
+                                      {line, ?LINE}, {body, Cause}]),
+            {error, "Could not get a member"}
+    end.
 
