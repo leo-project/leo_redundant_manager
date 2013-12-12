@@ -580,7 +580,8 @@ create_3(Ver, [Member|Rest]) ->
 %% @doc Add a node into storage-cluster
 %% @private
 attach_1(TblInfo, #member{node  = Node,
-                          alias = []} = Member) ->
+                          alias = [],
+                          grp_level_2 = GrpL2} = Member) ->
     NodeStr = atom_to_list(Node),
     IP = case (string:chr(NodeStr, $@) > 0) of
              true ->
@@ -590,7 +591,7 @@ attach_1(TblInfo, #member{node  = Node,
          end,
 
     case leo_redundant_manager_api:get_alias(
-           ?ring_table_to_member_table(TblInfo), Node) of
+           ?ring_table_to_member_table(TblInfo), Node, GrpL2) of
         {ok, {_Member, Alias}} ->
             attach_2(TblInfo, Member#member{alias = Alias,
                                             ip    = IP});
