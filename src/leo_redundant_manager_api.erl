@@ -85,7 +85,6 @@ create(Ver) when Ver == ?VER_CUR;
         ok ->
             case leo_redundant_manager_table_member:find_all(?member_table(Ver)) of
                 {ok, Members} ->
-                    ok = dump(both),
                     {ok, HashRing} = checksum(?CHECKSUM_RING),
                     ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, erlang:element(1, HashRing)),
                     {ok, HashMember} = checksum(?CHECKSUM_MEMBER),
@@ -653,9 +652,6 @@ after_rebalance([]) ->
                                       {line, ?LINE},
                                       {body, Reason}])
     end,
-
-    %% Export ring and members
-    ok = dump(both),
     ok;
 after_rebalance([{#member{node = Node} = Member_1, Member_2, SrcMember}|Rest]) ->
     try
