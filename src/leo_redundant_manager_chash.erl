@@ -121,18 +121,19 @@ rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
           ServerRef, ?ring_table(?SYNC_TARGET_RING_PREV), AddrId, MembersPrev),
 
     {VNodeIdTo, CurNodes} =
-        case (CurLastVNodeId >= PrevLastVNodeId) of
-            %% case-1:
+        case (PrevLastVNodeId > CurLastVNodeId andalso
+              AddrId > CurLastVNodeId) of
             true ->
+                %% case-2
+                {ok, #redundancies{nodes = CurNodes_1}} =
+                    leo_redundant_manager_worker:first(ServerRef, TblNameCur),
+                {PrevVNodeIdTo, CurNodes_1};
+            false ->
+                %% case-1
                 {ok, #redundancies{vnode_id_to = CurVNodeIdTo,
                                    nodes = CurNodes_1}} =
                     leo_redundant_manager_worker:lookup(ServerRef, TblNameCur,  AddrId),
-                {CurVNodeIdTo, CurNodes_1};
-            %% case-2:
-            false ->
-                {ok, #redundancies{nodes = CurNodes_1}} =
-                    leo_redundant_manager_worker:first(ServerRef, TblNameCur),
-                {PrevVNodeIdTo, CurNodes_1}
+                {CurVNodeIdTo, CurNodes_1}
         end,
 
     %% Retrieve deferences between current-ring and prev-ring
