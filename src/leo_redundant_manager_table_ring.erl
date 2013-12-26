@@ -156,9 +156,9 @@ first({ets, Table}) ->
 %% @doc Retrieve a last record from the table.
 %%
 last({mnesia, Table}) ->
-    mnesia:ets(fun ets:first/1, [Table]);
+    mnesia:ets(fun ets:last/1, [Table]);
 last({ets, Table}) ->
-    ets:first(Table).
+    ets:last(Table).
 
 %% @doc Retrieve a previous record from the table.
 %%
