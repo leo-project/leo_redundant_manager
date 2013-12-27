@@ -381,7 +381,6 @@ gen_routing_table_1([], #sync_info{target = TargetRing}, #ring_conf{index_list =
                   ?SYNC_TARGET_RING_CUR  -> (State#state.cur)#ring_info.members;
                   ?SYNC_TARGET_RING_PREV -> (State#state.prev)#ring_info.members
               end,
-
     {ok, #redundancies{vnode_id_to = FirstAddrId}} = first_fun(IdxAcc_1),
     {ok, #redundancies{vnode_id_to = LastAddrId}}  = last_fun(IdxAcc_1),
     {ok, #ring_info{checksum        = Checksum,

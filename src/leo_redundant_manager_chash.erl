@@ -137,7 +137,6 @@ rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
         end,
 
     %% Retrieve deferences between current-ring and prev-ring
-    IsEndOfAddrId = (VNodeIdTo < AddrId),
     Acc_1 = case lists:foldl(
                    fun(#redundant_node{node = N0}, SoFar_1) ->
                            case lists:foldl(
@@ -153,14 +152,14 @@ rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
                 DestNodeList ->
                     %% Set one or plural target node(s)
                     SrcNode = active_node(MembersCur, PrevNodes),
-                    VNodeIdTo_1 = case IsEndOfAddrId of
+                    VNodeIdTo_1 = case (CurLastVNodeId < AddrId) of
                                       true  -> leo_math:power(2, ?MD5);
                                       false -> VNodeIdTo
                                   end,
                     rebalance_1_1(VNodeIdTo_1, SrcNode, DestNodeList, Acc)
             end,
 
-    case IsEndOfAddrId of
+    case (VNodeIdTo < AddrId) of
         true ->
             {ok, lists:reverse(Acc_1)};
         false  ->
@@ -267,4 +266,3 @@ active_node(Members, [#redundant_node{node = Node_1}|T]) ->
         Res ->
             Res
     end.
-
