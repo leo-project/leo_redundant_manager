@@ -356,7 +356,6 @@ handle_call({synchronize, TblInfo, MgrRing, MyRing}, _From, State) ->
                                   leo_redundant_manager_table_ring:insert(TblInfo, {VNodeId0, Node0})
                           end
                   end, MgrRing),
-    dump_ring_tabs(),
     {reply, ok, State};
 
 

@@ -337,7 +337,7 @@ synchronize_0_({Hostname}) ->
     ?assertEqual(true, (RingCur    /= -1)),
     ?assertEqual(true, (RingPrev   /= -1)),
     ?assertEqual(true, (MemberCur == MemberPrev)),
-    ?assertEqual(true, (RingCur   == RingPrev)),
+    %%?assertEqual(true, (RingCur   == RingPrev)),
 
     {ok, RingCur_1 } = leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR),
     {ok, RingPrev_1} = leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_PREV),

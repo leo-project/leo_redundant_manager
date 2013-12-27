@@ -95,6 +95,15 @@ rebalance(RebalanceInfo) ->
     %% retrieve different node between current and previous ring
     rebalance_1(ServerRef, RebalanceInfo, 0, []).
 
+%% @doc Retrieve diffrences between current-ring and prev-ring
+%% case-1:
+%%  cur-ring: |...---------E---|2^128, 0|---F---...
+%% prev-ring: |...-----E-------|2^128, 0|------F...
+%%
+%% case-2
+%%  cur-ring: |...---E-------- |2^128, 0|---F---...
+%% prev-ring: |...------E------|2^128, 0|------F...
+%%
 %% @private
 rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
     #rebalance{tbl_cur      = TblInfoCur,
@@ -102,15 +111,32 @@ rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
                members_prev = MembersPrev} = RebalanceInfo,
     {_, TblNameCur} = TblInfoCur,
 
-    {ok, #redundancies{vnode_id_to = VNodeIdTo,
-                       nodes = CurNodes}} =
-        leo_redundant_manager_worker:lookup(ServerRef, TblNameCur,  AddrId),
+    %% Judge whether it match which case
+    CurLastVNodeId  = leo_redundant_manager_table_ring:last({mnesia, ?RING_TBL_CUR}),
+    PrevLastVNodeId = leo_redundant_manager_table_ring:last({mnesia, ?RING_TBL_PREV}),
 
-    {ok, #redundancies{nodes = PrevNodes}} =
+    {ok, #redundancies{vnode_id_to = PrevVNodeIdTo,
+                       nodes = PrevNodes}} =
         leo_redundant_manager_worker:redundancies(
           ServerRef, ?ring_table(?SYNC_TARGET_RING_PREV), AddrId, MembersPrev),
 
-    IsEndOfAddrId = (VNodeIdTo < AddrId),
+    {VNodeIdTo, CurNodes} =
+        case (PrevLastVNodeId > CurLastVNodeId andalso
+              AddrId > CurLastVNodeId) of
+            true ->
+                %% case-2
+                {ok, #redundancies{nodes = CurNodes_1}} =
+                    leo_redundant_manager_worker:first(ServerRef, TblNameCur),
+                {PrevVNodeIdTo, CurNodes_1};
+            false ->
+                %% case-1
+                {ok, #redundancies{vnode_id_to = CurVNodeIdTo,
+                                   nodes = CurNodes_1}} =
+                    leo_redundant_manager_worker:lookup(ServerRef, TblNameCur,  AddrId),
+                {CurVNodeIdTo, CurNodes_1}
+        end,
+
+    %% Retrieve deferences between current-ring and prev-ring
     Acc_1 = case lists:foldl(
                    fun(#redundant_node{node = N0}, SoFar_1) ->
                            case lists:foldl(
@@ -126,18 +152,19 @@ rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
                 DestNodeList ->
                     %% Set one or plural target node(s)
                     SrcNode = active_node(MembersCur, PrevNodes),
-                    VNodeIdTo_1 = case IsEndOfAddrId of
+                    VNodeIdTo_1 = case (CurLastVNodeId < AddrId) of
                                       true  -> leo_math:power(2, ?MD5);
                                       false -> VNodeIdTo
                                   end,
                     rebalance_1_1(VNodeIdTo_1, SrcNode, DestNodeList, Acc)
             end,
 
-    case (VNodeIdTo < AddrId) of
+    NewVNodeIdTo = VNodeIdTo + 1,
+    case (erlang:max(CurLastVNodeId,PrevLastVNodeId) < NewVNodeIdTo) of
         true ->
             {ok, lists:reverse(Acc_1)};
         false  ->
-            rebalance_1(ServerRef, RebalanceInfo, VNodeIdTo + 1, Acc_1)
+            rebalance_1(ServerRef, RebalanceInfo, NewVNodeIdTo, Acc_1)
     end.
 
 
@@ -240,4 +267,3 @@ active_node(Members, [#redundant_node{node = Node_1}|T]) ->
         Res ->
             Res
     end.
-
