@@ -159,11 +159,12 @@ rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
                     rebalance_1_1(VNodeIdTo_1, SrcNode, DestNodeList, Acc)
             end,
 
-    case (VNodeIdTo < AddrId) of
+    NewVNodeIdTo = VNodeIdTo + 1,
+    case (erlang:max(CurLastVNodeId,PrevLastVNodeId) < NewVNodeIdTo) of
         true ->
             {ok, lists:reverse(Acc_1)};
         false  ->
-            rebalance_1(ServerRef, RebalanceInfo, VNodeIdTo + 1, Acc_1)
+            rebalance_1(ServerRef, RebalanceInfo, NewVNodeIdTo, Acc_1)
     end.
 
 
