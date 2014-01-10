@@ -203,6 +203,31 @@
 
 %% Record
 %%
+-record(system_conf, {
+          version = 0         :: integer(),
+          n       = 1         :: integer(),
+          r       = 1         :: integer(),
+          w       = 1         :: integer(),
+          d       = 1         :: integer(),
+          bit_of_ring = 128   :: integer(),
+          level_1 = 0         :: integer(),
+          level_2 = 0         :: integer()
+         }).
+
+-record(system_conf_1_0_0_pre2, {
+          cluster_id = []     :: string(),       %% cluster-id
+          dc_id      = []     :: string(),       %% dc-id
+          n       = 1         :: integer(),      %% # of replicas
+          r       = 1         :: integer(),      %% # of replicas needed for a successful READ operation
+          w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
+          d       = 1         :: integer(),      %% # of replicas needed for a successful DELETE operation
+          bit_of_ring = 128   :: integer(),      %% # of bits for the hash-ring (fixed 128bit)
+          num_of_dc_replicas   = 0 :: integer(), %% # of DC-awareness replicas
+          num_of_rack_replicas = 0 :: integer()  %% # of Rack-awareness replicas
+         }).
+-define(SYSTEM_CONF, 'system_conf_1_0_0_pre2').
+
+
 -record(member,
         {node                  :: atom(),        %% actual node-name
          alias = []            :: string(),      %% node-alias
