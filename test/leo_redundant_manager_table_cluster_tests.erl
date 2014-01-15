@@ -19,7 +19,7 @@
 %% under the License.
 %%
 %%======================================================================
--module(leo_redundant_manager_table_remote_cluster_tests).
+-module(leo_redundant_manager_table_cluster_tests).
 -author('Yosuke Hara').
 
 -include("leo_redundant_manager.hrl").
@@ -58,7 +58,7 @@
                               num_of_rack_replicas = 1
                              }).
 
-table_remote_cluster_test_() ->
+table_cluster_test_() ->
     {timeout, 300,
      {foreach, fun setup/0, fun teardown/1,
       [{with, [T]} || T <- [fun suite_/1]]}}.
@@ -72,31 +72,31 @@ teardown(_) ->
 
 suite_(_) ->
     application:start(mnesia),
-    {atomic,ok} = leo_redundant_manager_table_remote_cluster:create_table(ram_copies, [node()]),
+    {atomic,ok} = leo_redundant_manager_table_cluster:create_table(ram_copies, [node()]),
 
-    Res1 = leo_redundant_manager_table_remote_cluster:all(),
+    Res1 = leo_redundant_manager_table_cluster:all(),
     ?assertEqual(not_found, Res1),
 
-    Res2 = leo_redundant_manager_table_remote_cluster:update(?CONF_1),
-    Res3 = leo_redundant_manager_table_remote_cluster:update(?CONF_2),
-    Res4 = leo_redundant_manager_table_remote_cluster:update(?CONF_3),
+    Res2 = leo_redundant_manager_table_cluster:update(?CONF_1),
+    Res3 = leo_redundant_manager_table_cluster:update(?CONF_2),
+    Res4 = leo_redundant_manager_table_cluster:update(?CONF_3),
     ?assertEqual(ok, Res2),
     ?assertEqual(ok, Res3),
     ?assertEqual(ok, Res4),
 
-    Res5 = leo_redundant_manager_table_remote_cluster:get("cluster_12"),
+    Res5 = leo_redundant_manager_table_cluster:get("cluster_12"),
     ?assertEqual({ok, ?CONF_2}, Res5),
 
-    {ok, Res6} = leo_redundant_manager_table_remote_cluster:all(),
+    {ok, Res6} = leo_redundant_manager_table_cluster:all(),
     ?assertEqual(3, length(Res6)),
 
-    Res7 = leo_redundant_manager_table_remote_cluster:delete("cluster_12"),
+    Res7 = leo_redundant_manager_table_cluster:delete("cluster_12"),
     ?assertEqual(ok, Res7),
 
-    Res8 = leo_redundant_manager_table_remote_cluster:get("cluster_12"),
+    Res8 = leo_redundant_manager_table_cluster:get("cluster_12"),
     ?assertEqual(not_found, Res8),
 
-    {ok, Res9} = leo_redundant_manager_table_remote_cluster:all(),
+    {ok, Res9} = leo_redundant_manager_table_cluster:all(),
     ?assertEqual(2, length(Res9)),
 
     application:stop(mnesia),

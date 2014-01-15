@@ -23,7 +23,7 @@
 %% @doc
 %% @end
 %%======================================================================
--module(leo_redundant_manager_table_remote_cluster).
+-module(leo_redundant_manager_table_cluster).
 
 -author('Yosuke Hara').
 
