@@ -52,7 +52,7 @@ add(N, Table, #member{alias = Alias,
                       node  = Node,
                       clock = Clock} = Member) ->
     VNodeId = vnode_id(lists:append([Alias, "_", integer_to_list(N)])),
-    true = leo_redundant_manager_table_ring:insert(Table, {VNodeId, Node, Clock}),
+    true = leo_redundant_manager_tbl_ring:insert(Table, {VNodeId, Node, Clock}),
     add(N + 1, Table, Member).
 
 
@@ -67,7 +67,7 @@ remove(N,_Table, #member{num_of_vnodes = NumOfVNodes}) when NumOfVNodes == N ->
     ok;
 remove(N, Table, #member{alias = Alias} = Member) ->
     VNodeId = vnode_id(lists:append([Alias, "_", integer_to_list(N)])),
-    true = leo_redundant_manager_table_ring:delete(Table, VNodeId),
+    true = leo_redundant_manager_tbl_ring:delete(Table, VNodeId),
     remove(N + 1, Table, Member).
 
 
@@ -113,8 +113,8 @@ rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
     {_, TblNameCur} = TblInfoCur,
 
     %% Judge whether it match which case
-    CurLastVNodeId  = leo_redundant_manager_table_ring:last({mnesia, ?RING_TBL_CUR}),
-    PrevLastVNodeId = leo_redundant_manager_table_ring:last({mnesia, ?RING_TBL_PREV}),
+    CurLastVNodeId  = leo_redundant_manager_tbl_ring:last({mnesia, ?RING_TBL_CUR}),
+    PrevLastVNodeId = leo_redundant_manager_tbl_ring:last({mnesia, ?RING_TBL_PREV}),
 
     {ok, #redundancies{vnode_id_to = PrevVNodeIdTo,
                        nodes = PrevNodes}} =
@@ -184,7 +184,7 @@ rebalance_1_1(VNodeIdTo, SrcNode, [DestNode|Rest], Acc) ->
 -spec(checksum(ring_table_info()) ->
              integer()).
 checksum(Table) ->
-    case catch leo_redundant_manager_table_ring:tab2list(Table) of
+    case catch leo_redundant_manager_tbl_ring:tab2list(Table) of
         {'EXIT', _Cause} ->
             {ok, -1};
         [] ->
@@ -212,11 +212,11 @@ vnode_id(_, _) ->
 -spec(export(atom(), string()) ->
              ok | {error, any()}).
 export(Table, FileName) ->
-    case leo_redundant_manager_table_ring:size(Table) of
+    case leo_redundant_manager_tbl_ring:size(Table) of
         0 ->
             ok;
         _ ->
-            List0 = leo_redundant_manager_table_ring:tab2list(Table),
+            List0 = leo_redundant_manager_tbl_ring:tab2list(Table),
             leo_file:file_unconsult(FileName, List0)
     end.
 

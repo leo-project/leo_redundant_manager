@@ -23,7 +23,7 @@
 %% @doc
 %% @end
 %%======================================================================
--module(leo_redundant_manager_table_member).
+-module(leo_redundant_manager_tbl_member).
 
 -author('Yosuke Hara').
 
