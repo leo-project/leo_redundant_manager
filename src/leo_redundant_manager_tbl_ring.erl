@@ -30,21 +30,21 @@
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([create_ring_current/1, create_ring_current/2,
-         create_ring_old_for_test/3,
-         create_ring_prev/1, create_ring_prev/2,
+-export([create_table_current/1, create_table_current/2,
+         create_table_prev/1, create_table_prev/2,
          lookup/2, insert/2, delete/2, first/1, last/1, prev/2, next/2,
          delete_all/1, size/1, tab2list/1]).
+-export([create_table_for_test/3]).
 
 -type(mnesia_copies() :: disc_copies | ram_copies).
 
 %% @doc create ring-current table.
 %%
--spec(create_ring_current(mnesia_copies()) -> ok).
-create_ring_current(Mode) ->
-    create_ring_current(Mode, [erlang:node()]).
+-spec(create_table_current(mnesia_copies()) -> ok).
+create_table_current(Mode) ->
+    create_table_current(Mode, [erlang:node()]).
 
-create_ring_current(Mode, Nodes) ->
+create_table_current(Mode, Nodes) ->
     mnesia:create_table(
       ?RING_TBL_CUR,
       [{Mode, Nodes},
@@ -60,11 +60,11 @@ create_ring_current(Mode, Nodes) ->
 
 %% @doc create ring-prev table.
 %%
--spec(create_ring_prev(mnesia_copies()) -> ok).
-create_ring_prev(Mode) ->
-    create_ring_prev(Mode, [erlang:node()]).
+-spec(create_table_prev(mnesia_copies()) -> ok).
+create_table_prev(Mode) ->
+    create_table_prev(Mode, [erlang:node()]).
 
-create_ring_prev(Mode, Nodes) ->
+create_table_prev(Mode, Nodes) ->
     mnesia:create_table(
       ?RING_TBL_PREV,
       [{Mode, Nodes},
@@ -81,7 +81,7 @@ create_ring_prev(Mode, Nodes) ->
 
 %% @doc create table for the test
 %%
-create_ring_old_for_test(Mode, Nodes, Table) ->
+create_table_for_test(Mode, Nodes, Table) ->
     mnesia:create_table(
       Table,
       [{Mode, Nodes},
@@ -218,4 +218,3 @@ tab2list({mnesia, Table}) ->
     end;
 tab2list({ets, Table}) ->
     ets:tab2list(Table).
-

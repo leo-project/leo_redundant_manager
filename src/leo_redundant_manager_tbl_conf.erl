@@ -33,9 +33,9 @@
 -include_lib("stdlib/include/qlc.hrl").
 
 %% API
--export([create_system_config/2,
-         get_system_config/0,
-         update_system_config/1]).
+-export([create_table/2,
+         get/0,
+         update/1]).
 
 -define(TBL_SYSTEM_CONF, 'leo_system_conf').
 -define(ERROR_MNESIA_NOT_START, '').
@@ -43,7 +43,7 @@
 
 %% @doc Create a table of system-configutation
 %%
-create_system_config(Mode, Nodes) ->
+create_table(Mode, Nodes) ->
     mnesia:create_table(
       ?TBL_SYSTEM_CONF,
       [{Mode, Nodes},
@@ -66,9 +66,9 @@ create_system_config(Mode, Nodes) ->
 
 %% @doc Retrieve system configuration
 %%
--spec(get_system_config() ->
+-spec(get() ->
              {ok, #system_conf{}} | not_found | {error, any()}).
-get_system_config() ->
+get() ->
     Tbl = ?TBL_SYSTEM_CONF,
 
     case catch mnesia:table_info(Tbl, all) of
@@ -80,19 +80,19 @@ get_system_config() ->
                         Q2 = qlc:sort(Q1, [{order, descending}]),
                         qlc:e(Q2)
                 end,
-            get_system_config(leo_mnesia:read(F))
+            get_1(leo_mnesia:read(F))
     end.
-get_system_config({ok, [H|_]}) ->
+get_1({ok, [H|_]}) ->
     {ok, H};
-get_system_config(Other) ->
+get_1(Other) ->
     Other.
 
 
 %% @doc Modify system-configuration
 %%
--spec(update_system_config(#system_conf{}) ->
+-spec(update(#system_conf{}) ->
              ok | {error, any()}).
-update_system_config(SystemConfig) ->
+update(SystemConfig) ->
     Tbl = ?TBL_SYSTEM_CONF,
 
     case catch mnesia:table_info(Tbl, all) of

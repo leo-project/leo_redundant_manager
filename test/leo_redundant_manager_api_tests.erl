@@ -62,8 +62,8 @@ setup() ->
 
     leo_misc:init_env(),
     leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
-    leo_redundant_manager_tbl_member:create_members(?MEMBER_TBL_CUR),
-    leo_redundant_manager_tbl_member:create_members(?MEMBER_TBL_PREV),
+    leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_CUR),
+    leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_PREV),
     {Hostname}.
 
 teardown(_) ->
@@ -598,8 +598,8 @@ prepare(Hostname, ServerType, NumOfNodes) ->
 
     case ServerType of
         master ->
-            leo_redundant_manager_tbl_ring:create_ring_current(ram_copies, [node()]),
-            leo_redundant_manager_tbl_ring:create_ring_prev(ram_copies, [node()]);
+            leo_redundant_manager_tbl_ring:create_table_current(ram_copies, [node()]),
+            leo_redundant_manager_tbl_ring:create_table_prev(ram_copies, [node()]);
         _ ->
             void
     end,
@@ -764,8 +764,8 @@ redundant(true) ->
 
     leo_misc:init_env(),
     leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
-    leo_redundant_manager_tbl_member:create_members(?MEMBER_TBL_CUR),
-    leo_redundant_manager_tbl_member:create_members(?MEMBER_TBL_PREV),
+    leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_CUR),
+    leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_PREV),
 
     %% prepare-2
     {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),

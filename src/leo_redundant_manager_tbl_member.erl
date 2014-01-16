@@ -31,7 +31,7 @@
 -include_lib("stdlib/include/qlc.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([create_members/1, create_members/3,
+-export([create_table/1, create_table/3,
          lookup/1, lookup/2, lookup/3,
          find_all/0, find_all/1, find_all/2,
          find_by_status/1, find_by_status/2, find_by_status/3,
@@ -66,17 +66,13 @@
 
 %% @doc create member table.
 %%
--spec(create_members(member_table()) -> ok).
-create_members(Table) ->
+-spec(create_table(member_table()) -> ok).
+create_table(Table) ->
     catch ets:new(Table, [named_table, set, public, {read_concurrency, true}]),
     ok.
 
-%% -spec(create_members(mnesia_copies()) -> ok).
-%% create_members(Mode) ->
-%%     create_members(Mode, [erlang:node()]).
-
--spec(create_members(mnesia_copies(), list(), member_table()) -> ok).
-create_members(Mode, Nodes, Table) ->
+-spec(create_table(mnesia_copies(), list(), member_table()) -> ok).
+create_table(Mode, Nodes, Table) ->
     mnesia:create_table(
       Table,
       [{Mode, Nodes},

@@ -69,8 +69,8 @@ teardown(_) ->
 
 suite_mnesia_(_) ->
     %% ok = application:start(mnesia),
-    %% ok = leo_redundant_manager_tbl_member:create_members('ram_copies', [node()], ?MEMBER_TBL_CUR),
-    %% ok = leo_redundant_manager_tbl_member:create_members('ram_copies', [node()], ?MEMBER_TBL_PREV),
+    %% ok = leo_redundant_manager_tbl_member:create_table('ram_copies', [node()], ?MEMBER_TBL_CUR),
+    %% ok = leo_redundant_manager_tbl_member:create_table('ram_copies', [node()], ?MEMBER_TBL_PREV),
     %% ?debugVal(mnesia:table_info(?MEMBER_TBL_CUR,  all)),
     %% ?debugVal(mnesia:table_info(?MEMBER_TBL_PREV, all)),
     %% ok = inspect(?MNESIA),
@@ -79,8 +79,8 @@ suite_mnesia_(_) ->
     ok.
 
 suite_ets_(_) ->
-    ok = leo_redundant_manager_tbl_member:create_members(?MEMBER_TBL_CUR),
-    ok = leo_redundant_manager_tbl_member:create_members(?MEMBER_TBL_PREV),
+    ok = leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_CUR),
+    ok = leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_PREV),
     ok = inspect(?ETS),
     ok.
 
@@ -180,7 +180,7 @@ inspect(TableType) ->
                                          end),
 
     OldTable = 'leo_members',
-    ok = leo_redundant_manager_tbl_member:create_members(OldTable),
+    ok = leo_redundant_manager_tbl_member:create_table(OldTable),
     ok = leo_redundant_manager_tbl_member:delete_all(?MEMBER_TBL_CUR),
     ok = leo_redundant_manager_tbl_member:delete_all(?MEMBER_TBL_PREV),
 

@@ -183,11 +183,11 @@ prepare() ->
 
 
     meck:new(leo_redundant_manager_tbl_ring),
-    meck:expect(leo_redundant_manager_tbl_ring, create_ring_current,
+    meck:expect(leo_redundant_manager_tbl_ring, create_table_current,
                 fun(_,_) ->
                         ok
                 end),
-    meck:expect(leo_redundant_manager_tbl_ring, create_ring_prev,
+    meck:expect(leo_redundant_manager_tbl_ring, create_table_prev,
                 fun(_,_) ->
                         ok
                 end),

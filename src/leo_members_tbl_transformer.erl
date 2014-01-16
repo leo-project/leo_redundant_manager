@@ -53,9 +53,9 @@ transform_1(_, MnesiaNodes, OldTbl, NewTbls) ->
     case MnesiaNodes of
         [] -> void;
         _  ->
-            leo_redundant_manager_tbl_member:create_members(
+            leo_redundant_manager_tbl_member:create_table(
               disc_copies, MnesiaNodes, ?MEMBER_TBL_CUR),
-            leo_redundant_manager_tbl_member:create_members(
+            leo_redundant_manager_tbl_member:create_table(
               disc_copies, MnesiaNodes, ?MEMBER_TBL_PREV)
     end,
     case catch mnesia:table_info(?MEMBER_TBL_CUR, all) of
