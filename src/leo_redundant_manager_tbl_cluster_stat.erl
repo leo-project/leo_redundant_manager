@@ -23,7 +23,7 @@
 %% @doc
 %% @end
 %%======================================================================
--module(leo_redundant_manager_tbl_cluster_info).
+-module(leo_redundant_manager_tbl_cluster_stat).
 
 -author('Yosuke Hara').
 
@@ -36,7 +36,7 @@
 -export([create_table/2,
          all/0, get/1, update/1, delete/1]).
 
--define(TBL_CLUSTER_INFO, 'leo_cluster_info').
+-define(TBL_CLUSTER_STAT, 'leo_cluster_stat').
 -define(ERROR_MNESIA_NOT_START, "Mnesia is not available").
 
 
@@ -44,21 +44,14 @@
 %%
 create_table(Mode, Nodes) ->
     mnesia:create_table(
-      ?TBL_CLUSTER_INFO,
+      ?TBL_CLUSTER_STAT,
       [{Mode, Nodes},
        {type, set},
-       {record_name, ?SYSTEM_CONF},
-       {attributes, record_info(fields, ?SYSTEM_CONF)},
+       {record_name, cluster_stat},
+       {attributes, record_info(fields, cluster_stat)},
        {user_properties,
-        [{cluster_id,           {string,    undefined},  false, primary,   undefined, identity,  string },
-         {dc_id,                {string,    undefined},  false, primary,   undefined, identity,  string },
-         {n,                    {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {r,                    {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {w,                    {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {d,                    {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {bit_of_ring,          {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {num_of_dc_replicas,   {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {num_of_rack_replicas, {integer,   undefined},  false, undefined, undefined, undefined, integer}
+        [{cluster_id, {string, undefined},  false, primary,   undefined, identity,  string },
+         {status,     {atom,   undefined},  false, undefined, undefined, undefined, atom}
         ]}
       ]).
 
@@ -68,7 +61,7 @@ create_table(Mode, Nodes) ->
 -spec(all() ->
              {ok, [#system_conf{}]} | not_found | {error, any()}).
 all() ->
-    Tbl = ?TBL_CLUSTER_INFO,
+    Tbl = ?TBL_CLUSTER_STAT,
 
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
@@ -88,7 +81,7 @@ all() ->
 -spec(get(string()) ->
              {ok, #system_conf{}} | not_found | {error, any()}).
 get(ClusterId) ->
-    Tbl = ?TBL_CLUSTER_INFO,
+    Tbl = ?TBL_CLUSTER_STAT,
 
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
@@ -112,14 +105,14 @@ get(ClusterId) ->
 %%
 -spec(update(#system_conf{}) ->
              ok | {error, any()}).
-update(SystemConf) ->
-    Tbl = ?TBL_CLUSTER_INFO,
+update(ClusterStat) ->
+    Tbl = ?TBL_CLUSTER_STAT,
 
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
         _ ->
-            F = fun()-> mnesia:write(Tbl, SystemConf, write) end,
+            F = fun()-> mnesia:write(Tbl, ClusterStat, write) end,
             leo_mnesia:write(F)
     end.
 
@@ -129,12 +122,12 @@ update(SystemConf) ->
 -spec(delete(string()) ->
              ok | {error, any()}).
 delete(ClusterId) ->
-    Tbl = ?TBL_CLUSTER_INFO,
+    Tbl = ?TBL_CLUSTER_STAT,
 
     case ?MODULE:get(ClusterId) of
-        {ok, SystemConf} ->
+        {ok, ClusterStat} ->
             Fun = fun() ->
-                          mnesia:delete_object(Tbl, SystemConf, write)
+                          mnesia:delete_object(Tbl, ClusterStat, write)
                   end,
             leo_mnesia:delete(Fun);
         Error ->

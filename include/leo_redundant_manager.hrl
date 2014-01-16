@@ -203,6 +203,7 @@
 
 %% Record
 %%
+%% Consistency Level
 -record(system_conf, {
           version = 0         :: integer(),
           n       = 1         :: integer(),
@@ -228,18 +229,36 @@
 -define(SYSTEM_CONF, 'system_conf_1_0_0_1').
 
 
+%% For Multi-DC Replication
+-record(cluster_stat, {
+          cluster_id = [] :: string(),    %% cluster-id
+          status = null   :: node_state() %% status:[running, stop]
+         }).
+
+-record(cluster_member, {
+          cluster_id = []     :: string(),      %% cluster-id
+          node                :: atom(),        %% actual node-name
+          ip = "0.0.0.0"      :: string(),      %% ip-address
+          port  = 13075       :: pos_integer(), %% port-number
+          inet  = 'ipv4'      :: 'ipv4'|'ipv6', %% type of ip
+          clock = 0           :: pos_integer(), %% joined at
+          status = null       :: node_state()
+         }).
+
+%% Cluster Members
 -record(member,
-        {node                  :: atom(),        %% actual node-name
-         alias = []            :: string(),      %% node-alias
-         ip = "0.0.0.0"        :: string(),      %% ip-address
-         port  = 13075         :: pos_integer(), %% port-number
-         inet  = 'ipv4'        :: 'ipv4'|'ipv6', %% type of ip
-         clock = 0             :: pos_integer(), %% joined at
-         state = null          :: node_state(),  %% current-status
+        {node                 :: atom(),        %% actual node-name
+         alias = []           :: string(),      %% node-alias
+         ip = "0.0.0.0"       :: string(),      %% ip-address
+         port  = 13075        :: pos_integer(), %% port-number
+         inet  = 'ipv4'       :: 'ipv4'|'ipv6', %% type of ip
+         clock = 0            :: pos_integer(), %% joined at
+         state = null         :: node_state(),  %% current-status
          num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
-         grp_level_1 = []      :: string(),      %% Group of level_1 for multi-dc replication
-         grp_level_2 = []      :: string()       %% Group of level_2 for rack-awareness replication
+         grp_level_1 = []     :: string(),      %% Group of level_1 for multi-dc replication
+         grp_level_2 = []     :: string()       %% Group of level_2 for rack-awareness replication
         }).
+
 
 -record(sync_info, {
           target            :: ?VER_CUR | ?VER_PREV,
