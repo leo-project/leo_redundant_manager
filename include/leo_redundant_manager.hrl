@@ -214,7 +214,7 @@
           level_2 = 0         :: integer()
          }).
 
--record(system_conf_1_0_0_pre2, {
+-record(system_conf_1_0_0_1, {
           cluster_id = []     :: string(),       %% cluster-id
           dc_id      = []     :: string(),       %% dc-id
           n       = 1         :: integer(),      %% # of replicas
@@ -225,7 +225,7 @@
           num_of_dc_replicas   = 0 :: integer(), %% # of DC-awareness replicas
           num_of_rack_replicas = 0 :: integer()  %% # of Rack-awareness replicas
          }).
--define(SYSTEM_CONF, 'system_conf_1_0_0_pre2').
+-define(SYSTEM_CONF, 'system_conf_1_0_0_1').
 
 
 -record(member,
