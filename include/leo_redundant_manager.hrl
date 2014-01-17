@@ -235,9 +235,16 @@
           status = null   :: node_state() %% status:[running, stop]
          }).
 
--record(cluster_member, {
-          cluster_id = []     :: string(),      %% cluster-id
+%% Cluster Manager
+-record(cluster_manager, {
           node                :: atom(),        %% actual node-name
+          cluster_id = []     :: string()       %% cluster-id
+         }).
+
+%% Cluster Members
+-record(cluster_member, {
+          node                :: atom(),        %% actual node-name
+          cluster_id = []     :: string(),      %% cluster-id
           ip = "0.0.0.0"      :: string(),      %% ip-address
           port  = 13075       :: pos_integer(), %% port-number
           inet  = 'ipv4'      :: 'ipv4'|'ipv6', %% type of ip
@@ -245,7 +252,7 @@
           status = null       :: node_state()
          }).
 
-%% Cluster Members
+
 -record(member,
         {node                 :: atom(),        %% actual node-name
          alias = []           :: string(),      %% node-alias
