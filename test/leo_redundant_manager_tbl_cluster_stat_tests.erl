@@ -31,13 +31,16 @@
 -ifdef(EUNIT).
 
 -define(STAT_1, #cluster_stat{cluster_id = "cluster_11",
-                              status = ?STATE_RUNNING
+                              status = ?STATE_RUNNING,
+                              updated_at = 139018453328000
                              }).
 -define(STAT_2, #cluster_stat{cluster_id = "cluster_12",
-                              status = ?STATE_SUSPEND
+                              status = ?STATE_SUSPEND,
+                              updated_at = 139018453328000
                              }).
 -define(STAT_3, #cluster_stat{cluster_id = "cluster_15",
-                              status = ?STATE_STOP
+                              status = ?STATE_STOP,
+                              updated_at = 139018453328000
                              }).
 
 table_cluster_test_() ->

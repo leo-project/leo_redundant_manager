@@ -231,8 +231,9 @@
 
 %% For Multi-DC Replication
 -record(cluster_stat, {
-          cluster_id = [] :: string(),    %% cluster-id
-          status = null   :: node_state() %% status:[running, stop]
+          cluster_id = [] :: string(),      %% cluster-id
+          status = null   :: node_state(),  %% status:[running, stop]
+          updated_at = 0  :: pos_integer()  %% updated at
          }).
 
 %% Cluster Manager

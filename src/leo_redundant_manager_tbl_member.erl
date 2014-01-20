@@ -80,16 +80,16 @@ create_table(Mode, Nodes, Table) ->
        {record_name, member},
        {attributes, record_info(fields, member)},
        {user_properties,
-        [{node,          {varchar,   undefined},  false, primary,   undefined, identity,  atom   },
-         {alias,         {varchar,   undefined},  false, undefined, undefined, identity,  atom   },
-         {ip,            {varchar,   undefined},  false, undefined, undefined, identity,  varchar},
-         {port,          {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {inet,          {varchar,   undefined},  false, undefined, undefined, undefined, atom   },
-         {clock,         {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {num_of_vnodes, {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {state,         {varchar,   undefined},  false, undefined, undefined, undefined, atom   },
-         {grp_level_1,   {varchar,   undefined},  false, undefined, undefined, undefined, varchar},
-         {grp_level_2,   {varchar,   undefined},  false, undefined, undefined, undefined, varchar}
+        [{node,          varchar, primary},
+         {alias,         varchar, false},
+         {ip,            varchar, false},
+         {port,          integer, false},
+         {inet,          varchar, false},
+         {clock,         integer, false},
+         {num_of_vnodes, integer, false},
+         {state,         varchar, false},
+         {grp_level_1,   varchar, false},
+         {grp_level_2,   varchar, false}
         ]}
       ]),
     ok.

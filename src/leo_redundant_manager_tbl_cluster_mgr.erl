@@ -46,8 +46,8 @@ create_table(Mode, Nodes) ->
        {record_name, cluster_manager},
        {attributes, record_info(fields, cluster_manager)},
        {user_properties,
-        [{node,       {string, undefined},  false, primary,   undefined, identity,  string},
-         {cluster_id, {string, undefined},  false, undefined, undefined, identity,  string}
+        [{node,       string, primary},
+         {cluster_id, string, false}
         ]}
       ]).
 
@@ -129,5 +129,4 @@ delete_1([Value|Rest], Tbl) ->
                   mnesia:delete_object(Tbl, Value, write)
           end,
     leo_mnesia:delete(Fun),
-    delete_1(Rest, Tbl).    
-    
+    delete_1(Rest, Tbl).

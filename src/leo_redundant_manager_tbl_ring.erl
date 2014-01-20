@@ -52,9 +52,9 @@ create_table_current(Mode, Nodes) ->
        {record_name, ?RING},
        {attributes, record_info(fields, ?RING)},
        {user_properties,
-        [{vnode_id, {integer,   undefined},  false, primary,   undefined, identity,  integer},
-         {atom,     {varchar,   undefined},  false, undefined, undefined, undefined, atom   },
-         {clock,    {integer,   undefined},  false, undefined, undefined, undefined, integer}
+        [{vnode_id, integer, primary},
+         {atom,     varchar, false},
+         {clock,    integer, false}
         ]}
       ]).
 
@@ -72,9 +72,9 @@ create_table_prev(Mode, Nodes) ->
        {record_name, ?RING},
        {attributes, record_info(fields, ?RING)},
        {user_properties,
-        [{vnode_id, {integer,   undefined},  false, primary,   undefined, identity,  integer},
-         {atom,     {varchar,   undefined},  false, undefined, undefined, undefined, atom   },
-         {clock,    {integer,   undefined},  false, undefined, undefined, undefined, integer}
+        [{vnode_id, integer, primary},
+         {atom,     varchar, false},
+         {clock,    integer, false}
         ]}
       ]).
 
@@ -89,8 +89,8 @@ create_table_for_test(Mode, Nodes, Table) ->
        {record_name, ring},
        {attributes, record_info(fields, ring)},
        {user_properties,
-        [{vnode_id, {integer,   undefined},  false, primary,   undefined, identity,  integer},
-         {atom,     {varchar,   undefined},  false, undefined, undefined, undefined, atom   }
+        [{vnode_id, integer, primary},
+         {atom,     varchar, false  }
         ]}
       ]).
 

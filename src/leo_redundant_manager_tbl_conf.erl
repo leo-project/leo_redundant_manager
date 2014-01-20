@@ -51,15 +51,15 @@ create_table(Mode, Nodes) ->
        {record_name, ?SYSTEM_CONF},
        {attributes, record_info(fields, ?SYSTEM_CONF)},
        {user_properties,
-        [{cluster_id,           {string,    undefined},  false, primary,   undefined, identity,  string },
-         {dc_id,                {string,    undefined},  false, primary,   undefined, identity,  string },
-         {n,                    {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {r,                    {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {w,                    {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {d,                    {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {bit_of_ring,          {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {num_of_dc_replicas,   {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {num_of_rack_replicas, {integer,   undefined},  false, undefined, undefined, undefined, integer}
+        [{cluster_id,           string,      primary},
+         {dc_id,                string,      false},
+         {n,                    pos_integer, false},
+         {r,                    pos_integer, false},
+         {w,                    pos_integer, false},
+         {d,                    pos_integer, false},
+         {bit_of_ring,          pos_integer, false},
+         {num_of_dc_replicas,   pos_integer, false},
+         {num_of_rack_replicas, pos_integer, false}
         ]}
       ]).
 

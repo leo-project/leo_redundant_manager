@@ -50,8 +50,9 @@ create_table(Mode, Nodes) ->
        {record_name, cluster_stat},
        {attributes, record_info(fields, cluster_stat)},
        {user_properties,
-        [{cluster_id, {string, undefined},  false, primary,   undefined, identity,  string },
-         {status,     {atom,   undefined},  false, undefined, undefined, undefined, atom}
+        [{cluster_id, string,      primary},
+         {status,     atom,        false  },
+         {updated_at, pos_integer, false  }
         ]}
       ]).
 
