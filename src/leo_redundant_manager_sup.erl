@@ -83,12 +83,12 @@ start_link(ServerType, Managers, MQStoragePath, Conf) ->
 
             %% launch membership
             case supervisor:start_child(leo_redundant_manager_sup,
-                                        {leo_membership,
-                                         {leo_membership, start_link, [ServerType_1, Managers]},
-                                         permanent, 2000, worker, [leo_membership]}) of
+                                        {leo_membership_cluster_local,
+                                         {leo_membership_cluster_local, start_link, [ServerType_1, Managers]},
+                                         permanent, 2000, worker, [leo_membership_cluster_local]}) of
                 {ok, _Pid} ->
                     ok = leo_membership_mq_client:start(ServerType_1, MQStoragePath),
-                    ok = leo_membership:start_heartbeat(),
+                    ok = leo_membership_cluster_local:start_heartbeat(),
                     {ok, RefSup};
                 Cause ->
                     error_logger:error_msg("~p,~p,~p,~p~n",

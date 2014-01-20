@@ -23,7 +23,7 @@
 %% @doc
 %% @end
 %%======================================================================
--module(leo_membership).
+-module(leo_membership_cluster_local).
 
 -author('Yosuke Hara').
 

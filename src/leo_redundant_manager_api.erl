@@ -850,7 +850,7 @@ delete_member_by_node(Node) ->
 %% @doc stop membership.
 %%
 is_alive() ->
-    leo_membership:heartbeat().
+    leo_membership_cluster_local:heartbeat().
 
 
 %% @doc Retrieve table-info by version.

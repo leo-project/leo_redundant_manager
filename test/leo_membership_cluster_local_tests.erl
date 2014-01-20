@@ -19,7 +19,7 @@
 %% under the License.
 %%
 %%======================================================================
--module(leo_membership_tests).
+-module(leo_membership_cluster_local_tests).
 -author('Yosuke Hara').
 
 -include("leo_redundant_manager.hrl").
