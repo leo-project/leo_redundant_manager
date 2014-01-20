@@ -246,10 +246,12 @@
 -record(cluster_member, {
           node                :: atom(),        %% actual node-name
           cluster_id = []     :: string(),      %% cluster-id
+          alias = []          :: string(),      %% node-alias
           ip = "0.0.0.0"      :: string(),      %% ip-address
           port  = 13075       :: pos_integer(), %% port-number
           inet  = 'ipv4'      :: 'ipv4'|'ipv6', %% type of ip
           clock = 0           :: pos_integer(), %% joined at
+          num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
           status = null       :: node_state()
          }).
 
