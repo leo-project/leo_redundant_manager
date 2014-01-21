@@ -52,6 +52,7 @@ create_table(Mode, Nodes) ->
        {user_properties,
         [{cluster_id, string,      primary},
          {status,     atom,        false  },
+         {checksum,   pos_integer, false  },
          {updated_at, pos_integer, false  }
         ]}
       ]).

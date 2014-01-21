@@ -677,16 +677,10 @@ reply_redundancies_1(Redundancies, AddrId, [#redundant_node{node = Node}|Rest], 
 -spec(first_fun(list(#ring_group{})) ->
              not_found | {ok, #redundancies{}}).
 first_fun([]) ->
-    error_logger:warning_msg("~p,~p,~p,~p~n",
-                             [{module, ?MODULE_STRING}, {function, "first_fun/1"},
-                              {line, ?LINE}, {body, "not_found"}]),
     not_found;
 first_fun([#ring_group{vnodeid_nodes_list = AddrId_Nodes_List}|_]) ->
     case AddrId_Nodes_List of
         [] ->
-            error_logger:warning_msg("~p,~p,~p,~p~n",
-                                     [{module, ?MODULE_STRING}, {function, "first_fun/1"},
-                                      {line, ?LINE}, {body, "not_found"}]),
             not_found;
         [#vnodeid_nodes{vnode_id_from = From,
                         vnode_id_to   = To,
@@ -697,9 +691,6 @@ first_fun([#ring_group{vnodeid_nodes_list = AddrId_Nodes_List}|_]) ->
                                nodes = Nodes}}
     end;
 first_fun(_) ->
-    error_logger:warning_msg("~p,~p,~p,~p~n",
-                             [{module, ?MODULE_STRING}, {function, "first_fun/1"},
-                              {line, ?LINE}, {body, "not_found"}]),
     not_found.
 
 
@@ -708,17 +699,11 @@ first_fun(_) ->
 -spec(last_fun(list(#ring_group{})) ->
              not_found | {ok, #redundancies{}}).
 last_fun([]) ->
-    error_logger:warning_msg("~p,~p,~p,~p~n",
-                             [{module, ?MODULE_STRING}, {function, "last_fun/1"},
-                              {line, ?LINE}, {body, "not_found"}]),
     not_found;
 last_fun(RingGroupList) ->
     #ring_group{vnodeid_nodes_list = AddrId_Nodes_List} = lists:last(RingGroupList),
     case AddrId_Nodes_List of
         [] ->
-            error_logger:warning_msg("~p,~p,~p,~p~n",
-                                     [{module, ?MODULE_STRING}, {function, "last_fun/1"},
-                                      {line, ?LINE}, {body, "not_found"}]),
             not_found;
         _ ->
             #vnodeid_nodes{vnode_id_from = From,
@@ -736,9 +721,6 @@ last_fun(RingGroupList) ->
 -spec(lookup_fun(list(#ring_group{}), pos_integer(), pos_integer(), pos_integer(), #state{}) ->
              not_found | {ok, #redundancies{}}).
 lookup_fun([],_,_,_,_) ->
-    error_logger:warning_msg("~p,~p,~p,~p~n",
-                             [{module, ?MODULE_STRING}, {function, "lookup_fun/4"},
-                              {line, ?LINE}, {body, "not_found"}]),
     not_found;
 lookup_fun(RingGroupList, FirstVNodeId,_LastVNodeId, AddrId, State) when FirstVNodeId >= AddrId ->
     Ret = first_fun(RingGroupList),
@@ -756,10 +738,6 @@ lookup_fun(RingGroupList,_,_, AddrId, State) ->
 -spec(find_redundancies_by_addr_id(list(#ring_group{}), pos_integer()) ->
              not_found | {ok, #redundancies{}}).
 find_redundancies_by_addr_id([],_AddrId) ->
-    error_logger:warning_msg("~p,~p,~p,~p~n",
-                             [{module, ?MODULE_STRING},
-                              {function, "find_redundancies_by_addr_id/2"},
-                              {line, ?LINE}, {body, "not_found"}]),
     not_found;
 find_redundancies_by_addr_id(
   [#ring_group{index_from = From,
@@ -772,10 +750,6 @@ find_redundancies_by_addr_id([_|Rest], AddrId) ->
 
 
 find_redundancies_by_addr_id_1([],_AddrId) ->
-    error_logger:warning_msg("~p,~p,~p,~p~n",
-                             [{module, ?MODULE_STRING},
-                              {function, "find_redundancies_by_addr_id_1/2"},
-                              {line, ?LINE}, {body, "not_found"}]),
     not_found;
 find_redundancies_by_addr_id_1(
   [#vnodeid_nodes{vnode_id_from = From,

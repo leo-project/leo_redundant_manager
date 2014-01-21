@@ -81,7 +81,7 @@ start_link(ServerType, Managers, MQStoragePath, Conf) ->
                     ok = leo_redundant_manager_api:set_options(Conf)
             end,
 
-            %% launch membership
+            %% Launch membership for local-cluster
             case supervisor:start_child(leo_redundant_manager_sup,
                                         {leo_membership_cluster_local,
                                          {leo_membership_cluster_local, start_link, [ServerType_1, Managers]},
@@ -92,7 +92,8 @@ start_link(ServerType, Managers, MQStoragePath, Conf) ->
                     {ok, RefSup};
                 Cause ->
                     error_logger:error_msg("~p,~p,~p,~p~n",
-                                           [{module, ?MODULE_STRING}, {function, "start/4"},
+                                           [{module, ?MODULE_STRING},
+                                            {function, "start_link/4"},
                                             {line, ?LINE}, {body, Cause}]),
                     case leo_redundant_manager_sup:stop() of
                         ok ->
@@ -157,7 +158,14 @@ init([]) ->
                  permanent,
                  2000,
                  worker,
-                 [leo_redundant_manager]}
+                 [leo_redundant_manager]},
+
+                {leo_membership_cluster_remote,
+                 {leo_membership_cluster_remote, start_link, []},
+                 permanent,
+                 2000,
+                 worker,
+                 [leo_membership_cluster_remote]}
                ],
 
     %% Redundant Manager Worker Pool

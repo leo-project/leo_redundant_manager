@@ -50,7 +50,8 @@
          get_members_by_status/1, get_members_by_status/2,
          update_member/1, update_members/1, update_member_by_node/2, update_member_by_node/3,
          delete_member_by_node/1, is_alive/0, table_info/1,
-         force_sync_workers/0
+         force_sync_workers/0,
+         get_cluster_status/0
         ]).
 
 -export([get_server_id/0, get_server_id/1]).
@@ -897,6 +898,44 @@ force_sync_workers_1(Index) ->
     force_sync_workers_1(Index - 1).
 
 
+%% Retrieve local cluster's status
+-spec(get_cluster_status() ->
+             {ok, #cluster_stat{}} | not_found).
+get_cluster_status() ->
+    {ok, #?SYSTEM_CONF{cluster_id = ClusterId}} = leo_redundant_manager_tbl_conf:get(),
+    case get_members() of
+        {ok, Members} ->
+            Status = judge_cluster_status(Members),
+            {Checksum,_} = checksum(?CHECKSUM_MEMBER),
+            {ok, #cluster_stat{cluster_id = ClusterId,
+                               status = Status,
+                               checksum = Checksum}};
+        _ ->
+            not_found
+    end.
+
+
+%% @doc Judge status of local cluster
+%% @private
+-spec(judge_cluster_status(list(#member{})) ->
+             node_state()).
+judge_cluster_status(Members) ->
+    NumOfMembers = length(Members),
+    SuspendNode  = length([N || #member{state = ?STATE_SUSPEND,
+                                        node  = N} <- Members]),
+    RunningNode  = length([N || #member{state = ?STATE_RUNNING,
+                                        node  = N} <- Members]),
+    case SuspendNode of
+        NumOfMembers ->
+            ?STATE_SUSPEND;
+        _ ->
+            case (RunningNode > 0) of
+                true  -> ?STATE_RUNNING;
+                false -> ?STATE_STOP
+            end
+    end.
+
+
 %% @doc Retrieve a srever id
 %%
 -spec(get_server_id() ->
@@ -923,4 +962,3 @@ ring_table(put)     -> table_info(?VER_CUR);
 ring_table(get)     -> table_info(?VER_PREV);
 ring_table(delete)  -> table_info(?VER_CUR);
 ring_table(head)    -> table_info(?VER_PREV).
-

@@ -19,7 +19,7 @@
 %% under the License.
 %%
 %% ---------------------------------------------------------------------
-%% Leo Redundant Manager - Membership.
+%% Leo Redundant Manager - Membership (LOCAL)
 %% @doc
 %% @end
 %%======================================================================

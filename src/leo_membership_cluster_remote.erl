@@ -19,7 +19,7 @@
 %% under the License.
 %%
 %% ---------------------------------------------------------------------
-%% Leo Redundant Manager - Membership (REMOTE).
+%% Leo Redundant Manager - Membership (REMOTE)
 %% @doc
 %% @end
 %%======================================================================
@@ -33,12 +33,9 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %% API
--export([start_link/2,
+-export([start_link/0,
          stop/0]).
--export([start_heartbeat/0,
-         stop_heartbeat/0,
-         heartbeat/0,
-         set_proc_auditor/1]).
+-export([heartbeat/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -48,10 +45,8 @@
 	       terminate/2,
          code_change/3]).
 
--record(state, {interval         :: integer(),
-                timestamp        :: integer(),
-                enable   = false :: boolean(),
-                proc_auditor     :: atom()
+-record(state, {interval = 30000 :: integer(),
+                timestamp = 0    :: integer()
                }).
 
 -ifdef(TEST).
@@ -60,7 +55,7 @@
 -define(DEF_TIMEOUT,             1000).
 -else.
 -define(CURRENT_TIME,            leo_date:now()).
--define(DEF_MEMBERSHIP_INTERVAL, 10000).
+-define(DEF_MEMBERSHIP_INTERVAL, 30000).
 -define(DEF_TIMEOUT,             30000).
 -endif.
 
@@ -70,32 +65,17 @@
 %%--------------------------------------------------------------------
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
-start_link(ServerType, Managers) ->
-    ok = application:set_env(?APP, ?PROP_MANAGERS, Managers),
+start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE,
-                          [ServerType, Managers, ?DEF_MEMBERSHIP_INTERVAL], []).
+                          [?DEF_MEMBERSHIP_INTERVAL], []).
 
 stop() ->
     gen_server:call(?MODULE, stop, 30000).
 
 
--spec(start_heartbeat() -> ok | {error, any()}).
-start_heartbeat() ->
-    gen_server:cast(?MODULE, {start_heartbeat}).
-
-
--spec(stop_heartbeat() -> ok | {error, any()}).
-stop_heartbeat() ->
-    gen_server:cast(?MODULE, {stop_heartbeat}).
-
-
 -spec(heartbeat() -> ok | {error, any()}).
 heartbeat() ->
-    gen_server:cast(?MODULE, {start_heartbeat}).
-
--spec(set_proc_auditor(atom()) -> ok | {error, any()}).
-set_proc_auditor(ProcAuditor) ->
-    gen_server:cast(?MODULE, {set_proc_auditor, ProcAuditor}).
+    gen_server:cast(?MODULE, heartbeat).
 
 
 %%--------------------------------------------------------------------
@@ -120,20 +100,13 @@ handle_call(stop,_From,State) ->
 %%                                      {noreply, State, Timeout} |
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
-handle_cast({start_heartbeat}, State) ->
-    case catch maybe_heartbeat(State#state{enable=true}) of
+handle_cast(heartbeat, State) ->
+    case catch maybe_heartbeat(State) of
         {'EXIT', _Reason} ->
             {noreply, State};
         NewState ->
             {noreply, NewState}
-    end;
-
-handle_cast({set_proc_auditor, ProcAuditor}, State) ->
-    {noreply, State#state{proc_auditor = ProcAuditor}};
-
-handle_cast({stop_heartbeat}, State) ->
-    State#state{enable=false}.
-
+    end.
 
 %% Function: handle_info(Info, State) -> {noreply, State}          |
 %%                                       {noreply, State, Timeout} |
@@ -162,24 +135,29 @@ code_change(_OldVsn, State, _Extra) ->
 %% @private
 -spec(maybe_heartbeat(#state{}) ->
              #state{}).
-maybe_heartbeat(#state{enable = false} = State) ->
-    State;
-maybe_heartbeat(#state{interval     = Interval,
-                       timestamp    = Timestamp,
-                       enable       = true} = State) ->
-    %% @TODO
-    Managers = [],
-
+maybe_heartbeat(#state{interval  = Interval,
+                       timestamp = Timestamp} = State) ->
     ThisTime = leo_date:now() * 1000,
     State_1 = State#state{timestamp = ThisTime},
 
-    case ((ThisTime - Timestamp) < Interval) of
-        true ->
+    case leo_redundant_manager_tbl_cluster_mgr:all() of
+        {ok, Managers} ->
+            case ((ThisTime - Timestamp) < Interval) of
+                true ->
+                    void;
+                false ->
+                    ok = exec(Managers, [])
+            end;
+        not_found ->
             void;
-        false ->
-            ok = exec(Managers),
-            defer_heartbeat(Interval)
+        {error, Cause} ->
+            error_logger:error_msg("~p,~p,~p,~p~n",
+                                   [{module, ?MODULE_STRING},
+                                    {function, "maybe_heartbeat/1"},
+                                    {line, ?LINE}, {body, Cause}])
     end,
+
+    defer_heartbeat(Interval),
     State_1.
 
 
@@ -188,16 +166,48 @@ maybe_heartbeat(#state{interval     = Interval,
 -spec(defer_heartbeat(integer()) ->
              ok | any()).
 defer_heartbeat(Time) ->
-    catch timer:apply_after(Time, ?MODULE, start_heartbeat, []).
+    catch timer:apply_after(Time, ?MODULE, heartbeat, []).
 
 
-%% @doc Execute for manager-nodes.
+%% @doc Retrieve status and members from a remote-cluster
+%%      and then compare 'hash' whether equal or not
 %% @private
--spec(exec(list()) ->
+-spec(exec(list(), atom()) ->
              ok | {error, any()}).
+exec([], _) ->
+    ok;
+exec([#cluster_manager{cluster_id = ClusterId}|Rest], ClusterId) ->
+    exec(Rest, ClusterId);
+exec([#cluster_manager{node = Node,
+                       cluster_id = ClusterId}|Rest], PrevClusterId) ->
+    %% Retrieve the status of remote-cluster
+    case leo_rpc:call(Node, leo_redundant_manager_api, get_cluster_status, []) of
+        {ok, #cluster_stat{status  = Status_1,
+                          checksum = Checksum_1} = ClusterStat} ->
 
-%% @doc Execute for gateway and storage nodes.
-%% @private
-exec(_Managers) ->
-    %% @TODO
-    ok.
+            %% Compare its status in the local with the retrieved data
+            case leo_redundant_manager_tbl_cluster_stat:get(ClusterId) of
+                {ok, #cluster_stat{status   = Status_2,
+                                   checksum = Checksum_2}}
+                  when Status_1   == Status_2,
+                       Checksum_1 == Checksum_2 ->
+                    void;
+                {ok, #cluster_stat{checksum = Checksum_2}} ->
+                    %% Update status
+                    ok = leo_redundant_manager_tbl_cluster_stat:update(ClusterStat),
+
+                    %% Retrieve new members and then store them
+                    case (Checksum_1 /= Checksum_2) of
+                        true ->
+                            %% @TODO
+                            ok;
+                        false ->
+                            void
+                    end;
+                _ ->
+                    void
+            end;
+        _ ->
+            void
+    end,
+    exec(Rest, PrevClusterId).
