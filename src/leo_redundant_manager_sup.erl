@@ -109,7 +109,7 @@ start_link(ServerType, Managers, MQStoragePath, Conf) ->
 %% @private
 start_link_1(ServerType) ->
     %% launch sup
-    Ret = case supervisor:start_link({local, ?MODULE}, ?MODULE, []) of
+    Ret = case supervisor:start_link({local, ?MODULE}, ?MODULE, [ServerType]) of
               {ok, _RefSup} = Res0 ->
                   Res0;
               {error, {already_started, ResSup}} ->
@@ -151,22 +151,36 @@ stop() ->
 %% @end
 %% @private
 init([]) ->
-    %% Redundant Manager Server
-    Children = [
-                {leo_redundant_manager,
-                 {leo_redundant_manager, start_link, []},
-                 permanent,
-                 2000,
-                 worker,
-                 [leo_redundant_manager]},
+    init([undefined]);
+init([ServerType]) ->
+    %% Define children
+    Children = case ServerType of
+                   ?SERVER_MANAGER ->
+                       [
+                        {leo_redundant_manager,
+                         {leo_redundant_manager, start_link, []},
+                         permanent,
+                         2000,
+                         worker,
+                         [leo_redundant_manager]},
 
-                {leo_membership_cluster_remote,
-                 {leo_membership_cluster_remote, start_link, []},
-                 permanent,
-                 2000,
-                 worker,
-                 [leo_membership_cluster_remote]}
-               ],
+                        {leo_membership_cluster_remote,
+                         {leo_membership_cluster_remote, start_link, []},
+                         permanent,
+                         2000,
+                         worker,
+                         [leo_membership_cluster_remote]}
+                       ];
+                   _ ->
+                       [
+                        {leo_redundant_manager,
+                         {leo_redundant_manager, start_link, []},
+                         permanent,
+                         2000,
+                         worker,
+                         [leo_redundant_manager]}
+                        ]
+               end,
 
     %% Redundant Manager Worker Pool
     WorkerSpecs =
