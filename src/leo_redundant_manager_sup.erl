@@ -154,7 +154,7 @@ init([]) ->
     init([undefined]);
 init([ServerType]) ->
     %% Define children
-    Children = case ServerType of
+    Children = case server_type(ServerType) of
                    ?SERVER_MANAGER ->
                        [
                         {leo_redundant_manager,
@@ -179,7 +179,7 @@ init([ServerType]) ->
                          2000,
                          worker,
                          [leo_redundant_manager]}
-                        ]
+                       ]
                end,
 
     %% Redundant Manager Worker Pool

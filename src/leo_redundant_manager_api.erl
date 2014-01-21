@@ -597,7 +597,7 @@ before_rebalance_1([#member{state = ?STATE_RESERVED}|Rest]) ->
     before_rebalance_1(Rest);
 before_rebalance_1([#member{node = Node} = Member|Rest]) ->
     case leo_redundant_manager_tbl_member:insert(?MEMBER_TBL_PREV,
-                                                   {Node, Member#member{state = ?STATE_RUNNING}}) of
+                                                 {Node, Member#member{state = ?STATE_RUNNING}}) of
         ok ->
             before_rebalance_1(Rest);
         Error ->
@@ -906,7 +906,7 @@ get_cluster_status() ->
     case get_members() of
         {ok, Members} ->
             Status = judge_cluster_status(Members),
-            {Checksum,_} = checksum(?CHECKSUM_MEMBER),
+            {ok, {Checksum,_}} = checksum(?CHECKSUM_MEMBER),
             {ok, #cluster_stat{cluster_id = ClusterId,
                                status = Status,
                                checksum = Checksum}};

@@ -55,7 +55,7 @@
 -define(DEF_TIMEOUT,             1000).
 -else.
 -define(CURRENT_TIME,            leo_date:now()).
--define(DEF_MEMBERSHIP_INTERVAL, 30000).
+-define(DEF_MEMBERSHIP_INTERVAL, 10000).
 -define(DEF_TIMEOUT,             30000).
 -endif.
 
@@ -140,21 +140,21 @@ maybe_heartbeat(#state{interval  = Interval,
     ThisTime = leo_date:now() * 1000,
     State_1 = State#state{timestamp = ThisTime},
 
-    case leo_redundant_manager_tbl_cluster_mgr:all() of
-        {ok, Managers} ->
-            case ((ThisTime - Timestamp) < Interval) of
-                true ->
-                    void;
-                false ->
-                    ok = exec(Managers, [])
-            end;
-        not_found ->
+    case ((ThisTime - Timestamp) < Interval) of
+        true ->
             void;
-        {error, Cause} ->
-            error_logger:error_msg("~p,~p,~p,~p~n",
-                                   [{module, ?MODULE_STRING},
-                                    {function, "maybe_heartbeat/1"},
-                                    {line, ?LINE}, {body, Cause}])
+        false ->
+            case leo_redundant_manager_tbl_cluster_mgr:all() of
+                {ok, Managers} ->
+                    ok = exec(Managers, []);
+                not_found ->
+                    void;
+                {error, Cause} ->
+                    error_logger:error_msg("~p,~p,~p,~p~n",
+                                           [{module, ?MODULE_STRING},
+                                            {function, "maybe_heartbeat/1"},
+                                            {line, ?LINE}, {body, Cause}])
+            end
     end,
 
     defer_heartbeat(Interval),
@@ -183,8 +183,7 @@ exec([#cluster_manager{node = Node,
     %% Retrieve the status of remote-cluster
     case leo_rpc:call(Node, leo_redundant_manager_api, get_cluster_status, []) of
         {ok, #cluster_stat{status  = Status_1,
-                          checksum = Checksum_1} = ClusterStat} ->
-
+                           checksum = Checksum_1} = ClusterStat} ->
             %% Compare its status in the local with the retrieved data
             case leo_redundant_manager_tbl_cluster_stat:get(ClusterId) of
                 {ok, #cluster_stat{status   = Status_2,
@@ -192,18 +191,10 @@ exec([#cluster_manager{node = Node,
                   when Status_1   == Status_2,
                        Checksum_1 == Checksum_2 ->
                     void;
-                {ok, #cluster_stat{checksum = Checksum_2}} ->
-                    %% Update status
-                    ok = leo_redundant_manager_tbl_cluster_stat:update(ClusterStat),
-
-                    %% Retrieve new members and then store them
-                    case (Checksum_1 /= Checksum_2) of
-                        true ->
-                            %% @TODO
-                            ok;
-                        false ->
-                            void
-                    end;
+                {ok, LocalClusterStat} ->
+                    exec_1(ClusterStat, LocalClusterStat);
+                not_found ->
+                    exec_1(ClusterStat, undefined);
                 _ ->
                     void
             end;
@@ -211,3 +202,21 @@ exec([#cluster_manager{node = Node,
             void
     end,
     exec(Rest, PrevClusterId).
+
+%% @private
+exec_1(ClusterStat, undefined) ->
+    exec_1(ClusterStat, #cluster_stat{});
+exec_1(#cluster_stat{checksum = Checksum_1} = ClusterStat,
+       #cluster_stat{checksum = Checksum_2}) ->
+    %% Update status
+    ok = leo_redundant_manager_tbl_cluster_stat:update(
+           ClusterStat#cluster_stat{updated_at = leo_date:now()}),
+
+    %% Retrieve new members and then store them
+    case (Checksum_1 /= Checksum_2) of
+        true ->
+            %% @TODO
+            ok;
+        false ->
+            void
+    end.
