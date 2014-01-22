@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2013 Rakuten, Inc.
+%% Copyright (c) 2012-2014 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -23,7 +23,7 @@
 %% @doc
 %% @end
 %%======================================================================
--module(leo_redundant_manager_table_member).
+-module(leo_redundant_manager_tbl_member).
 
 -author('Yosuke Hara').
 
@@ -31,7 +31,7 @@
 -include_lib("stdlib/include/qlc.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([create_members/1, create_members/3,
+-export([create_table/1, create_table/3,
          lookup/1, lookup/2, lookup/3,
          find_all/0, find_all/1, find_all/2,
          find_by_status/1, find_by_status/2, find_by_status/3,
@@ -66,17 +66,13 @@
 
 %% @doc create member table.
 %%
--spec(create_members(member_table()) -> ok).
-create_members(Table) ->
+-spec(create_table(member_table()) -> ok).
+create_table(Table) ->
     catch ets:new(Table, [named_table, set, public, {read_concurrency, true}]),
     ok.
 
-%% -spec(create_members(mnesia_copies()) -> ok).
-%% create_members(Mode) ->
-%%     create_members(Mode, [erlang:node()]).
-
--spec(create_members(mnesia_copies(), list(), member_table()) -> ok).
-create_members(Mode, Nodes, Table) ->
+-spec(create_table(mnesia_copies(), list(), member_table()) -> ok).
+create_table(Mode, Nodes, Table) ->
     mnesia:create_table(
       Table,
       [{Mode, Nodes},
@@ -84,16 +80,16 @@ create_members(Mode, Nodes, Table) ->
        {record_name, member},
        {attributes, record_info(fields, member)},
        {user_properties,
-        [{node,          {varchar,   undefined},  false, primary,   undefined, identity,  atom   },
-         {alias,         {varchar,   undefined},  false, undefined, undefined, identity,  atom   },
-         {ip,            {varchar,   undefined},  false, undefined, undefined, identity,  varchar},
-         {port,          {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {inet,          {varchar,   undefined},  false, undefined, undefined, undefined, atom   },
-         {clock,         {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {num_of_vnodes, {integer,   undefined},  false, undefined, undefined, undefined, integer},
-         {state,         {varchar,   undefined},  false, undefined, undefined, undefined, atom   },
-         {grp_level_1,   {varchar,   undefined},  false, undefined, undefined, undefined, varchar},
-         {grp_level_2,   {varchar,   undefined},  false, undefined, undefined, undefined, varchar}
+        [{node,          varchar, primary},
+         {alias,         varchar, false},
+         {ip,            varchar, false},
+         {port,          integer, false},
+         {inet,          varchar, false},
+         {clock,         integer, false},
+         {num_of_vnodes, integer, false},
+         {state,         varchar, false},
+         {grp_level_1,   varchar, false},
+         {grp_level_2,   varchar, false}
         ]}
       ]),
     ok.

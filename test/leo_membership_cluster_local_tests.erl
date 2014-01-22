@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2013 Rakuten, Inc.
+%% Copyright (c) 2012-2014 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -19,7 +19,7 @@
 %% under the License.
 %%
 %%======================================================================
--module(leo_membership_tests).
+-module(leo_membership_cluster_local_tests).
 -author('Yosuke Hara').
 
 -include("leo_redundant_manager.hrl").
@@ -70,8 +70,8 @@ setup() ->
     leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
 
     application:start(mnesia),
-    leo_redundant_manager_table_member:create_members(ram_copies, [node()], ?MEMBER_TBL_CUR),
-    %% leo_redundant_manager_table_member:create_members(mnesia, ram_copies),
+    leo_redundant_manager_tbl_member:create_table(ram_copies, [node()], ?MEMBER_TBL_CUR),
+    %% leo_redundant_manager_tbl_member:create_table(mnesia, ram_copies),
     {Hostname, Mgr0, Mgr1, Node0, Node1, Node2}.
 
 teardown({_, Mgr0, Mgr1, Node0, Node1, Node2}) ->

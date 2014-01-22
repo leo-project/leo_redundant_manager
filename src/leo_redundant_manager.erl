@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2013 Rakuten, Inc.
+%% Copyright (c) 2012-2014 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -232,13 +232,13 @@ handle_call({create,_Ver}, _From, State) ->
     {reply, {error, invalid_version}, State};
 
 handle_call({checksum, ?CHECKSUM_MEMBER}, _From, State) ->
-    HashCur = case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
+    HashCur = case leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_CUR) of
                   {ok, MembersCur} ->
                       erlang:crc32(term_to_binary(lists:sort(MembersCur)));
                   _ ->
                       -1
               end,
-    HashPrv = case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
+    HashPrv = case leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_PREV) of
                   {ok, MembersPrev} ->
                       erlang:crc32(term_to_binary(lists:sort(MembersPrev)));
                   _ ->
@@ -250,7 +250,7 @@ handle_call({checksum, _}, _From, State) ->
     {reply, {error, badarg}, State};
 
 handle_call({has_member, Node}, _From, State) ->
-    Reply = case leo_redundant_manager_table_member:lookup(Node) of
+    Reply = case leo_redundant_manager_tbl_member:lookup(Node) of
                 {ok, _} ->
                     true;
                 _ ->
@@ -263,7 +263,7 @@ handle_call({get_members, Ver}, _From, State) ->
     {reply, Reply, State};
 
 handle_call({get_member_by_node, Node}, _From, State) ->
-    Reply = case leo_redundant_manager_table_member:lookup(Node) of
+    Reply = case leo_redundant_manager_tbl_member:lookup(Node) of
                 {ok, Member} ->
                     {ok, Member};
                 not_found = Cause ->
@@ -275,7 +275,7 @@ handle_call({get_member_by_node, Node}, _From, State) ->
 
 handle_call({get_members_by_status, Ver, Status}, _From, State) ->
     Table = ?member_table(Ver),
-    Reply = case leo_redundant_manager_table_member:find_by_status(Table, Status) of
+    Reply = case leo_redundant_manager_tbl_member:find_by_status(Table, Status) of
                 {ok, Members} ->
                     {ok, Members};
                 not_found = Cause ->
@@ -286,11 +286,11 @@ handle_call({get_members_by_status, Ver, Status}, _From, State) ->
     {reply, Reply, State};
 
 handle_call({update_member, Member}, _From, State) ->
-    Reply = leo_redundant_manager_table_member:insert({Member#member.node, Member}),
+    Reply = leo_redundant_manager_tbl_member:insert({Member#member.node, Member}),
     {reply, Reply, State};
 
 handle_call({update_members, Members}, _From, State) ->
-    Reply = case leo_redundant_manager_table_member:find_all() of
+    Reply = case leo_redundant_manager_tbl_member:find_all() of
                 {ok, CurMembers} ->
                     CurMembersHash = erlang:crc32(term_to_binary(CurMembers)),
                     MembersHash    = erlang:crc32(term_to_binary(Members)),
@@ -299,10 +299,10 @@ handle_call({update_members, Members}, _From, State) ->
                         true ->
                             ok;
                         false ->
-                            leo_redundant_manager_table_member:replace(CurMembers, Members)
+                            leo_redundant_manager_tbl_member:replace(CurMembers, Members)
                     end;
                 not_found ->
-                    leo_redundant_manager_table_member:replace([], Members);
+                    leo_redundant_manager_tbl_member:replace([], Members);
                 Error ->
                     Error
             end,
@@ -317,7 +317,7 @@ handle_call({update_member_by_node, Node, Clock, NodeState}, _From, State) ->
     {reply, Reply, State};
 
 handle_call({delete_member_by_node, Node}, _From, State) ->
-    Reply = leo_redundant_manager_table_member:delete(Node),
+    Reply = leo_redundant_manager_tbl_member:delete(Node),
     {reply, Reply, State};
 
 handle_call({synchronize, TblInfo, MgrRing, MyRing}, _From, State) ->
@@ -335,7 +335,7 @@ handle_call({synchronize, TblInfo, MgrRing, MyRing}, _From, State) ->
                               true ->
                                   void;
                               false ->
-                                  leo_redundant_manager_table_ring:delete(TblInfo, VNodeId0)
+                                  leo_redundant_manager_tbl_ring:delete(TblInfo, VNodeId0)
                           end
                   end, MyRing),
 
@@ -353,7 +353,7 @@ handle_call({synchronize, TblInfo, MgrRing, MyRing}, _From, State) ->
                               true ->
                                   void;
                               false ->
-                                  leo_redundant_manager_table_ring:insert(TblInfo, {VNodeId0, Node0})
+                                  leo_redundant_manager_tbl_ring:insert(TblInfo, {VNodeId0, Node0})
                           end
                   end, MgrRing),
     {reply, ok, State};
@@ -372,14 +372,14 @@ handle_call({dump, member}, _From, State) ->
              end,
     _ = filelib:ensure_dir(LogDir),
 
-    Reply = case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
+    Reply = case leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_CUR) of
                 {ok, MembersCur} ->
                     Path_1 = lists:append([LogDir,
                                            ?DUMP_FILE_MEMBERS_CUR,
                                            integer_to_list(leo_date:now())]),
                     leo_file:file_unconsult(Path_1, MembersCur),
 
-                    case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
+                    case leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_PREV) of
                         {ok, MembersPrev} ->
                             Path_2 = lists:append([LogDir,
                                                    ?DUMP_FILE_MEMBERS_PREV,
@@ -416,9 +416,9 @@ handle_call({attach, TblInfo, Node, GroupL2, Clock, NumOfVNodes}, _From, State) 
 
 
 handle_call({reserve, Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes}, _From, State) ->
-    Reply = case leo_redundant_manager_table_member:lookup(Node) of
+    Reply = case leo_redundant_manager_tbl_member:lookup(Node) of
                 {ok, Member} ->
-                    leo_redundant_manager_table_member:insert(
+                    leo_redundant_manager_tbl_member:insert(
                       {Node, Member#member{state = CurState}});
                 not_found ->
                     NodeStr = atom_to_list(Node),
@@ -429,7 +429,7 @@ handle_call({reserve, Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes}, _Fr
                                  []
                          end,
 
-                    leo_redundant_manager_table_member:insert(
+                    leo_redundant_manager_tbl_member:insert(
                       {Node, #member{node  = Node,
                                      ip    = IP,
                                      clock = Clock,
@@ -443,7 +443,7 @@ handle_call({reserve, Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes}, _Fr
 
 
 handle_call({detach, TblInfo, Node, Clock}, _From, State) ->
-    Reply = case leo_redundant_manager_table_member:lookup(Node) of
+    Reply = case leo_redundant_manager_tbl_member:lookup(Node) of
                 {ok, Member} ->
                     detach_1(TblInfo, Member#member{clock = Clock});
                 Error ->
@@ -453,9 +453,9 @@ handle_call({detach, TblInfo, Node, Clock}, _From, State) ->
 
 
 handle_call({suspend, Node, _Clock}, _From, State) ->
-    Reply = case leo_redundant_manager_table_member:lookup(Node) of
+    Reply = case leo_redundant_manager_tbl_member:lookup(Node) of
                 {ok, Member} ->
-                    case leo_redundant_manager_table_member:insert(
+                    case leo_redundant_manager_tbl_member:insert(
                            {Node, Member#member{state = ?STATE_SUSPEND}}) of
                         ok ->
                             ok;
@@ -506,12 +506,12 @@ code_change(_OldVsn, State, _Extra) ->
 -spec(create_1(?VER_CUR|?VER_PREV) ->
              ok | {error, any()}).
 create_1(Ver) ->
-    case leo_redundant_manager_table_member:find_all(?member_table(Ver)) of
+    case leo_redundant_manager_tbl_member:find_all(?member_table(Ver)) of
         {ok, Members} ->
             create_2(Ver, Members);
         not_found when Ver == ?VER_PREV ->
             %% overwrite current-ring to prev-ring
-            case leo_redundant_manager_table_member:overwrite(
+            case leo_redundant_manager_tbl_member:overwrite(
                    ?MEMBER_TBL_CUR, ?MEMBER_TBL_PREV) of
                 ok ->
                     create_1(Ver);
@@ -540,7 +540,7 @@ create_2( Ver, [#member{state = ?STATE_RESERVED}|Rest], Acc) ->
 create_2( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
     %% Modify/Add a member into 'member-table'
     Table = ?member_table(Ver),
-    Ret_2 = case leo_redundant_manager_table_member:lookup(Table, Node) of
+    Ret_2 = case leo_redundant_manager_tbl_member:lookup(Table, Node) of
                 {error, Cause} ->
                     {error, Cause};
                 Ret_1 ->
@@ -548,7 +548,7 @@ create_2( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
                                {ok, Member_1} -> {Node, Member_1#member{state = ?STATE_RUNNING}};
                                not_found      -> {Node, Member_0#member{state = ?STATE_RUNNING}}
                            end,
-                    case leo_redundant_manager_table_member:insert(Table, Prop) of
+                    case leo_redundant_manager_tbl_member:insert(Table, Prop) of
                         ok ->
                             {ok, erlang:element(2, Prop)};
                         {error, Cause} ->
@@ -604,7 +604,7 @@ attach_1(TblInfo, Member) ->
 %% @private
 attach_2(TblInfo, #member{node  = Node,
                           clock = Clock} = Member) ->
-    case leo_redundant_manager_table_member:insert(
+    case leo_redundant_manager_tbl_member:insert(
            ?ring_table_to_member_table(TblInfo),
            {Node, Member#member{clock = Clock}}) of
         ok ->
@@ -627,7 +627,7 @@ attach_3(TblInfo, Member) ->
 %% @private
 detach_1({_, ?RING_TBL_CUR} = TblInfo, Member) ->
     Node = Member#member.node,
-    case leo_redundant_manager_table_member:insert(
+    case leo_redundant_manager_tbl_member:insert(
            {Node, Member#member{node = Node,
                                 clock = Member#member.clock,
                                 state = ?STATE_DETACHED}}) of
@@ -652,7 +652,7 @@ detach_2(TblInfo, Member) ->
 %% @doc Retrieve members
 %% @private
 get_members_1(Ver) ->
-    case leo_redundant_manager_table_member:find_all(?member_table(Ver)) of
+    case leo_redundant_manager_tbl_member:find_all(?member_table(Ver)) of
         {ok, Members} ->
             {ok, Members};
         not_found = Cause ->
@@ -666,14 +666,14 @@ update_member_by_node_1(Node, NodeState) ->
     update_member_by_node_1(Node, -1, NodeState).
 
 update_member_by_node_1(Node, Clock, NodeState) ->
-    case leo_redundant_manager_table_member:lookup(Node) of
+    case leo_redundant_manager_tbl_member:lookup(Node) of
         {ok, Member} ->
             Member_1 = case Clock of
                            -1 -> Member#member{state = NodeState};
                            _  -> Member#member{clock = Clock,
                                                state = NodeState}
                        end,
-            case leo_redundant_manager_table_member:insert({Node, Member_1}) of
+            case leo_redundant_manager_tbl_member:insert({Node, Member_1}) of
                 ok ->
                     ok;
                 Error ->

@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2013 Rakuten, Inc.
+%% Copyright (c) 2012-2014 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -191,6 +191,17 @@
 -define(SERVER_STORAGE, 'storage').
 
 
+%% Mnesia Tables
+%%
+-define(TBL_SYSTEM_CONF,    'leo_system_conf').
+-define(TBL_CLUSTER_STAT,   'leo_cluster_stat').
+-define(TBL_CLUSTER_INFO,   'leo_cluster_info').
+-define(TBL_CLUSTER_MEMBER, 'leo_cluster_member').
+-define(TBL_CLUSTER_MGR,    'leo_cluster_manager').
+-undef(ERROR_MNESIA_NOT_START).
+-define(ERROR_MNESIA_NOT_START, "Mnesia is not available").
+
+
 %% Dump File
 %%
 -define(DEF_LOG_DIR_MEMBERS,    "./log/ring/").
@@ -203,18 +214,73 @@
 
 %% Record
 %%
+%% Consistency Level
+-record(system_conf, {
+          version = 0         :: integer(),
+          n       = 1         :: integer(),
+          r       = 1         :: integer(),
+          w       = 1         :: integer(),
+          d       = 1         :: integer(),
+          bit_of_ring = 128   :: integer(),
+          level_1 = 0         :: integer(),
+          level_2 = 0         :: integer()
+         }).
+
+-record(system_conf_1_0_0_1, {
+          cluster_id = []     :: string(),       %% cluster-id
+          dc_id      = []     :: string(),       %% dc-id
+          n       = 1         :: integer(),      %% # of replicas
+          r       = 1         :: integer(),      %% # of replicas needed for a successful READ operation
+          w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
+          d       = 1         :: integer(),      %% # of replicas needed for a successful DELETE operation
+          bit_of_ring = 128   :: integer(),      %% # of bits for the hash-ring (fixed 128bit)
+          num_of_dc_replicas   = 0 :: integer(), %% # of DC-awareness replicas
+          num_of_rack_replicas = 0 :: integer()  %% # of Rack-awareness replicas
+         }).
+-define(SYSTEM_CONF, 'system_conf_1_0_0_1').
+
+
+%% For Multi-DC Replication
+-record(cluster_stat, {
+          cluster_id = [] :: string(),      %% cluster-id
+          status = null   :: node_state(),  %% status:[running | stop]
+          checksum = 0    :: pos_integer(), %% checksum of members
+          updated_at = 0  :: pos_integer()  %% updated at
+         }).
+
+%% Cluster Manager
+-record(cluster_manager, {
+          node                :: atom(),        %% actual node-name
+          cluster_id = []     :: string()       %% cluster-id
+         }).
+
+%% Cluster Members
+-record(cluster_member, {
+          node                :: atom(),        %% actual node-name
+          cluster_id = []     :: string(),      %% cluster-id
+          alias = []          :: string(),      %% node-alias
+          ip = "0.0.0.0"      :: string(),      %% ip-address
+          port  = 13075       :: pos_integer(), %% port-number
+          inet  = 'ipv4'      :: 'ipv4'|'ipv6', %% type of ip
+          clock = 0           :: pos_integer(), %% joined at
+          num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
+          status = null       :: node_state()
+         }).
+
+
 -record(member,
-        {node                  :: atom(),        %% actual node-name
-         alias = []            :: string(),      %% node-alias
-         ip = "0.0.0.0"        :: string(),      %% ip-address
-         port  = 13075         :: pos_integer(), %% port-number
-         inet  = 'ipv4'        :: 'ipv4'|'ipv6', %% type of ip
-         clock = 0             :: pos_integer(), %% joined at
-         state = null          :: node_state(),  %% current-status
+        {node                 :: atom(),        %% actual node-name
+         alias = []           :: string(),      %% node-alias
+         ip = "0.0.0.0"       :: string(),      %% ip-address
+         port  = 13075        :: pos_integer(), %% port-number
+         inet  = 'ipv4'       :: 'ipv4'|'ipv6', %% type of ip
+         clock = 0            :: pos_integer(), %% joined at
+         state = null         :: node_state(),  %% current-status
          num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
-         grp_level_1 = []      :: string(),      %% Group of level_1 for multi-dc replication
-         grp_level_2 = []      :: string()       %% Group of level_2 for rack-awareness replication
+         grp_level_1 = []     :: string(),      %% Group of level_1 for multi-dc replication
+         grp_level_2 = []     :: string()       %% Group of level_2 for rack-awareness replication
         }).
+
 
 -record(sync_info, {
           target            :: ?VER_CUR | ?VER_PREV,

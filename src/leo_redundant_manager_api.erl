@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2013 Rakuten, Inc.
+%% Copyright (c) 2012-2014 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -50,7 +50,8 @@
          get_members_by_status/1, get_members_by_status/2,
          update_member/1, update_members/1, update_member_by_node/2, update_member_by_node/3,
          delete_member_by_node/1, is_alive/0, table_info/1,
-         force_sync_workers/0
+         force_sync_workers/0,
+         get_cluster_status/0
         ]).
 
 -export([get_server_id/0, get_server_id/1]).
@@ -83,7 +84,7 @@ create(Ver) when Ver == ?VER_CUR;
                  Ver == ?VER_PREV ->
     case leo_redundant_manager:create(Ver) of
         ok ->
-            case leo_redundant_manager_table_member:find_all(?member_table(Ver)) of
+            case leo_redundant_manager_tbl_member:find_all(?member_table(Ver)) of
                 {ok, Members} ->
                     {ok, HashRing} = checksum(?CHECKSUM_RING),
                     ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, erlang:element(1, HashRing)),
@@ -115,10 +116,10 @@ create(Ver, [], Options) ->
 create(Ver, [#member{node = Node} = Member|T], Options) when Ver == ?VER_CUR;
                                                              Ver == ?VER_PREV ->
     %% Add a member as "attached node" into member-table
-    case leo_redundant_manager_table_member:lookup(Node) of
+    case leo_redundant_manager_tbl_member:lookup(Node) of
         not_found ->
             Prop = {Node, Member#member{state = ?STATE_ATTACHED}},
-            leo_redundant_manager_table_member:insert(Prop);
+            leo_redundant_manager_tbl_member:insert(Prop);
         _ ->
             void
     end,
@@ -317,9 +318,9 @@ synchronize_1(?SYNC_TARGET_MEMBER, Ver, SyncData) ->
             ok;
         NewMembers ->
             Table = ?member_table(Ver),
-            case leo_redundant_manager_table_member:find_all(Table) of
+            case leo_redundant_manager_tbl_member:find_all(Table) of
                 {ok, OldMembers} ->
-                    case leo_redundant_manager_table_member:replace(
+                    case leo_redundant_manager_tbl_member:replace(
                            Table, OldMembers, NewMembers) of
                         ok ->
                             ok;
@@ -329,7 +330,7 @@ synchronize_1(?SYNC_TARGET_MEMBER, Ver, SyncData) ->
                 not_found ->
                     lists:foreach(
                       fun(#member{node = Node} = Member) ->
-                              leo_redundant_manager_table_member:insert(Table, {Node, Member})
+                              leo_redundant_manager_tbl_member:insert(Table, {Node, Member})
                       end, NewMembers),
                     ok;
                 Error ->
@@ -340,7 +341,7 @@ synchronize_1(?SYNC_TARGET_MEMBER, Ver, SyncData) ->
 %% @private
 synchronize_1(Target, Ver) when Target == ?SYNC_TARGET_RING_CUR;
                                 Target == ?SYNC_TARGET_RING_PREV ->
-    case leo_redundant_manager_table_ring:delete_all(table_info(Ver)) of
+    case leo_redundant_manager_tbl_ring:delete_all(table_info(Ver)) of
         ok ->
             case create(Ver) of
                 {ok,_,_} ->
@@ -366,11 +367,11 @@ get_ring() ->
              {ok, list()}).
 get_ring(?SYNC_TARGET_RING_CUR) ->
     TblInfo = table_info(?VER_CUR),
-    Ring = leo_redundant_manager_table_ring:tab2list(TblInfo),
+    Ring = leo_redundant_manager_tbl_ring:tab2list(TblInfo),
     {ok, Ring};
 get_ring(?SYNC_TARGET_RING_PREV) ->
     TblInfo = table_info(?VER_PREV),
-    Ring = leo_redundant_manager_table_ring:tab2list(TblInfo),
+    Ring = leo_redundant_manager_tbl_ring:tab2list(TblInfo),
     {ok, Ring}.
 
 
@@ -387,7 +388,7 @@ dump(Type) ->
 
 
 %%--------------------------------------------------------------------
-%% API-2  FUNCTIONS (leo_routing_table_provide_server)
+%% API-2  FUNCTIONS (leo_routing_tbl_provide_server)
 %%--------------------------------------------------------------------
 %% @doc Retrieve redundancies from the ring-table.
 %%
@@ -473,7 +474,7 @@ range_of_vnodes(ToVNodeId) ->
 -spec(rebalance() ->
              {ok, list()} | {error, any()}).
 rebalance() ->
-    case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
+    case leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_CUR) of
         {ok, MembersCur} ->
             %% Before exec rebalance
             case before_rebalance(MembersCur) of
@@ -505,7 +506,7 @@ rebalance() ->
 %%      3. Update previous-members from current-members
 %% @private
 before_rebalance(MembersCur) ->
-    case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
+    case leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_CUR) of
         {ok, MembersCur} ->
             %% If "attach" and "detach" are included in members,
             %% then update current-members
@@ -514,7 +515,7 @@ before_rebalance(MembersCur) ->
                 {ok, {MembersCur_1, TakeOverList}} ->
                     %% Remove all previous members,
                     %% Then insert new members from current members
-                    case leo_redundant_manager_table_member:delete_all(?MEMBER_TBL_PREV) of
+                    case leo_redundant_manager_tbl_member:delete_all(?MEMBER_TBL_PREV) of
                         ok ->
                             case before_rebalance_1(MembersCur_1) of
                                 {ok, MembersPrev} ->
@@ -535,7 +536,7 @@ before_rebalance(MembersCur) ->
 
 %% @private
 takeover_status([], TakeOverList) ->
-    case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR) of
+    case leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_CUR) of
         {ok, MembersCur} ->
             {ok, {MembersCur, TakeOverList}};
         Error ->
@@ -555,12 +556,12 @@ takeover_status([#member{state = ?STATE_ATTACHED,
 
             ok = leo_redundant_manager_chash:remove(RingTblCur,  Member),
             ok = leo_redundant_manager_chash:add(RingTblCur,  Member_1),
-            ok = leo_redundant_manager_table_member:insert(?MEMBER_TBL_CUR, {Node, Member_1}),
+            ok = leo_redundant_manager_tbl_member:insert(?MEMBER_TBL_CUR, {Node, Member_1}),
 
             case SrcMember of
                 [] -> void;
                 #member{node = SrcNode} ->
-                    ok = leo_redundant_manager_table_member:insert(
+                    ok = leo_redundant_manager_tbl_member:insert(
                            ?MEMBER_TBL_CUR, {SrcNode, SrcMember#member{alias = []}})
             end,
             takeover_status(Rest, [{Member, Member_1, SrcMember}|TakeOverList]);
@@ -584,7 +585,7 @@ before_rebalance_1([]) ->
                                       {body, Reason}])
     end,
 
-    case leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV) of
+    case leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_PREV) of
         {ok, MembersPrev} ->
             {ok, MembersPrev};
         Error ->
@@ -595,8 +596,8 @@ before_rebalance_1([#member{state = ?STATE_ATTACHED}|Rest]) ->
 before_rebalance_1([#member{state = ?STATE_RESERVED}|Rest]) ->
     before_rebalance_1(Rest);
 before_rebalance_1([#member{node = Node} = Member|Rest]) ->
-    case leo_redundant_manager_table_member:insert(?MEMBER_TBL_PREV,
-                                                   {Node, Member#member{state = ?STATE_RUNNING}}) of
+    case leo_redundant_manager_tbl_member:insert(?MEMBER_TBL_PREV,
+                                                 {Node, Member#member{state = ?STATE_RUNNING}}) of
         ok ->
             before_rebalance_1(Rest);
         Error ->
@@ -622,8 +623,8 @@ after_rebalance([]) ->
                    fun(#member{node  = Node,
                                alias = Alias} = Member) ->
                            %% remove detached node from members
-                           leo_redundant_manager_table_member:delete(?MEMBER_TBL_CUR,  Node),
-                           leo_redundant_manager_table_member:delete(?MEMBER_TBL_PREV, Node),
+                           leo_redundant_manager_tbl_member:delete(?MEMBER_TBL_CUR,  Node),
+                           leo_redundant_manager_tbl_member:delete(?MEMBER_TBL_PREV, Node),
                            %% remove detached node from ring
                            case Alias of
                                [] -> void;
@@ -661,12 +662,12 @@ after_rebalance([{#member{node = Node} = Member_1, Member_2, SrcMember}|Rest]) -
 
         ok = leo_redundant_manager_chash:remove(RingTblPrev, Member_1),
         ok = leo_redundant_manager_chash:add(RingTblPrev, Member_2),
-        ok = leo_redundant_manager_table_member:insert(MembersTblPrev, {Node, Member_2}),
+        ok = leo_redundant_manager_tbl_member:insert(MembersTblPrev, {Node, Member_2}),
 
         case SrcMember of
             [] -> void;
             #member{node = SrcNode} ->
-                ok = leo_redundant_manager_table_member:insert(
+                ok = leo_redundant_manager_tbl_member:insert(
                        MembersTblPrev,{SrcNode, SrcMember#member{alias = []}})
         end
     catch
@@ -688,7 +689,7 @@ get_alias(Node, GrpL2) ->
     get_alias(?MEMBER_TBL_CUR, Node, GrpL2).
 
 get_alias(Table, Node, GrpL2) ->
-    case leo_redundant_manager_table_member:find_by_status(
+    case leo_redundant_manager_tbl_member:find_by_status(
            Table, ?STATE_DETACHED) of
         not_found ->
             get_alias_1([], Table, Node, GrpL2);
@@ -716,7 +717,7 @@ get_alias_1([#member{alias = Alias,
                      node  = Node_1,
                      grp_level_2 = GrpL2_1}|Rest], Table, Node, GrpL2) when Node  /= Node_1 andalso
                                                                             GrpL2 == GrpL2_1 ->
-    case leo_redundant_manager_table_member:find_by_alias(Alias) of
+    case leo_redundant_manager_tbl_member:find_by_alias(Alias) of
         {ok, [Member|_]} ->
             {ok, {Member, Member#member.alias}};
         _ ->
@@ -784,7 +785,7 @@ get_member_by_node(Node) ->
 -spec(get_members_count() ->
              integer() | {error, any()}).
 get_members_count() ->
-    leo_redundant_manager_table_member:table_size().
+    leo_redundant_manager_tbl_member:table_size().
 
 
 %% @doc get members by status
@@ -850,7 +851,7 @@ delete_member_by_node(Node) ->
 %% @doc stop membership.
 %%
 is_alive() ->
-    leo_membership:heartbeat().
+    leo_membership_cluster_local:heartbeat().
 
 
 %% @doc Retrieve table-info by version.
@@ -897,6 +898,44 @@ force_sync_workers_1(Index) ->
     force_sync_workers_1(Index - 1).
 
 
+%% Retrieve local cluster's status
+-spec(get_cluster_status() ->
+             {ok, #cluster_stat{}} | not_found).
+get_cluster_status() ->
+    {ok, #?SYSTEM_CONF{cluster_id = ClusterId}} = leo_redundant_manager_tbl_conf:get(),
+    case get_members() of
+        {ok, Members} ->
+            Status = judge_cluster_status(Members),
+            {ok, {Checksum,_}} = checksum(?CHECKSUM_MEMBER),
+            {ok, #cluster_stat{cluster_id = ClusterId,
+                               status = Status,
+                               checksum = Checksum}};
+        _ ->
+            not_found
+    end.
+
+
+%% @doc Judge status of local cluster
+%% @private
+-spec(judge_cluster_status(list(#member{})) ->
+             node_state()).
+judge_cluster_status(Members) ->
+    NumOfMembers = length(Members),
+    SuspendNode  = length([N || #member{state = ?STATE_SUSPEND,
+                                        node  = N} <- Members]),
+    RunningNode  = length([N || #member{state = ?STATE_RUNNING,
+                                        node  = N} <- Members]),
+    case SuspendNode of
+        NumOfMembers ->
+            ?STATE_SUSPEND;
+        _ ->
+            case (RunningNode > 0) of
+                true  -> ?STATE_RUNNING;
+                false -> ?STATE_STOP
+            end
+    end.
+
+
 %% @doc Retrieve a srever id
 %%
 -spec(get_server_id() ->
@@ -923,4 +962,3 @@ ring_table(put)     -> table_info(?VER_CUR);
 ring_table(get)     -> table_info(?VER_PREV);
 ring_table(delete)  -> table_info(?VER_CUR);
 ring_table(head)    -> table_info(?VER_PREV).
-

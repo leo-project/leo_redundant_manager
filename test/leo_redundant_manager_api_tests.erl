@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2013 Rakuten, Inc.
+%% Copyright (c) 2012-2014 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -62,8 +62,8 @@ setup() ->
 
     leo_misc:init_env(),
     leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
-    leo_redundant_manager_table_member:create_members(?MEMBER_TBL_CUR),
-    leo_redundant_manager_table_member:create_members(?MEMBER_TBL_PREV),
+    leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_CUR),
+    leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_PREV),
     {Hostname}.
 
 teardown(_) ->
@@ -92,7 +92,7 @@ attach_1_({Hostname}) ->
     ok = prepare(Hostname, gateway),
     {ok, _, _} = leo_redundant_manager_api:create(?VER_CUR),
     {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
-    Size_1 = leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR}),
+    Size_1 = leo_redundant_manager_tbl_ring:size({ets, ?RING_TBL_CUR}),
     ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), Size_1),
     timer:sleep(100),
 
@@ -102,7 +102,7 @@ attach_1_({Hostname}) ->
     leo_redundant_manager_api:dump(?CHECKSUM_RING),
     leo_redundant_manager_api:dump(?CHECKSUM_MEMBER),
 
-    Size_2 = leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR}),
+    Size_2 = leo_redundant_manager_tbl_ring:size({ets, ?RING_TBL_CUR}),
     ?assertEqual((9 * ?DEF_NUMBER_OF_VNODES), Size_2),
 
     %% execute
@@ -116,8 +116,8 @@ attach_1_({Hostname}) ->
                           ?assertEqual(true, Src  /= AttachNode),
                           ?assertEqual(true, Dest == AttachNode)
                   end, Res1),
-    {ok, MembersCur } = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
-    {ok, MembersPrev} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV),
+    {ok, MembersCur } = leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_CUR),
+    {ok, MembersPrev} = leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_PREV),
 
     %% check
     {ok, {RingHashCur,   RingHashPrev  }} = leo_redundant_manager_api:checksum(ring),
@@ -169,7 +169,7 @@ attach_2_({Hostname}) ->
     leo_redundant_manager_api:dump(?CHECKSUM_RING),
     leo_redundant_manager_api:dump(?CHECKSUM_MEMBER),
 
-    RingSize = leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR}),
+    RingSize = leo_redundant_manager_tbl_ring:size({ets, ?RING_TBL_CUR}),
     ?assertEqual((11 * ?DEF_NUMBER_OF_VNODES), RingSize),
 
     %% execute
@@ -186,8 +186,8 @@ attach_2_({Hostname}) ->
 
 
     %% check
-    {ok, MembersCur } = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
-    {ok, MembersPrev} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV),
+    {ok, MembersCur } = leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_CUR),
+    {ok, MembersPrev} = leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_PREV),
     {ok, {RingHashCur,   RingHashPrev  }} = leo_redundant_manager_api:checksum(ring),
     {ok, {MemberHashCur, MemberHashPrev}} = leo_redundant_manager_api:checksum(member),
 
@@ -240,8 +240,8 @@ detach_({Hostname}) ->
                           ?assertEqual(true, Src  =/= DetachNode),
                           ?assertEqual(true, Dest =/= DetachNode)
                   end, Res),
-    {ok, MembersCur } = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_CUR),
-    {ok, MembersPrev} = leo_redundant_manager_table_member:find_all(?MEMBER_TBL_PREV),
+    {ok, MembersCur } = leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_CUR),
+    {ok, MembersPrev} = leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_PREV),
 
     %% re-create previous-ring
     {ok, {RingHashCur,   RingHashPrev  }} = leo_redundant_manager_api:checksum(ring),
@@ -280,32 +280,32 @@ detach_1_1(Index) ->
                        #member{node = 'node_2@127.0.0.1'}]).
 members_table_(_Arg) ->
     %% create -> get -> not-found
-    not_found = leo_redundant_manager_table_member:find_all(),
-    ?assertEqual(0, leo_redundant_manager_table_member:table_size()),
-    ?assertEqual(not_found, leo_redundant_manager_table_member:lookup('node_0@127.0.0.1')),
+    not_found = leo_redundant_manager_tbl_member:find_all(),
+    ?assertEqual(0, leo_redundant_manager_tbl_member:table_size()),
+    ?assertEqual(not_found, leo_redundant_manager_tbl_member:lookup('node_0@127.0.0.1')),
 
     %% insert
     lists:foreach(fun(Item) ->
-                          ?assertEqual(ok, leo_redundant_manager_table_member:insert({Item#member.node, Item}))
+                          ?assertEqual(ok, leo_redundant_manager_tbl_member:insert({Item#member.node, Item}))
                   end, ?TEST_MEMBERS),
 
     %% update
-    ok = leo_redundant_manager_table_member:insert({'node_1@127.0.0.1', #member{node  = 'node_1@127.0.0.1',
+    ok = leo_redundant_manager_tbl_member:insert({'node_1@127.0.0.1', #member{node  = 'node_1@127.0.0.1',
                                                                                 clock = 12345,
                                                                                 state = 'suspend'}}),
 
     %% get
-    {ok, Members} = leo_redundant_manager_table_member:find_all(),
-    ?assertEqual(3, leo_redundant_manager_table_member:table_size()),
+    {ok, Members} = leo_redundant_manager_tbl_member:find_all(),
+    ?assertEqual(3, leo_redundant_manager_tbl_member:table_size()),
     ?assertEqual(3, length(Members)),
 
     ?assertEqual({ok, lists:nth(1,?TEST_MEMBERS)},
-                 leo_redundant_manager_table_member:lookup('node_0@127.0.0.1')),
+                 leo_redundant_manager_tbl_member:lookup('node_0@127.0.0.1')),
 
     %% delete
     #member{node = Node} = lists:nth(1, ?TEST_MEMBERS),
-    leo_redundant_manager_table_member:delete(Node),
-    ?assertEqual(2, leo_redundant_manager_table_member:table_size()),
+    leo_redundant_manager_tbl_member:delete(Node),
+    ?assertEqual(2, leo_redundant_manager_tbl_member:table_size()),
     ok.
 
 
@@ -416,7 +416,7 @@ suspend_({Hostname}) ->
 
     {member,_,_,_,_,_,_,suspend,_,_,_} = lists:keyfind(Node, 2, Members),
 
-    {ok, M1} = leo_redundant_manager_table_member:lookup(Node),
+    {ok, M1} = leo_redundant_manager_tbl_member:lookup(Node),
     ?assertEqual(true, [] /= M1#member.alias),
     ?assertEqual(true, undefined /= M1#member.alias),
     ok.
@@ -598,8 +598,8 @@ prepare(Hostname, ServerType, NumOfNodes) ->
 
     case ServerType of
         master ->
-            leo_redundant_manager_table_ring:create_ring_current(ram_copies, [node()]),
-            leo_redundant_manager_table_ring:create_ring_prev(ram_copies, [node()]);
+            leo_redundant_manager_tbl_ring:create_table_current(ram_copies, [node()]),
+            leo_redundant_manager_tbl_ring:create_table_prev(ram_copies, [node()]);
         _ ->
             void
     end,
@@ -624,7 +624,7 @@ prepare(Hostname, ServerType, NumOfNodes) ->
         _ ->
             void
     end,
-    ?debugVal(leo_redundant_manager_table_member:table_size()),
+    ?debugVal(leo_redundant_manager_tbl_member:table_size()),
 
     timer:sleep(500),
     ok.
@@ -664,8 +664,8 @@ inspect0(Hostname) ->
     ?assertEqual(true, (-1 =< Chksum4)),
     ?assertEqual(true, (-1 =< Chksum5)),
 
-    ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR} )),
-    ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), leo_redundant_manager_table_ring:size({ets, ?RING_TBL_PREV})),
+    ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), leo_redundant_manager_tbl_ring:size({ets, ?RING_TBL_CUR} )),
+    ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), leo_redundant_manager_tbl_ring:size({ets, ?RING_TBL_PREV})),
 
     timer:sleep(100),
     Max = leo_math:power(2, ?MD5),
@@ -764,8 +764,8 @@ redundant(true) ->
 
     leo_misc:init_env(),
     leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
-    leo_redundant_manager_table_member:create_members(?MEMBER_TBL_CUR),
-    leo_redundant_manager_table_member:create_members(?MEMBER_TBL_PREV),
+    leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_CUR),
+    leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_PREV),
 
     %% prepare-2
     {ok, _RefSup} = leo_redundant_manager_sup:start_link(master),
@@ -886,7 +886,7 @@ long_run_1() ->
     ok = prepare(Hostname, gateway),
     {ok, _, _} = leo_redundant_manager_api:create(?VER_CUR),
     {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
-    Size_1 = leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR}),
+    Size_1 = leo_redundant_manager_tbl_ring:size({ets, ?RING_TBL_CUR}),
     ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), Size_1),
     timer:sleep(100),
 
@@ -920,7 +920,7 @@ long_run_2() ->
     ok = prepare(Hostname, gateway),
     {ok, _, _} = leo_redundant_manager_api:create(?VER_CUR),
     {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
-    Size_1 = leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR}),
+    Size_1 = leo_redundant_manager_tbl_ring:size({ets, ?RING_TBL_CUR}),
     ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), Size_1),
     timer:sleep(100),
 
@@ -1091,7 +1091,7 @@ attach_to_attach() ->
     {ok, Members} = leo_redundant_manager_api:get_members(),
     ?assertEqual(10, length(Members)),
 
-    RingSize = leo_redundant_manager_table_ring:size({ets, ?RING_TBL_CUR}),
+    RingSize = leo_redundant_manager_tbl_ring:size({ets, ?RING_TBL_CUR}),
     ?assertEqual((10 * ?DEF_NUMBER_OF_VNODES), RingSize),
 
     %% retrieve redundancies

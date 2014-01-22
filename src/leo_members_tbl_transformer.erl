@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2013 Rakuten, Inc.
+%% Copyright (c) 2012-2014 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -19,7 +19,7 @@
 %% under the License.
 %%
 %%======================================================================
--module(leo_members_table_transformer).
+-module(leo_members_tbl_transformer).
 
 -author('Yosuke Hara').
 
@@ -53,9 +53,9 @@ transform_1(_, MnesiaNodes, OldTbl, NewTbls) ->
     case MnesiaNodes of
         [] -> void;
         _  ->
-            leo_redundant_manager_table_member:create_members(
+            leo_redundant_manager_tbl_member:create_table(
               disc_copies, MnesiaNodes, ?MEMBER_TBL_CUR),
-            leo_redundant_manager_table_member:create_members(
+            leo_redundant_manager_tbl_member:create_table(
               disc_copies, MnesiaNodes, ?MEMBER_TBL_PREV)
     end,
     case catch mnesia:table_info(?MEMBER_TBL_CUR, all) of
@@ -72,9 +72,9 @@ transform_1(_, MnesiaNodes, OldTbl, NewTbls) ->
 
 %% @private
 transform_2(OldTbl, NewTbls) ->
-    case (leo_redundant_manager_table_member:table_size(OldTbl) > 0) of
+    case (leo_redundant_manager_tbl_member:table_size(OldTbl) > 0) of
         true ->
-            Node = leo_redundant_manager_table_member:first(OldTbl),
+            Node = leo_redundant_manager_tbl_member:first(OldTbl),
             case transform_3(OldTbl, NewTbls, Node) of
                 ok ->
                     ok;
@@ -87,11 +87,11 @@ transform_2(OldTbl, NewTbls) ->
 
 %% @private
 transform_3(OldTbl, NewTbls, Node) ->
-    case leo_redundant_manager_table_member:lookup(OldTbl, Node) of
+    case leo_redundant_manager_tbl_member:lookup(OldTbl, Node) of
         {ok, Member} ->
             case transform_3_1(NewTbls, Member) of
                 ok ->
-                    Ret = leo_redundant_manager_table_member:next(OldTbl, Node),
+                    Ret = leo_redundant_manager_tbl_member:next(OldTbl, Node),
                     transform_4(Ret, OldTbl, NewTbls);
                 Error ->
                     Error
@@ -104,7 +104,7 @@ transform_3(OldTbl, NewTbls, Node) ->
 transform_3_1([],_) ->
     ok;
 transform_3_1([Tbl|Rest], #member{node = Node} = Member) ->
-    case leo_redundant_manager_table_member:insert(Tbl, {Node, Member}) of
+    case leo_redundant_manager_tbl_member:insert(Tbl, {Node, Member}) of
         ok ->
             transform_3_1(Rest, Member);
         Error ->

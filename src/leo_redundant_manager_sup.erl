@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2013 Rakuten, Inc.
+%% Copyright (c) 2012-2014 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -81,18 +81,19 @@ start_link(ServerType, Managers, MQStoragePath, Conf) ->
                     ok = leo_redundant_manager_api:set_options(Conf)
             end,
 
-            %% launch membership
+            %% Launch membership for local-cluster
             case supervisor:start_child(leo_redundant_manager_sup,
-                                        {leo_membership,
-                                         {leo_membership, start_link, [ServerType_1, Managers]},
-                                         permanent, 2000, worker, [leo_membership]}) of
+                                        {leo_membership_cluster_local,
+                                         {leo_membership_cluster_local, start_link, [ServerType_1, Managers]},
+                                         permanent, 2000, worker, [leo_membership_cluster_local]}) of
                 {ok, _Pid} ->
                     ok = leo_membership_mq_client:start(ServerType_1, MQStoragePath),
-                    ok = leo_membership:start_heartbeat(),
+                    ok = leo_membership_cluster_local:start_heartbeat(),
                     {ok, RefSup};
                 Cause ->
                     error_logger:error_msg("~p,~p,~p,~p~n",
-                                           [{module, ?MODULE_STRING}, {function, "start/4"},
+                                           [{module, ?MODULE_STRING},
+                                            {function, "start_link/4"},
                                             {line, ?LINE}, {body, Cause}]),
                     case leo_redundant_manager_sup:stop() of
                         ok ->
@@ -108,7 +109,7 @@ start_link(ServerType, Managers, MQStoragePath, Conf) ->
 %% @private
 start_link_1(ServerType) ->
     %% launch sup
-    Ret = case supervisor:start_link({local, ?MODULE}, ?MODULE, []) of
+    Ret = case supervisor:start_link({local, ?MODULE}, ?MODULE, [ServerType]) of
               {ok, _RefSup} = Res0 ->
                   Res0;
               {error, {already_started, ResSup}} ->
@@ -150,15 +151,36 @@ stop() ->
 %% @end
 %% @private
 init([]) ->
-    %% Redundant Manager Server
-    Children = [
-                {leo_redundant_manager,
-                 {leo_redundant_manager, start_link, []},
-                 permanent,
-                 2000,
-                 worker,
-                 [leo_redundant_manager]}
-               ],
+    init([undefined]);
+init([ServerType]) ->
+    %% Define children
+    Children = case server_type(ServerType) of
+                   ?SERVER_MANAGER ->
+                       [
+                        {leo_redundant_manager,
+                         {leo_redundant_manager, start_link, []},
+                         permanent,
+                         2000,
+                         worker,
+                         [leo_redundant_manager]},
+
+                        {leo_membership_cluster_remote,
+                         {leo_membership_cluster_remote, start_link, []},
+                         permanent,
+                         2000,
+                         worker,
+                         [leo_membership_cluster_remote]}
+                       ];
+                   _ ->
+                       [
+                        {leo_redundant_manager,
+                         {leo_redundant_manager, start_link, []},
+                         permanent,
+                         2000,
+                         worker,
+                         [leo_redundant_manager]}
+                       ]
+               end,
 
     %% Redundant Manager Worker Pool
     WorkerSpecs =
@@ -210,8 +232,8 @@ server_type(Type)   -> Type.
 %% @private
 -ifdef(TEST).
 init_tables(_)  ->
-    catch leo_redundant_manager_table_member:create_members(?MEMBER_TBL_CUR),
-    catch leo_redundant_manager_table_member:create_members(?MEMBER_TBL_PREV),
+    catch leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_CUR),
+    catch leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_PREV),
     catch ets:new(?RING_TBL_CUR, [named_table, ordered_set, public, {read_concurrency, true}]),
     catch ets:new(?RING_TBL_PREV,[named_table, ordered_set, public, {read_concurrency, true}]),
     ok.
@@ -220,8 +242,8 @@ init_tables(manager) -> ok;
 init_tables(master)  -> ok;
 init_tables(slave)   -> ok;
 init_tables(_Other)  ->
-    catch leo_redundant_manager_table_member:create_members(?MEMBER_TBL_CUR),
-    catch leo_redundant_manager_table_member:create_members(?MEMBER_TBL_PREV),
+    catch leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_CUR),
+    catch leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_PREV),
     catch ets:new(?RING_TBL_CUR, [named_table, ordered_set, public, {read_concurrency, true}]),
     catch ets:new(?RING_TBL_PREV,[named_table, ordered_set, public, {read_concurrency, true}]),
     ok.

@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2013 Rakuten, Inc.
+%% Copyright (c) 2012-2014 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -19,11 +19,11 @@
 %% under the License.
 %%
 %% ---------------------------------------------------------------------
-%% Leo Redundant Manager - Membership.
+%% Leo Redundant Manager - Membership (LOCAL)
 %% @doc
 %% @end
 %%======================================================================
--module(leo_membership).
+-module(leo_membership_cluster_local).
 
 -author('Yosuke Hara').
 
@@ -231,7 +231,7 @@ defer_heartbeat(Time) ->
              ok | {error, any()}).
 exec(?SERVER_MANAGER = ServerType, Managers) ->
     ClusterNodes =
-        case leo_redundant_manager_table_member:find_all() of
+        case leo_redundant_manager_tbl_member:find_all() of
             {ok, Members} ->
                 lists:map(fun(#member{node = Node, state = State}) ->
                                   {storage, Node ,State}
