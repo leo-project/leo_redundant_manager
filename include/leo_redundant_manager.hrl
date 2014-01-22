@@ -191,6 +191,16 @@
 -define(SERVER_STORAGE, 'storage').
 
 
+%% Mnesia Tables
+%%
+-define(TBL_SYSTEM_CONF,    'leo_system_conf').
+-define(TBL_CLUSTER_STAT,   'leo_cluster_stat').
+-define(TBL_CLUSTER_INFO,   'leo_cluster_info').
+-define(TBL_CLUSTER_MEMBER, 'leo_cluster_member').
+-define(TBL_CLUSTER_MGR,    'leo_cluster_manager').
+-define(ERROR_MNESIA_NOT_START, "Mnesia is not available").
+
+
 %% Dump File
 %%
 -define(DEF_LOG_DIR_MEMBERS,    "./log/ring/").

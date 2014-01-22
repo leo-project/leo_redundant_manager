@@ -181,7 +181,7 @@ exec([#cluster_manager{cluster_id = ClusterId}|Rest], ClusterId) ->
 exec([#cluster_manager{node = Node,
                        cluster_id = ClusterId}|Rest], PrevClusterId) ->
     %% Retrieve the status of remote-cluster
-    Ret = case leo_rpc:call(Node, leo_redundant_manager_api, get_cluster_status, []) of
+    Ret = case catch leo_rpc:call(Node, leo_redundant_manager_api, get_cluster_status, []) of
               {ok, #cluster_stat{status  = Status_1,
                                  checksum = Checksum_1} = ClusterStat} ->
                   %% Compare its status in the local with the retrieved data
@@ -235,7 +235,7 @@ exec_1(Node, #cluster_stat{checksum   = Checksum_1,
 
 %% @private
 exec_2(Node, ClusterId) ->
-    case leo_rpc:call(Node, leo_redundant_manager_api, get_members, []) of
+    case catch leo_rpc:call(Node, leo_redundant_manager_api, get_members, []) of
         {ok, Members} ->
             Checksum = erlang:crc32(term_to_binary(lists:sort(Members))),
             case exec_3(Members, ClusterId) of
@@ -244,6 +244,8 @@ exec_2(Node, ClusterId) ->
                 {error, Cause} ->
                     {error, Cause}
             end;
+        {'EXIT', Cause} ->
+            {error, Cause};
         {error, Cause} ->
             {error, Cause}
     end.

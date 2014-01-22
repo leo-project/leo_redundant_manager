@@ -32,9 +32,6 @@
 -export([create_table/2,
          all/0, get/1, update/1, delete/1]).
 
--define(TBL_CLUSTER_MEMBER, 'leo_cluster_member').
--define(ERROR_MNESIA_NOT_START, "Mnesia is not available").
-
 
 %% @doc Create a table of system-configutation
 %%

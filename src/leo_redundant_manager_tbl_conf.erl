@@ -37,9 +37,6 @@
          get/0,
          update/1]).
 
--define(TBL_SYSTEM_CONF, 'leo_system_conf').
--define(ERROR_MNESIA_NOT_START, '').
-
 
 %% @doc Create a table of system-configutation
 %%
