@@ -30,7 +30,7 @@
 %%--------------------------------------------------------------------
 -ifdef(EUNIT).
 
--define(CONF_1, #?SYSTEM_CONF{cluster_id = "cluster_11",
+-define(CONF_1, #cluster_info{cluster_id = "cluster_11",
                               dc_id = "tokyo_1",
                               n = 3,
                               w = 2,
@@ -39,7 +39,7 @@
                               num_of_dc_replicas = 1,
                               num_of_rack_replicas = 1
                              }).
--define(CONF_2, #?SYSTEM_CONF{cluster_id = "cluster_12",
+-define(CONF_2, #cluster_info{cluster_id = "cluster_12",
                               dc_id = "singapore_1",
                               n = 2,
                               w = 1,
@@ -48,7 +48,7 @@
                               num_of_dc_replicas = 1,
                               num_of_rack_replicas = 1
                              }).
--define(CONF_3, #?SYSTEM_CONF{cluster_id = "cluster_15",
+-define(CONF_3, #cluster_info{cluster_id = "cluster_15",
                               dc_id = "europe_1",
                               n = 5,
                               w = 3,
