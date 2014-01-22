@@ -87,7 +87,7 @@ get(ClusterId) ->
         _ ->
             F = fun() ->
                         Q = qlc:q([X || X <- mnesia:table(Tbl),
-                                        X#?SYSTEM_CONF.cluster_id == ClusterId]),
+                                        X#cluster_stat.cluster_id == ClusterId]),
                         qlc:e(Q)
                 end,
             case leo_mnesia:read(F) of

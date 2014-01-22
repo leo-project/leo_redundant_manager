@@ -40,8 +40,8 @@ create_table(Mode, Nodes) ->
       ?TBL_CLUSTER_INFO,
       [{Mode, Nodes},
        {type, set},
-       {record_name, ?SYSTEM_CONF},
-       {attributes, record_info(fields, ?SYSTEM_CONF)},
+       {record_name, cluster_info},
+       {attributes, record_info(fields, cluster_info)},
        {user_properties,
         [{cluster_id,           string,      primary},
          {dc_id,                string,      false  },
@@ -59,7 +59,7 @@ create_table(Mode, Nodes) ->
 %% @doc Retrieve system configuration by cluster-id
 %%
 -spec(all() ->
-             {ok, [#system_conf{}]} | not_found | {error, any()}).
+             {ok, [#cluster_info{}]} | not_found | {error, any()}).
 all() ->
     Tbl = ?TBL_CLUSTER_INFO,
 
@@ -79,7 +79,7 @@ all() ->
 %% @doc Retrieve system configuration by cluster-id
 %%
 -spec(get(string()) ->
-             {ok, #system_conf{}} | not_found | {error, any()}).
+             {ok, #cluster_info{}} | not_found | {error, any()}).
 get(ClusterId) ->
     Tbl = ?TBL_CLUSTER_INFO,
 
@@ -89,7 +89,7 @@ get(ClusterId) ->
         _ ->
             F = fun() ->
                         Q = qlc:q([X || X <- mnesia:table(Tbl),
-                                        X#?SYSTEM_CONF.cluster_id == ClusterId]),
+                                        X#cluster_info.cluster_id == ClusterId]),
                         qlc:e(Q)
                 end,
             case leo_mnesia:read(F) of
@@ -103,16 +103,16 @@ get(ClusterId) ->
 
 %% @doc Modify system-configuration
 %%
--spec(update(#system_conf{}) ->
+-spec(update(#cluster_info{}) ->
              ok | {error, any()}).
-update(SystemConf) ->
+update(ClusterInfo) ->
     Tbl = ?TBL_CLUSTER_INFO,
 
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
         _ ->
-            F = fun()-> mnesia:write(Tbl, SystemConf, write) end,
+            F = fun()-> mnesia:write(Tbl, ClusterInfo, write) end,
             leo_mnesia:write(F)
     end.
 
@@ -125,9 +125,9 @@ delete(ClusterId) ->
     Tbl = ?TBL_CLUSTER_INFO,
 
     case ?MODULE:get(ClusterId) of
-        {ok, SystemConf} ->
+        {ok, ClusterInfo} ->
             Fun = fun() ->
-                          mnesia:delete_object(Tbl, SystemConf, write)
+                          mnesia:delete_object(Tbl, ClusterInfo, write)
                   end,
             leo_mnesia:delete(Fun);
         Error ->
