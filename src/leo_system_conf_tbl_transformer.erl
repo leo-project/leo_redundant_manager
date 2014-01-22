@@ -45,14 +45,16 @@ transform() ->
 %% @private
 transform(#?SYSTEM_CONF{} = SystemConf) ->
     SystemConf;
-transform(#system_conf{n       = N,
+transform(#system_conf{version = Vsn,
+                       n       = N,
                        r       = R,
                        w       = W,
                        d       = D,
                        bit_of_ring = BitOfRing,
                        level_1 = Level1,
                        level_2 = Level2}) ->
-    #?SYSTEM_CONF{cluster_id = [],
+    #?SYSTEM_CONF{version = Vsn,
+                  cluster_id = [],
                   dc_id = [],
                   n = N,
                   r = R,

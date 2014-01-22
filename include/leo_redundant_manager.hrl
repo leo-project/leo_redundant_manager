@@ -226,7 +226,8 @@
           level_2 = 0         :: integer()
          }).
 
--record(system_conf_1_0_0_1, {
+-record(system_conf_1, {
+          version = 0         :: integer(),      %% version
           cluster_id = []     :: string(),       %% cluster-id
           dc_id      = []     :: string(),       %% dc-id
           n       = 1         :: integer(),      %% # of replicas
@@ -237,7 +238,7 @@
           num_of_dc_replicas   = 0 :: integer(), %% # of DC-awareness replicas
           num_of_rack_replicas = 0 :: integer()  %% # of Rack-awareness replicas
          }).
--define(SYSTEM_CONF, 'system_conf_1_0_0_1').
+-define(SYSTEM_CONF, 'system_conf_1').
 
 
 %% For Multi-DC Replication

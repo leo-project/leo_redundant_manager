@@ -48,7 +48,9 @@ create_table(Mode, Nodes) ->
        {record_name, ?SYSTEM_CONF},
        {attributes, record_info(fields, ?SYSTEM_CONF)},
        {user_properties,
-        [{cluster_id,           string,      primary},
+        [
+         {version,              pos_integer, primary},
+         {cluster_id,           string,      false},
          {dc_id,                string,      false},
          {n,                    pos_integer, false},
          {r,                    pos_integer, false},
