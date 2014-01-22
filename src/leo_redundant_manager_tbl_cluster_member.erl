@@ -62,7 +62,7 @@ create_table(Mode, Nodes) ->
 %% @doc Retrieve system configuration by cluster-id
 %%
 -spec(all() ->
-             {ok, [#system_conf{}]} | not_found | {error, any()}).
+             {ok, [#cluster_member{}]} | not_found | {error, any()}).
 all() ->
     Tbl = ?TBL_CLUSTER_MEMBER,
 
@@ -82,7 +82,7 @@ all() ->
 %% @doc Retrieve system configuration by cluster-id
 %%
 -spec(get(string()) ->
-             {ok, #system_conf{}} | not_found | {error, any()}).
+             {ok, #cluster_member{}} | not_found | {error, any()}).
 get(ClusterId) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
 
@@ -101,7 +101,7 @@ get(ClusterId) ->
 
 %% @doc Modify system-configuration
 %%
--spec(update(#system_conf{}) ->
+-spec(update(#cluster_member{}) ->
              ok | {error, any()}).
 update(Member) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
