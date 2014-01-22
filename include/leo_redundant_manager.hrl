@@ -198,6 +198,7 @@
 -define(TBL_CLUSTER_INFO,   'leo_cluster_info').
 -define(TBL_CLUSTER_MEMBER, 'leo_cluster_member').
 -define(TBL_CLUSTER_MGR,    'leo_cluster_manager').
+-undef(ERROR_MNESIA_NOT_START).
 -define(ERROR_MNESIA_NOT_START, "Mnesia is not available").
 
 
