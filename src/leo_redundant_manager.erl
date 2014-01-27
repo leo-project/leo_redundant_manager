@@ -52,7 +52,8 @@
          code_change/3]).
 
 -undef(DEF_TIMEOUT).
--define(DEF_TIMEOUT, 30000).
+-define(DEF_TIMEOUT,      30000).
+-define(DEF_TIMEOUT_LONG, infinity).
 
 %%--------------------------------------------------------------------
 %% API
@@ -71,7 +72,7 @@ stop() ->
 -spec(create(?VER_CUR|?VER_PREV) ->
              {ok, list()}).
 create(Ver) ->
-    gen_server:call(?MODULE, {create, Ver}, ?DEF_TIMEOUT).
+    gen_server:call(?MODULE, {create, Ver}, ?DEF_TIMEOUT_LONG).
 
 
 %% @doc Retrieve checksum (ring or member).
@@ -157,7 +158,7 @@ delete_member_by_node(Node) ->
 %% @doc Synchronize a ring.
 %%
 synchronize(TblInfo, Ring0, Ring1) ->
-    gen_server:call(?MODULE, {synchronize, TblInfo, Ring0, Ring1}, ?DEF_TIMEOUT).
+    gen_server:call(?MODULE, {synchronize, TblInfo, Ring0, Ring1}, ?DEF_TIMEOUT_LONG).
 
 
 %% @doc Dump files which are member and ring.
