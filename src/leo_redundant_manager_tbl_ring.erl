@@ -228,7 +228,7 @@ bulk_delete({?DB_ETS,_} = TableInfo, [VNodeId|Rest]) ->
 %% @private
 bulk_delete_1(_,[]) ->
     ok;
-bulk_delete_1({_, Table}= TableInfo, [VNodeId|Rest]) ->
+bulk_delete_1({_, Table} = TableInfo, [VNodeId|Rest]) ->
     case lookup(TableInfo, VNodeId) of
         {error, Cause} ->
             {error, Cause};
@@ -237,7 +237,7 @@ bulk_delete_1({_, Table}= TableInfo, [VNodeId|Rest]) ->
         Ring ->
             case mnesia:delete_object(Table, Ring, write) of
                 ok ->
-                    bulk_delete_1(Table, Rest);
+                    bulk_delete_1(TableInfo, Rest);
                 _ ->
                     mnesia:abort("Not removed")
             end
