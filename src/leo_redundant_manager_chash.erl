@@ -35,6 +35,8 @@
          checksum/1, vnode_id/1, vnode_id/2]).
 -export([export/2]).
 
+-define(gen_child_name(_Alias,_N),
+        lists:append([_Alias, "_", integer_to_list(_N)])).
 
 %%====================================================================
 %% API
@@ -44,16 +46,16 @@
 -spec(add(atom(), #member{}) ->
              ok).
 add(Table, Member) ->
-    add(0, Table, Member).
+    add(0, Table, Member, []).
 
-add(N,_Table, #member{num_of_vnodes = NumOfVNodes}) when NumOfVNodes == N ->
-    ok;
+%% @private
+add(N, Table, #member{num_of_vnodes = N}, Acc) ->
+    leo_redundant_manager_tbl_ring:bulk_insert(Table, Acc);
 add(N, Table, #member{alias = Alias,
                       node  = Node,
-                      clock = Clock} = Member) ->
-    VNodeId = vnode_id(lists:append([Alias, "_", integer_to_list(N)])),
-    true = leo_redundant_manager_tbl_ring:insert(Table, {VNodeId, Node, Clock}),
-    add(N + 1, Table, Member).
+                      clock = Clock} = Member, Acc) ->
+    VNodeId = vnode_id(?gen_child_name(Alias, N)),
+    add(N + 1, Table, Member, [{VNodeId, Node, Clock}|Acc]).
 
 
 %% @doc Remove a node.
@@ -61,14 +63,14 @@ add(N, Table, #member{alias = Alias,
 -spec(remove(atom, #member{}) ->
              ok).
 remove(Table, Member) ->
-    remove(0, Table, Member).
+    remove(0, Table, Member, []).
 
-remove(N,_Table, #member{num_of_vnodes = NumOfVNodes}) when NumOfVNodes == N ->
-    ok;
-remove(N, Table, #member{alias = Alias} = Member) ->
-    VNodeId = vnode_id(lists:append([Alias, "_", integer_to_list(N)])),
-    true = leo_redundant_manager_tbl_ring:delete(Table, VNodeId),
-    remove(N + 1, Table, Member).
+%% @private
+remove(N, Table, #member{num_of_vnodes = N}, Acc) ->
+    leo_redundant_manager_tbl_ring:bulk_delete(Table, Acc);
+remove(N, Table, #member{alias = Alias} = Member, Acc) ->
+    VNodeId = vnode_id(?gen_child_name(Alias, N)),
+    remove(N + 1, Table, Member, [VNodeId|Acc]).
 
 
 %% @doc Retrieve redundancies by vnode-id.

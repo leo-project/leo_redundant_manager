@@ -39,7 +39,7 @@
          get_member_by_node/1, get_members_by_status/2,
          update_member/1, update_members/1,
          update_member_by_node/2, update_member_by_node/3,
-         delete_member_by_node/1, synchronize/3, dump/1]).
+         delete_member_by_node/1, dump/1]).
 
 -export([attach/4, attach/5, reserve/5, detach/2, detach/3, suspend/2]).
 
@@ -155,10 +155,10 @@ delete_member_by_node(Node) ->
     gen_server:call(?MODULE, {delete_member_by_node, Node}, ?DEF_TIMEOUT).
 
 
-%% @doc Synchronize a ring.
-%%
-synchronize(TblInfo, Ring0, Ring1) ->
-    gen_server:call(?MODULE, {synchronize, TblInfo, Ring0, Ring1}, ?DEF_TIMEOUT_LONG).
+%% %% @doc Synchronize a ring.
+%% %%
+%% synchronize(TblInfo, Ring0, Ring1) ->
+%%     gen_server:call(?MODULE, {synchronize, TblInfo, Ring0, Ring1}, ?DEF_TIMEOUT_LONG).
 
 
 %% @doc Dump files which are member and ring.
@@ -320,45 +320,6 @@ handle_call({update_member_by_node, Node, Clock, NodeState}, _From, State) ->
 handle_call({delete_member_by_node, Node}, _From, State) ->
     Reply = leo_redundant_manager_tbl_member:delete(Node),
     {reply, Reply, State};
-
-handle_call({synchronize, TblInfo, MgrRing, MyRing}, _From, State) ->
-    %% 1. MyRing.vnode-id -> MgrRing.vnode-id
-    lists:foreach(fun({VNodeId0, Node0}) ->
-                          Res = case lists:keyfind(VNodeId0, 1, MgrRing) of
-                                    {VNodeId1, Node1} when VNodeId0 == VNodeId1 andalso
-                                                           Node0    == Node1 ->
-                                        true;
-                                    _ ->
-                                        false
-                                end,
-
-                          case Res of
-                              true ->
-                                  void;
-                              false ->
-                                  leo_redundant_manager_tbl_ring:delete(TblInfo, VNodeId0)
-                          end
-                  end, MyRing),
-
-    %% 2. MyRing.vnode-id -> MgrRing.vnode-id
-    lists:foreach(fun({VNodeId0, Node0}) ->
-                          Res = case lists:keyfind(VNodeId0, 1, MyRing) of
-                                    {VNodeId1, Node1} when VNodeId0 == VNodeId1 andalso
-                                                           Node0    == Node1 ->
-                                        true;
-                                    _ ->
-                                        false
-                                end,
-
-                          case Res of
-                              true ->
-                                  void;
-                              false ->
-                                  leo_redundant_manager_tbl_ring:insert(TblInfo, {VNodeId0, Node0})
-                          end
-                  end, MgrRing),
-    {reply, ok, State};
-
 
 handle_call({dump, member}, _From, State) ->
     LogDir = case application:get_env(leo_redundant_manager,
@@ -533,7 +494,6 @@ create_2(Ver, Members) ->
              ok | {ok, list()}).
 create_2(Ver,[], Acc) ->
     create_3(Ver, Acc);
-
 create_2( Ver, [#member{state = ?STATE_DETACHED}|Rest], Acc) ->
     create_2(Ver, Rest, Acc);
 create_2( Ver, [#member{state = ?STATE_RESERVED}|Rest], Acc) ->
@@ -542,19 +502,12 @@ create_2( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
     %% Modify/Add a member into 'member-table'
     Table = ?member_table(Ver),
     Ret_2 = case leo_redundant_manager_tbl_member:lookup(Table, Node) of
+                {ok, Member_1} ->
+                    {ok, Member_1#member{state = ?STATE_RUNNING}};
+                not_found ->
+                    {ok, Member_0#member{state = ?STATE_RUNNING}};
                 {error, Cause} ->
-                    {error, Cause};
-                Ret_1 ->
-                    Prop = case Ret_1 of
-                               {ok, Member_1} -> {Node, Member_1#member{state = ?STATE_RUNNING}};
-                               not_found      -> {Node, Member_0#member{state = ?STATE_RUNNING}}
-                           end,
-                    case leo_redundant_manager_tbl_member:insert(Table, Prop) of
-                        ok ->
-                            {ok, erlang:element(2, Prop)};
-                        {error, Cause} ->
-                            {error, Cause}
-                    end
+                    {error, Cause}
             end,
     case Ret_2 of
         {ok, Member_2} ->
@@ -569,19 +522,24 @@ create_2( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
 create_3(_, []) ->
     ok;
 create_3(Ver, [Member|Rest]) ->
-    case attach_1(leo_redundant_manager_api:table_info(Ver), Member) of
-        ok ->
-            create_3(Ver, Rest);
+    TblInfo = leo_redundant_manager_api:table_info(Ver),
+    case set_alias(TblInfo, Member) of
+        {ok, Member_1} ->
+            case attach_2(TblInfo, Member_1) of
+                ok ->
+                    create_3(Ver, Rest);
+                Error ->
+                    Error
+            end;
         Error ->
             Error
     end.
 
 
-%% @doc Add a node into storage-cluster
 %% @private
-attach_1(TblInfo, #member{node  = Node,
-                          alias = [],
-                          grp_level_2 = GrpL2} = Member) ->
+set_alias(TblInfo, #member{node  = Node,
+                           alias = [],
+                           grp_level_2 = GrpL2} = Member) ->
     NodeStr = atom_to_list(Node),
     IP = case (string:chr(NodeStr, $@) > 0) of
              true ->
@@ -593,14 +551,24 @@ attach_1(TblInfo, #member{node  = Node,
     case leo_redundant_manager_api:get_alias(
            ?ring_table_to_member_table(TblInfo), Node, GrpL2) of
         {ok, {_Member, Alias}} ->
-            attach_2(TblInfo, Member#member{alias = Alias,
-                                            ip    = IP});
-        {error, Cause} ->
-            {error, Cause}
+            {ok, Member#member{alias = Alias,
+                               ip    = IP}};
+        Error ->
+            Error
     end;
-attach_1(TblInfo, Member) ->
-    attach_2(TblInfo, Member).
+set_alias(_,Member) ->
+    {ok, Member}.
 
+
+%% @doc Add a node into storage-cluster
+%% @private
+attach_1(TblInfo, Member) ->
+    case set_alias(TblInfo, Member) of
+        {ok, Member_1} ->
+            attach_2(TblInfo, Member_1);
+        Error ->
+            Error
+    end.
 
 %% @private
 attach_2(TblInfo, #member{node  = Node,

@@ -499,7 +499,7 @@ replace(DBType, Table, OldMembers, NewMembers) ->
     ok.
 
 
-%% @doc
+%% @doc Overwrite current records by source records
 %%
 -spec(overwrite(member_table(), member_table()) ->
              ok | {error, any()}).

@@ -32,13 +32,17 @@
 
 -export([create_table_current/1, create_table_current/2,
          create_table_prev/1, create_table_prev/2,
-         lookup/2, insert/2, delete/2, first/1, last/1, prev/2, next/2,
-         delete_all/1, size/1, tab2list/1]).
+         lookup/2, insert/2, bulk_insert/2, delete/2, bulk_delete/2,
+         first/1, last/1, prev/2, next/2,
+         delete_all/1, size/1, tab2list/1,
+         overwrite/2
+        ]).
 -export([create_table_for_test/3]).
 
 -type(mnesia_copies() :: disc_copies | ram_copies).
 
-%% @doc create ring-current table.
+
+%% @doc create ring-current table
 %%
 -spec(create_table_current(mnesia_copies()) -> ok).
 create_table_current(Mode) ->
@@ -58,7 +62,7 @@ create_table_current(Mode, Nodes) ->
         ]}
       ]).
 
-%% @doc create ring-prev table.
+%% @doc create ring-prev table
 %%
 -spec(create_table_prev(mnesia_copies()) -> ok).
 create_table_prev(Mode) ->
@@ -95,9 +99,9 @@ create_table_for_test(Mode, Nodes, Table) ->
       ]).
 
 
-%% Retrieve a record by key from the table.
+%% Retrieve a record by key from the table
 %%
-lookup({mnesia, Table}, VNodeId) ->
+lookup({?DB_MNESIA, Table}, VNodeId) ->
     case catch mnesia:ets(fun ets:lookup/2, [Table, VNodeId]) of
         [Ring|_] ->
             Ring;
@@ -106,7 +110,7 @@ lookup({mnesia, Table}, VNodeId) ->
         {'EXIT', Cause} ->
             {error, Cause}
     end;
-lookup({ets, Table}, VNodeId) ->
+lookup({?DB_ETS, Table}, VNodeId) ->
     case catch ets:lookup(Table, VNodeId) of
         [{VNodeId, Node, Clock}|_] ->
             #?RING{vnode_id = VNodeId,
@@ -118,73 +122,170 @@ lookup({ets, Table}, VNodeId) ->
             {error, Cause}
     end.
 
-%% @doc Insert a record into the table.
+%% @doc Insert a record into the table
 %%
-insert({mnesia, Table}, Ring) when is_record(Ring, ring);
-                                   is_record(Ring, ring_0_16_8) ->
+insert({?DB_MNESIA, Table}, Ring) when is_record(Ring, ring);
+                                       is_record(Ring, ring_0_16_8) ->
     Fun = fun() -> mnesia:write(Table, Ring, write) end,
-    leo_mnesia:write(Fun),
-    true;
-insert({mnesia, Table}, {VNodeId, Node, Clock}) ->
+    leo_mnesia:write(Fun);
+insert({?DB_MNESIA, Table}, {VNodeId, Node, Clock}) ->
     Fun = fun() -> mnesia:write(Table, #?RING{vnode_id = VNodeId,
                                               node     = Node,
                                               clock    = Clock}, write) end,
-    leo_mnesia:write(Fun),
-    true;
-insert({ets, Table}, {VNodeId, Node, Clock}) ->
-    ets:insert(Table, {VNodeId, Node, Clock}).
+    leo_mnesia:write(Fun);
+insert({?DB_ETS, Table}, {VNodeId, Node, Clock}) ->
+    case ets:insert(Table, {VNodeId, Node, Clock}) of
+        true ->
+            ok;
+        Cause ->
+            {error, Cause}
+    end.
 
-%% @doc Remove a record from the table.
-%%
-delete({mnesia, Table}, VNodeId) ->
-    Ring = lookup({mnesia, Table}, VNodeId),
-    Fun = fun() ->
-                  mnesia:delete_object(Table, Ring, write)
-          end,
-    leo_mnesia:delete(Fun),
-    true;
-delete({ets, Table}, VNodeId) ->
-    ets:delete(Table, VNodeId).
 
-%% @doc Retrieve a first record from the table.
+%% @doc Insert bulk of records into the table
 %%
-first({mnesia, Table}) ->
+bulk_insert({?DB_MNESIA, Table}, List) ->
+    case mnesia:transaction(
+           fun() ->
+                   bulk_insert_1(Table, List)
+           end) of
+        {atomic, ok} ->
+            ok;
+        {aborted, Reason} ->
+            {error, Reason}
+    end;
+
+bulk_insert({?DB_ETS,_}, []) ->
+    ok;
+bulk_insert({?DB_ETS,_} = TableInfo, [Ring|Rest]) ->
+    case insert(TableInfo, Ring) of
+        ok ->
+            bulk_insert(TableInfo, Rest);
+        Error ->
+            Error
+    end.
+
+%% @private
+bulk_insert_1(_,[]) ->
+    ok;
+bulk_insert_1(Table, [{VNodeId, Node, Clock}|Rest]) ->
+    case mnesia:write(Table, #?RING{vnode_id = VNodeId,
+                                    node     = Node,
+                                    clock    = Clock}, write) of
+        ok ->
+            bulk_insert_1(Table, Rest);
+        _ ->
+            mnesia:abort("Not inserted")
+    end.
+
+
+%% @doc Remove a record from the table
+%%
+delete({?DB_MNESIA, Table} = TableInfo, VNodeId) ->
+    case lookup(TableInfo, VNodeId) of
+        {error, Cause} ->
+            {error, Cause};
+        [] ->
+            ok;
+        Ring ->
+            Fun = fun() ->
+                          mnesia:delete_object(Table, Ring, write)
+                  end,
+            leo_mnesia:delete(Fun)
+    end;
+delete({?DB_ETS, Table}, VNodeId) ->
+    case ets:delete(Table, VNodeId) of
+        true ->
+            ok;
+        Cause ->
+            {error, Cause}
+    end.
+
+
+%% @doc Remove bulk of records from the table
+%%
+bulk_delete({?DB_MNESIA,_} = TableInfo, List) ->
+    case mnesia:transaction(
+           fun() ->
+                   bulk_delete_1(TableInfo, List)
+           end) of
+        {atomic, ok} ->
+            ok;
+        {aborted, Reason} ->
+            {error, Reason}
+    end;
+
+bulk_delete({?DB_ETS,_}, []) ->
+    ok;
+bulk_delete({?DB_ETS,_} = TableInfo, [VNodeId|Rest]) ->
+    case delete(TableInfo, VNodeId) of
+        ok ->
+            bulk_delete(TableInfo, Rest);
+        Error ->
+            Error
+    end.
+
+%% @private
+bulk_delete_1(_,[]) ->
+    ok;
+bulk_delete_1({_, Table}= TableInfo, [VNodeId|Rest]) ->
+    case lookup(TableInfo, VNodeId) of
+        {error, Cause} ->
+            {error, Cause};
+        [] ->
+            ok;
+        Ring ->
+            case mnesia:delete_object(Table, Ring, write) of
+                ok ->
+                    bulk_delete_1(Table, Rest);
+                _ ->
+                    mnesia:abort("Not removed")
+            end
+    end.
+
+
+%% @doc Retrieve a first record from the table
+%%
+first({?DB_MNESIA, Table}) ->
     mnesia:ets(fun ets:first/1, [Table]);
-first({ets, Table}) ->
+first({?DB_ETS, Table}) ->
     ets:first(Table).
 
-%% @doc Retrieve a last record from the table.
+
+%% @doc Retrieve a last record from the table
 %%
-last({mnesia, Table}) ->
+last({?DB_MNESIA, Table}) ->
     mnesia:ets(fun ets:last/1, [Table]);
-last({ets, Table}) ->
+last({?DB_ETS, Table}) ->
     ets:last(Table).
 
-%% @doc Retrieve a previous record from the table.
+
+%% @doc Retrieve a previous record from the table
 %%
-prev({mnesia, Table}, VNodeId) ->
+prev({?DB_MNESIA, Table}, VNodeId) ->
     mnesia:ets(fun ets:prev/2, [Table, VNodeId]);
-prev({ets, Table}, VNodeId) ->
+prev({?DB_ETS, Table}, VNodeId) ->
     ets:prev(Table, VNodeId).
 
-%% @doc Retrieve a next record from the table.
+
+%% @doc Retrieve a next record from the table
 %%
-next({mnesia, Table}, VNodeId) ->
+next({?DB_MNESIA, Table}, VNodeId) ->
     mnesia:ets(fun ets:next/2, [Table, VNodeId]);
-next({ets, Table}, VNodeId) ->
+next({?DB_ETS, Table}, VNodeId) ->
     ets:next(Table, VNodeId).
 
 
-%% @doc Remove all objects from the table.
+%% @doc Remove all objects from the table
 %%
-delete_all({mnesia, Table}) ->
+delete_all({?DB_MNESIA, Table}) ->
     case mnesia:ets(fun ets:delete_all_objects/1, [Table]) of
         true ->
             ok;
         Error ->
             Error
     end;
-delete_all({ets, Table}) ->
+delete_all({?DB_ETS, Table}) ->
     case ets:delete_all_objects(Table) of
         true ->
             ok;
@@ -193,17 +294,17 @@ delete_all({ets, Table}) ->
     end.
 
 
-%% @doc Retrieve total of records.
+%% @doc Retrieve total of records
 %%
-size({mnesia, Table}) ->
+size({?DB_MNESIA, Table}) ->
     mnesia:ets(fun ets:info/2, [Table, size]);
-size({ets, Table}) ->
+size({?DB_ETS, Table}) ->
     ets:info(Table, size).
 
 
-%% @doc Retrieve list from the table.
+%% @doc Retrieve list from the table
 %%
-tab2list({mnesia, Table}) ->
+tab2list({?DB_MNESIA, Table}) ->
     case mnesia:ets(fun ets:tab2list/1, [Table]) of
         [] ->
             [];
@@ -216,5 +317,69 @@ tab2list({mnesia, Table}) ->
         Error ->
             Error
     end;
-tab2list({ets, Table}) ->
+tab2list({?DB_ETS, Table}) ->
     ets:tab2list(Table).
+
+
+%% @doc Overwrite current records by source records
+%%
+-spec(overwrite({mnesia|ets, ring_table()}, {mnesia|ets, ring_table()}) ->
+             ok | {error, any()}).
+overwrite(SrcTableInfo, DestTableInfo) ->
+    case ?MODULE:tab2list(SrcTableInfo) of
+        {error, Cause} ->
+            {error, Cause};
+        [] ->
+            delete_all(DestTableInfo);
+        List ->
+            Ret = case ?MODULE:tab2list(DestTableInfo) of
+                      {error, Reason} ->
+                          {error, Reason};
+                      [] ->
+                          ok;
+                      _ ->
+                          delete_all(DestTableInfo)
+                  end,
+
+            case  Ret of
+                ok ->
+                    overwrite_1(DestTableInfo, List);
+                Error ->
+                    Error
+            end
+    end.
+
+
+%% @private
+overwrite_1({?DB_MNESIA,_} = TableInfo, List) ->
+    case mnesia:transaction(
+           fun() ->
+                   overwrite_2(TableInfo, List)
+           end) of
+        {atomic, ok} ->
+            ok;
+        {aborted, Reason} ->
+            {error, Reason}
+    end;
+overwrite_1({?DB_ETS,_} = TableInfo, List) ->
+    overwrite_2(TableInfo, List).
+
+%% @private
+overwrite_2(_,[]) ->
+    ok;
+overwrite_2({?DB_MNESIA, Table} = TableInfo, [{VNodeId, Node, Clock}|Rest]) ->
+    case mnesia:write(Table, #?RING{vnode_id = VNodeId,
+                                    node     = Node,
+                                    clock    = Clock}, write) of
+        ok ->
+            overwrite_2(TableInfo, Rest);
+        _ ->
+            mnesia:abort("Not inserted")
+    end;
+overwrite_2({?DB_ETS,_} = TableInfo, [Ring|Rest]) ->
+    case insert(TableInfo, Ring) of
+        ok ->
+            overwrite_2(TableInfo, Rest);
+        Error ->
+            Error
+    end.
