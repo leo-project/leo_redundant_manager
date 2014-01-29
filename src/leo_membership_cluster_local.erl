@@ -204,12 +204,10 @@ maybe_heartbeat(#state{type         = ServerType,
                     catch exec(ServerType, Managers);
                 ?SERVER_STORAGE ->
                     case leo_redundant_manager_api:get_member_by_node(erlang:node()) of
-                        {ok, #member{state = ?STATE_ATTACHED}}  -> void;
-                        {ok, #member{state = ?STATE_SUSPEND}}   -> void;
-                        {ok, #member{state = ?STATE_DETACHED}}  -> void;
-                        {ok, #member{state = ?STATE_RESTARTED}} -> void;
+                        {ok, #member{state = ?STATE_RUNNING}}  ->
+                            catch exec(ServerType, Managers);
                         _ ->
-                            catch exec(ServerType, Managers)
+                            void
                     end
             end,
 
@@ -234,13 +232,12 @@ exec(?SERVER_MANAGER = ServerType, Managers) ->
     ClusterNodes =
         case leo_redundant_manager_tbl_member:find_all() of
             {ok, Members} ->
-                lists:map(fun(#member{node = Node, state = State}) ->
-                                  {storage, Node ,State}
-                          end, Members);
+                [{Node, State} || #member{node  = Node,
+                                          state = State} <- Members];
             _ ->
                 []
         end,
-    exec1(ServerType, Managers, ClusterNodes);
+    exec_1(ServerType, Managers, ClusterNodes);
 
 %% @doc Execute for gateway and storage nodes.
 %% @private
@@ -251,11 +248,9 @@ exec(ServerType, Managers) ->
 
     case leo_redundant_manager_api:get_redundancies_by_addr_id(AddrId) of
         {ok, #redundancies{nodes = Redundancies}} ->
-            Nodes = lists:map(fun(#redundant_node{node = Node,
-                                                  available = State}) ->
-                                      {storage, Node, State}
-                              end, Redundancies),
-            exec1(ServerType, Managers, Nodes);
+            Nodes = [{Node, State} || #redundant_node{node = Node,
+                                                      available = State} <- Redundancies],
+            exec_1(ServerType, Managers, Nodes);
         _Other ->
             void
     end.
@@ -263,25 +258,22 @@ exec(ServerType, Managers) ->
 
 %% @doc Execute for manager-nodes.
 %% @private
--spec(exec1(?SERVER_MANAGER | ?SERVER_STORAGE | ?SERVER_GATEWAY, list(), list()) ->
+-spec(exec_1(?SERVER_MANAGER | ?SERVER_STORAGE | ?SERVER_GATEWAY, list(), list()) ->
              ok | {error, any()}).
-exec1(_,_,[]) ->
+exec_1(_,_,[]) ->
     ok;
-
-exec1(?SERVER_MANAGER = ServerType, Managers, [{_, Node,_State}|T]) ->
-    case leo_redundant_manager_api:get_member_by_node(Node) of
-        {ok, #member{state = ?STATE_ATTACHED}}  -> void;
-        {ok, #member{state = ?STATE_SUSPEND}}   -> void;
-        {ok, #member{state = ?STATE_DETACHED}}  -> void;
-        {ok, #member{state = ?STATE_RESTARTED}} -> void;
+exec_1(?SERVER_MANAGER = ServerType, Managers, [{Node, State}|T]) ->
+    case State of
+        ?STATE_RUNNING ->
+            _ = compare_manager_with_remote_chksum(Node, Managers);
         _ ->
-            _ = compare_manager_with_remote_chksum(Node, Managers)
+            void
     end,
-    exec1(ServerType, Managers, T);
+    exec_1(ServerType, Managers, T);
 
 %% @doc Execute for gateway-nodes and storage-nodes.
 %% @private
-exec1(ServerType, Managers, [{_, Node, State}|T]) ->
+exec_1(ServerType, Managers, [{Node, State}|T]) ->
     case (erlang:node() == Node) of
         true ->
             void;
@@ -289,10 +281,10 @@ exec1(ServerType, Managers, [{_, Node, State}|T]) ->
             Ret = compare_with_remote_chksum(Node),
             _ = inspect_result(Ret, [ServerType, Managers, Node, State])
     end,
-    exec1(ServerType, Managers, T);
+    exec_1(ServerType, Managers, T);
 
-exec1(ServerType, Managers, [_|T]) ->
-    exec1(ServerType, Managers, T).
+exec_1(ServerType, Managers, [_|T]) ->
+    exec_1(ServerType, Managers, T).
 
 
 %% @doc Inspect result value
