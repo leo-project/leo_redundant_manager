@@ -33,7 +33,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %% API
--export([start_link/2,
+-export([start_link/2, start_link/3,
          stop/0]).
 -export([start_heartbeat/0,
          stop_heartbeat/0,
@@ -55,7 +55,8 @@
                 enable   = false :: boolean(),
                 managers = []    :: list(),
                 partner_manager  :: list(),
-                proc_auditor     :: atom()
+                proc_auditor     :: atom(),
+                callback         :: function()
                }).
 
 -ifdef(TEST).
@@ -75,9 +76,12 @@
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 start_link(ServerType, Managers) ->
+    start_link(ServerType, Managers, undefined).
+
+start_link(ServerType, Managers, Callback) ->
     ok = application:set_env(?APP, ?PROP_MANAGERS, Managers),
     gen_server:start_link({local, ?MODULE}, ?MODULE,
-                          [ServerType, Managers, ?DEF_MEMBERSHIP_INTERVAL], []).
+                          [ServerType, Managers, Callback, ?DEF_MEMBERSHIP_INTERVAL], []).
 
 stop() ->
     gen_server:call(?MODULE, stop, 30000).
@@ -113,15 +117,17 @@ update_manager_nodes(Managers) ->
 %%                         ignore               |
 %%                         {stop, Reason}
 %% Description: Initiates the server
-init([?SERVER_MANAGER = ServerType, [Partner|_] = Managers, Interval]) ->
+init([?SERVER_MANAGER = ServerType, [Partner|_] = Managers, Callback, Interval]) ->
     defer_heartbeat(Interval),
     {ok, #state{type      = ServerType,
                 interval  = Interval,
                 timestamp = 0,
                 partner_manager = Partner,
-                managers  = Managers}};
+                managers  = Managers,
+                callback  = Callback
+               }};
 
-init([ServerType, Managers, Interval]) ->
+init([ServerType, Managers,_Callback, Interval]) ->
     defer_heartbeat(Interval),
     {ok, #state{type      = ServerType,
                 interval  = Interval,
@@ -190,7 +196,9 @@ maybe_heartbeat(#state{type         = ServerType,
                        timestamp    = Timestamp,
                        enable       = true,
                        managers     = Managers,
-                       proc_auditor = ProcAuditor} = State) ->
+                       proc_auditor = ProcAuditor,
+                       callback     = Callback
+                      } = State) ->
     ThisTime = leo_date:now() * 1000,
     State_1 = State#state{timestamp = ThisTime},
 
@@ -201,13 +209,13 @@ maybe_heartbeat(#state{type         = ServerType,
             case ServerType of
                 ?SERVER_GATEWAY ->
                     catch ProcAuditor:register_in_monitor(again),
-                    catch exec(ServerType, Managers);
+                    catch exec(ServerType, Managers, Callback);
                 ?SERVER_MANAGER ->
-                    catch exec(ServerType, Managers);
+                    catch exec(ServerType, Managers, Callback);
                 ?SERVER_STORAGE ->
                     case leo_redundant_manager_api:get_member_by_node(erlang:node()) of
                         {ok, #member{state = ?STATE_RUNNING}}  ->
-                            catch exec(ServerType, Managers);
+                            catch exec(ServerType, Managers, Callback);
                         _ ->
                             void
                     end
@@ -228,9 +236,9 @@ defer_heartbeat(Time) ->
 
 %% @doc Execute for manager-nodes.
 %% @private
--spec(exec(?SERVER_MANAGER | ?SERVER_STORAGE | ?SERVER_GATEWAY, list()) ->
+-spec(exec(?SERVER_MANAGER | ?SERVER_STORAGE | ?SERVER_GATEWAY, list(), function()) ->
              ok | {error, any()}).
-exec(?SERVER_MANAGER = ServerType, Managers) ->
+exec(?SERVER_MANAGER = ServerType, Managers, Callback) ->
     ClusterNodes =
         case leo_redundant_manager_tbl_member:find_all() of
             {ok, Members} ->
@@ -239,11 +247,11 @@ exec(?SERVER_MANAGER = ServerType, Managers) ->
             _ ->
                 []
         end,
-    exec_1(ServerType, Managers, ClusterNodes);
+    exec_1(ServerType, Managers, ClusterNodes, Callback);
 
 %% @doc Execute for gateway and storage nodes.
 %% @private
-exec(ServerType, Managers) ->
+exec(ServerType, Managers, Callback) ->
     {ok, Options} = leo_redundant_manager_api:get_options(),
     BitOfRing     = leo_misc:get_value('bit_of_ring', Options),
     AddrId        = random:uniform(leo_math:power(2, BitOfRing)),
@@ -252,7 +260,7 @@ exec(ServerType, Managers) ->
         {ok, #redundancies{nodes = Redundancies}} ->
             Nodes = [{Node, State} || #redundant_node{node = Node,
                                                       available = State} <- Redundancies],
-            exec_1(ServerType, Managers, Nodes);
+            exec_1(ServerType, Managers, Nodes, Callback);
         _Other ->
             void
     end.
@@ -260,22 +268,30 @@ exec(ServerType, Managers) ->
 
 %% @doc Execute for manager-nodes.
 %% @private
--spec(exec_1(?SERVER_MANAGER | ?SERVER_STORAGE | ?SERVER_GATEWAY, list(), list()) ->
+-spec(exec_1(?SERVER_MANAGER | ?SERVER_STORAGE | ?SERVER_GATEWAY, list(), list(), function()) ->
              ok | {error, any()}).
-exec_1(_,_,[]) ->
+exec_1(_,_,[],_) ->
     ok;
-exec_1(?SERVER_MANAGER = ServerType, Managers, [{Node, State}|T]) ->
+exec_1(?SERVER_MANAGER = ServerType, Managers, [{Node, State}|T], Callback) ->
     case State of
         ?STATE_RUNNING ->
+            case is_function(Callback) of
+                true ->
+                    ?debugVal(Callback),
+                    catch Callback(Node);
+                false ->
+                    void
+            end,
             _ = compare_manager_with_remote_chksum(Node, Managers);
         _ ->
             void
     end,
-    exec_1(ServerType, Managers, T);
+    exec_1(ServerType, Managers, T, Callback);
 
 %% @doc Execute for gateway-nodes and storage-nodes.
+%%      Storage and Gateway does not use the parameter of "callback"
 %% @private
-exec_1(ServerType, Managers, [{Node, State}|T]) ->
+exec_1(ServerType, Managers, [{Node, State}|T], Callback) ->
     case (erlang:node() == Node) of
         true ->
             void;
@@ -283,10 +299,10 @@ exec_1(ServerType, Managers, [{Node, State}|T]) ->
             Ret = compare_with_remote_chksum(Node),
             _ = inspect_result(Ret, [ServerType, Managers, Node, State])
     end,
-    exec_1(ServerType, Managers, T);
+    exec_1(ServerType, Managers, T, Callback);
 
-exec_1(ServerType, Managers, [_|T]) ->
-    exec_1(ServerType, Managers, T).
+exec_1(ServerType, Managers, [_|T], Callback) ->
+    exec_1(ServerType, Managers, T, Callback).
 
 
 %% @doc Inspect result value
