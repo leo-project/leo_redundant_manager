@@ -192,9 +192,11 @@ maybe_heartbeat(#state{type         = ServerType,
                        managers     = Managers,
                        proc_auditor = ProcAuditor} = State) ->
     ThisTime = leo_date:now() * 1000,
+    State_1 = State#state{timestamp = ThisTime},
+
     case ((ThisTime - Timestamp) < Interval) of
         true ->
-            State;
+            void;
         false ->
             case ServerType of
                 ?SERVER_GATEWAY ->
@@ -209,11 +211,11 @@ maybe_heartbeat(#state{type         = ServerType,
                         _ ->
                             void
                     end
-            end,
+            end
+    end,
 
-            defer_heartbeat(Interval),
-            State#state{timestamp = ThisTime}
-    end.
+    defer_heartbeat(Interval),
+    State_1.
 
 
 %% @doc Heartbeat
