@@ -204,6 +204,7 @@ maybe_heartbeat(#state{type         = ServerType,
                     catch exec(ServerType, Managers);
                 ?SERVER_STORAGE ->
                     case leo_redundant_manager_api:get_member_by_node(erlang:node()) of
+                        {ok, #member{state = ?STATE_ATTACHED}}  -> void;
                         {ok, #member{state = ?STATE_SUSPEND}}   -> void;
                         {ok, #member{state = ?STATE_DETACHED}}  -> void;
                         {ok, #member{state = ?STATE_RESTARTED}} -> void;
@@ -269,6 +270,7 @@ exec1(_,_,[]) ->
 
 exec1(?SERVER_MANAGER = ServerType, Managers, [{_, Node,_State}|T]) ->
     case leo_redundant_manager_api:get_member_by_node(Node) of
+        {ok, #member{state = ?STATE_ATTACHED}}  -> void;
         {ok, #member{state = ?STATE_SUSPEND}}   -> void;
         {ok, #member{state = ?STATE_DETACHED}}  -> void;
         {ok, #member{state = ?STATE_RESTARTED}} -> void;
