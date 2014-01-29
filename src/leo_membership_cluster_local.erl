@@ -62,10 +62,13 @@
 -ifdef(TEST).
 -define(CURRENT_TIME,            65432100000).
 -define(DEF_MEMBERSHIP_INTERVAL, 1000).
+-define(DEF_MAX_INTERVAL,         100).
 -define(DEF_TIMEOUT,             1000).
+
 -else.
 -define(CURRENT_TIME,            leo_date:now()).
 -define(DEF_MEMBERSHIP_INTERVAL, 10000).
+-define(DEF_MAX_INTERVAL,          250).
 -define(DEF_TIMEOUT,             30000).
 -endif.
 
@@ -273,6 +276,7 @@ exec(ServerType, Managers, Callback) ->
 exec_1(_,_,[],_) ->
     ok;
 exec_1(?SERVER_MANAGER = ServerType, Managers, [{Node, State}|T], Callback) ->
+    timer:sleep(erlang:phash2(leo_date:clock(), ?DEF_MAX_INTERVAL)),
     case State of
         ?STATE_RUNNING ->
             case is_function(Callback) of
