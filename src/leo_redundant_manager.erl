@@ -493,7 +493,8 @@ create_2(Ver, Members) ->
 -spec(create_2(?VER_CUR|?VER_PREV, list(), list()) ->
              ok | {ok, list()}).
 create_2(Ver,[], Acc) ->
-    create_3(Ver, Acc);
+    create_3(Ver, Acc, []);
+    %% create_3(Ver, Acc);
 create_2( Ver, [#member{state = ?STATE_DETACHED}|Rest], Acc) ->
     create_2(Ver, Rest, Acc);
 create_2( Ver, [#member{state = ?STATE_RESERVED}|Rest], Acc) ->
@@ -517,17 +518,18 @@ create_2( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
     end.
 
 %% @private
--spec(create_3(?VER_CUR|?VER_PREV, list()) ->
-             ok | {ok, list()}).
-create_3(_, []) ->
-    ok;
-create_3(Ver, [Member|Rest]) ->
+%% -spec(create_3(?VER_CUR|?VER_PREV, list(), list()) ->
+%%              ok | {ok, list()}).
+create_3(Ver, [], Acc) ->
+    TblInfo = leo_redundant_manager_api:table_info(Ver),
+    leo_redundant_manager_chash:add_from_list(TblInfo, Acc);
+create_3(Ver, [Member|Rest], Acc) ->
     TblInfo = leo_redundant_manager_api:table_info(Ver),
     case set_alias(TblInfo, Member) of
         {ok, Member_1} ->
             case attach_2(TblInfo, Member_1) of
                 ok ->
-                    create_3(Ver, Rest);
+                    create_3(Ver, Rest, [Member_1|Acc]);
                 Error ->
                     Error
             end;
@@ -565,26 +567,20 @@ set_alias(_,Member) ->
 attach_1(TblInfo, Member) ->
     case set_alias(TblInfo, Member) of
         {ok, Member_1} ->
-            attach_2(TblInfo, Member_1);
+            case attach_2(TblInfo, Member_1) of
+                ok ->
+                    leo_redundant_manager_chash:add(TblInfo, Member_1);
+                Error ->
+                    Error
+            end;
         Error ->
             Error
     end.
 
 %% @private
-attach_2(TblInfo, #member{node  = Node,
-                          clock = Clock} = Member) ->
+attach_2(TblInfo, #member{node  = Node} = Member) ->
     case leo_redundant_manager_tbl_member:insert(
-           ?ring_table_to_member_table(TblInfo),
-           {Node, Member#member{clock = Clock}}) of
-        ok ->
-            attach_3(TblInfo, Member);
-        Error ->
-            Error
-    end.
-
-%% @private
-attach_3(TblInfo, Member) ->
-    case leo_redundant_manager_chash:add(TblInfo, Member) of
+           ?ring_table_to_member_table(TblInfo), {Node, Member}) of
         ok ->
             ok;
         Error ->

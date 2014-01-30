@@ -53,8 +53,15 @@ setup() ->
     leo_redundant_manager_api:attach('node_2@127.0.0.1'),
     leo_redundant_manager_api:attach('node_3@127.0.0.1'),
     leo_redundant_manager_api:attach('node_4@127.0.0.1'),
+
     leo_redundant_manager_api:create(?VER_CUR),
     leo_redundant_manager_api:create(?VER_PREV),
+
+    CurRows_2  = leo_redundant_manager_tbl_ring:tab2list({?DB_ETS, 'leo_ring_cur'}),
+    PrevRows_2 = leo_redundant_manager_tbl_ring:tab2list({?DB_ETS, 'leo_ring_cur'}),
+    ?assertEqual((?DEF_NUMBER_OF_VNODES * 5), length(CurRows_2)),
+    ?assertEqual((?DEF_NUMBER_OF_VNODES * 5), length(PrevRows_2)),
+
     timer:sleep(1000),
     Pid.
 

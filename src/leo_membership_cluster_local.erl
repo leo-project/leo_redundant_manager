@@ -62,13 +62,15 @@
 -ifdef(TEST).
 -define(CURRENT_TIME,            65432100000).
 -define(DEF_MEMBERSHIP_INTERVAL, 1000).
+-define(DEF_MIN_INTERVAL,         100).
 -define(DEF_MAX_INTERVAL,         100).
 -define(DEF_TIMEOUT,             1000).
 
 -else.
 -define(CURRENT_TIME,            leo_date:now()).
--define(DEF_MEMBERSHIP_INTERVAL, 10000).
--define(DEF_MAX_INTERVAL,          250).
+-define(DEF_MEMBERSHIP_INTERVAL, 20000).
+-define(DEF_MIN_INTERVAL,          100).
+-define(DEF_MAX_INTERVAL,          300).
 -define(DEF_TIMEOUT,             30000).
 -endif.
 
@@ -203,7 +205,6 @@ maybe_heartbeat(#state{type         = ServerType,
                        callback     = Callback
                       } = State) ->
     ThisTime = leo_date:now() * 1000,
-    State_1 = State#state{timestamp = ThisTime},
 
     case ((ThisTime - Timestamp) < Interval) of
         true ->
@@ -226,7 +227,7 @@ maybe_heartbeat(#state{type         = ServerType,
     end,
 
     defer_heartbeat(Interval),
-    State_1.
+    State#state{timestamp = leo_date:now() * 1000}.
 
 
 %% @doc Heartbeat
@@ -276,12 +277,17 @@ exec(ServerType, Managers, Callback) ->
 exec_1(_,_,[],_) ->
     ok;
 exec_1(?SERVER_MANAGER = ServerType, Managers, [{Node, State}|T], Callback) ->
-    timer:sleep(erlang:phash2(leo_date:clock(), ?DEF_MAX_INTERVAL)),
+    SleepTime = erlang:phash2(leo_date:clock(), ?DEF_MAX_INTERVAL),
+    SleepTime_1 = case SleepTime < ?DEF_MIN_INTERVAL of
+                      true  -> ?DEF_MIN_INTERVAL;
+                      false -> SleepTime
+                  end,
+    timer:sleep(SleepTime_1),
+
     case State of
         ?STATE_RUNNING ->
             case is_function(Callback) of
                 true ->
-                    ?debugVal(Callback),
                     catch Callback(Node);
                 false ->
                     void

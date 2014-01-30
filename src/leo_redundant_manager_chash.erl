@@ -30,7 +30,8 @@
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([add/2, remove/2,
+-export([add/2, add_from_list/2,
+         remove/2, remove_from_list/2,
          redundancies/3, range_of_vnodes/2, rebalance/1,
          checksum/1, vnode_id/1, vnode_id/2]).
 -export([export/2]).
@@ -46,16 +47,30 @@
 -spec(add(atom(), #member{}) ->
              ok).
 add(Table, Member) ->
-    add(0, Table, Member, []).
+    {ok, List} = add_1(0, Member, []),
+    leo_redundant_manager_tbl_ring:bulk_insert(Table, List).
 
 %% @private
-add(N, Table, #member{num_of_vnodes = N}, Acc) ->
-    leo_redundant_manager_tbl_ring:bulk_insert(Table, Acc);
-add(N, Table, #member{alias = Alias,
-                      node  = Node,
-                      clock = Clock} = Member, Acc) ->
+add_1(N, #member{num_of_vnodes = N}, Acc) ->
+    {ok, Acc};
+add_1(N, #member{alias = Alias,
+                 node  = Node,
+                 clock = Clock} = Member, Acc) ->
     VNodeId = vnode_id(?gen_child_name(Alias, N)),
-    add(N + 1, Table, Member, [{VNodeId, Node, Clock}|Acc]).
+    add_1(N + 1, Member, [{VNodeId, Node, Clock}|Acc]).
+
+
+%% @doc Insert recods from the list
+add_from_list(Table, Members) ->
+    {ok, List} = add_from_list_1(Members, []),
+    leo_redundant_manager_tbl_ring:bulk_insert(Table, List).
+
+%% @private
+add_from_list_1([], Acc) ->
+    {ok, Acc};
+add_from_list_1([Member|Rest], Acc) ->
+    {ok, Acc_1} = add_1(0, Member, Acc),
+    add_from_list_1(Rest, Acc_1).
 
 
 %% @doc Remove a node.
@@ -63,14 +78,28 @@ add(N, Table, #member{alias = Alias,
 -spec(remove(atom, #member{}) ->
              ok).
 remove(Table, Member) ->
-    remove(0, Table, Member, []).
+    {ok, List} = remove_1(0, Member, []),
+    leo_redundant_manager_tbl_ring:bulk_delete(Table, List).
 
 %% @private
-remove(N, Table, #member{num_of_vnodes = N}, Acc) ->
-    leo_redundant_manager_tbl_ring:bulk_delete(Table, Acc);
-remove(N, Table, #member{alias = Alias} = Member, Acc) ->
+remove_1(N, #member{num_of_vnodes = N}, Acc) ->
+    {ok, Acc};
+remove_1(N, #member{alias = Alias} = Member, Acc) ->
     VNodeId = vnode_id(?gen_child_name(Alias, N)),
-    remove(N + 1, Table, Member, [VNodeId|Acc]).
+    remove_1(N + 1, Member, [VNodeId|Acc]).
+
+
+%% @doc Remove recods from the list
+remove_from_list(Table, Members) ->
+    {ok, List} = remove_from_list_1(Members, []),
+    leo_redundant_manager_tbl_ring:bulk_delete(Table, List).
+
+%% @private
+remove_from_list_1([], Acc) ->
+    {ok, Acc};
+remove_from_list_1([Member|Rest], Acc) ->
+    {ok, Acc_1} = remove_1(0, Member, Acc),
+    remove_from_list_1(Rest, Acc_1).
 
 
 %% @doc Retrieve redundancies by vnode-id.
