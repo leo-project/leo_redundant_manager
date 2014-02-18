@@ -65,9 +65,9 @@
 -define(RING_TBL_PREV,          'leo_ring_prv').
 -define(NODE_ALIAS_PREFIX,      "node_").
 
--type(ring_table_type() :: ?TYPE_RING_TABLE_ETS | ?TYPE_RING_TABLE_MNESIA).
--type(ring_table_info() :: {ring_table_type(), ?RING_TBL_CUR} |
-                           {ring_table_type(), ?RING_TBL_PREV}).
+-type(ring_table() :: ?TYPE_RING_TABLE_ETS | ?TYPE_RING_TABLE_MNESIA).
+-type(ring_table_info() :: {ring_table(), ?RING_TBL_CUR} |
+                           {ring_table(), ?RING_TBL_PREV}).
 
 -define(WORKER_POOL_NAME_PREFIX, "leo_redundant_manager_worker_").
 

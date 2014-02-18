@@ -92,8 +92,8 @@ migrate_ring([{VNodeId, Node, _}|Rest], RingTbl) ->
                 end,
     case leo_redundant_manager_tbl_member:find_by_name(MemberTbl, Node) of
         {ok, [#member{clock = Clock}|_]} ->
-            true = leo_redundant_manager_tbl_ring:insert(
-                     {mnesia, RingTbl}, {VNodeId, Node, Clock}),
+            ok = leo_redundant_manager_tbl_ring:insert(
+                   {mnesia, RingTbl}, {VNodeId, Node, Clock}),
             migrate_ring(Rest, RingTbl);
         not_found ->
             Cause = "Member not found - " ++ atom_to_list(Node),

@@ -68,11 +68,23 @@
 create() ->
     case create(?VER_CUR) of
         {ok, Members, HashValues} ->
-            case create(?VER_PREV) of
-                {ok,_,_} ->
+            Ret = case leo_redundant_manager_tbl_member:table_size(?MEMBER_TBL_PREV) of
+                      0 ->
+                          create_1();
+                      _ ->
+                          case create(?VER_PREV) of
+                              {ok,_,_} ->
+                                  ok;
+                              Error_1 ->
+                                  Error_1
+                          end
+                  end,
+
+            case Ret of
+                ok ->
                     {ok, Members, HashValues};
-                Error ->
-                    Error
+                Error_2 ->
+                    Error_2
             end;
         Error ->
             Error
@@ -126,6 +138,25 @@ create(Ver, [#member{node = Node} = Member|T], Options) when Ver == ?VER_CUR;
     create(Ver, T, Options);
 create(_,_,_) ->
     {error, invalid_version}.
+
+
+%% @private
+create_1() ->
+    case leo_redundant_manager_tbl_member:overwrite(
+           ?MEMBER_TBL_CUR, ?MEMBER_TBL_PREV) of
+        ok ->
+            PrevRingTbl = table_info(?VER_PREV),
+            CurRingTbl  = table_info(?VER_CUR),
+            case leo_redundant_manager_tbl_ring:overwrite(
+                   CurRingTbl, PrevRingTbl) of
+                ok ->
+                    ok;
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end.
 
 
 
@@ -506,23 +537,18 @@ rebalance() ->
 %%      3. Update previous-members from current-members
 %% @private
 before_rebalance(MembersCur) ->
-    case leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_CUR) of
-        {ok, MembersCur} ->
-            %% If "attach" and "detach" are included in members,
-            %% then update current-members
-            %% because attach-node need to take over detach-node's data.
-            case takeover_status(MembersCur, []) of
-                {ok, {MembersCur_1, TakeOverList}} ->
-                    %% Remove all previous members,
-                    %% Then insert new members from current members
-                    case leo_redundant_manager_tbl_member:delete_all(?MEMBER_TBL_PREV) of
-                        ok ->
-                            case before_rebalance_1(MembersCur_1) of
-                                {ok, MembersPrev} ->
-                                    {ok, {MembersCur_1, MembersPrev, TakeOverList}};
-                                Error ->
-                                    Error
-                            end;
+    %% If "attach" and "detach" are included in members,
+    %% then update current-members
+    %% because attach-node need to take over detach-node's data.
+    case takeover_status(MembersCur, []) of
+        {ok, {MembersCur_1, TakeOverList}} ->
+            %% Remove all previous members,
+            %% Then insert new members from current members
+            case leo_redundant_manager_tbl_member:delete_all(?MEMBER_TBL_PREV) of
+                ok ->
+                    case before_rebalance_1(MembersCur_1) of
+                        {ok, MembersPrev} ->
+                            {ok, {MembersCur_1, MembersPrev, TakeOverList}};
                         Error ->
                             Error
                     end;
@@ -554,8 +580,8 @@ takeover_status([#member{state = ?STATE_ATTACHED,
             RingTblCur = table_info(?VER_CUR),
             Member_1 = Member#member{alias = Alias_1},
 
-            ok = leo_redundant_manager_chash:remove(RingTblCur,  Member),
-            ok = leo_redundant_manager_chash:add(RingTblCur,  Member_1),
+            ok = leo_redundant_manager_chash:remove(RingTblCur, Member),
+            ok = leo_redundant_manager_chash:add(RingTblCur, Member_1),
             ok = leo_redundant_manager_tbl_member:insert(?MEMBER_TBL_CUR, {Node, Member_1}),
 
             case SrcMember of

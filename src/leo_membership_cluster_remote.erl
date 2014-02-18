@@ -55,7 +55,7 @@
 -define(DEF_TIMEOUT,             1000).
 -else.
 -define(CURRENT_TIME,            leo_date:now()).
--define(DEF_MEMBERSHIP_INTERVAL, 10000).
+-define(DEF_MEMBERSHIP_INTERVAL, 20000).
 -define(DEF_TIMEOUT,             30000).
 -endif.
 
@@ -138,7 +138,6 @@ code_change(_OldVsn, State, _Extra) ->
 maybe_heartbeat(#state{interval  = Interval,
                        timestamp = Timestamp} = State) ->
     ThisTime = leo_date:now() * 1000,
-    State_1 = State#state{timestamp = ThisTime},
 
     case ((ThisTime - Timestamp) < Interval) of
         true ->
@@ -158,7 +157,8 @@ maybe_heartbeat(#state{interval  = Interval,
     end,
 
     defer_heartbeat(Interval),
-    State_1.
+    State#state{timestamp = leo_date:now() * 1000}.
+
 
 
 %% @doc Heartbeat

@@ -33,7 +33,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %% API
--export([start_link/2,
+-export([start_link/2, start_link/3,
          stop/0]).
 -export([start_heartbeat/0,
          stop_heartbeat/0,
@@ -55,16 +55,22 @@
                 enable   = false :: boolean(),
                 managers = []    :: list(),
                 partner_manager  :: list(),
-                proc_auditor     :: atom()
+                proc_auditor     :: atom(),
+                callback         :: function()
                }).
 
 -ifdef(TEST).
 -define(CURRENT_TIME,            65432100000).
 -define(DEF_MEMBERSHIP_INTERVAL, 1000).
+-define(DEF_MIN_INTERVAL,         100).
+-define(DEF_MAX_INTERVAL,         100).
 -define(DEF_TIMEOUT,             1000).
+
 -else.
 -define(CURRENT_TIME,            leo_date:now()).
--define(DEF_MEMBERSHIP_INTERVAL, 10000).
+-define(DEF_MEMBERSHIP_INTERVAL, 20000).
+-define(DEF_MIN_INTERVAL,          100).
+-define(DEF_MAX_INTERVAL,          300).
 -define(DEF_TIMEOUT,             30000).
 -endif.
 
@@ -75,9 +81,12 @@
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 start_link(ServerType, Managers) ->
+    start_link(ServerType, Managers, undefined).
+
+start_link(ServerType, Managers, Callback) ->
     ok = application:set_env(?APP, ?PROP_MANAGERS, Managers),
     gen_server:start_link({local, ?MODULE}, ?MODULE,
-                          [ServerType, Managers, ?DEF_MEMBERSHIP_INTERVAL], []).
+                          [ServerType, Managers, Callback, ?DEF_MEMBERSHIP_INTERVAL], []).
 
 stop() ->
     gen_server:call(?MODULE, stop, 30000).
@@ -113,15 +122,17 @@ update_manager_nodes(Managers) ->
 %%                         ignore               |
 %%                         {stop, Reason}
 %% Description: Initiates the server
-init([?SERVER_MANAGER = ServerType, [Partner|_] = Managers, Interval]) ->
+init([?SERVER_MANAGER = ServerType, [Partner|_] = Managers, Callback, Interval]) ->
     defer_heartbeat(Interval),
     {ok, #state{type      = ServerType,
                 interval  = Interval,
                 timestamp = 0,
                 partner_manager = Partner,
-                managers  = Managers}};
+                managers  = Managers,
+                callback  = Callback
+               }};
 
-init([ServerType, Managers, Interval]) ->
+init([ServerType, Managers,_Callback, Interval]) ->
     defer_heartbeat(Interval),
     {ok, #state{type      = ServerType,
                 interval  = Interval,
@@ -190,31 +201,33 @@ maybe_heartbeat(#state{type         = ServerType,
                        timestamp    = Timestamp,
                        enable       = true,
                        managers     = Managers,
-                       proc_auditor = ProcAuditor} = State) ->
+                       proc_auditor = ProcAuditor,
+                       callback     = Callback
+                      } = State) ->
     ThisTime = leo_date:now() * 1000,
+
     case ((ThisTime - Timestamp) < Interval) of
         true ->
-            State;
+            void;
         false ->
             case ServerType of
                 ?SERVER_GATEWAY ->
                     catch ProcAuditor:register_in_monitor(again),
-                    catch exec(ServerType, Managers);
+                    catch exec(ServerType, Managers, Callback);
                 ?SERVER_MANAGER ->
-                    catch exec(ServerType, Managers);
+                    catch exec(ServerType, Managers, Callback);
                 ?SERVER_STORAGE ->
                     case leo_redundant_manager_api:get_member_by_node(erlang:node()) of
-                        {ok, #member{state = ?STATE_SUSPEND}}   -> void;
-                        {ok, #member{state = ?STATE_DETACHED}}  -> void;
-                        {ok, #member{state = ?STATE_RESTARTED}} -> void;
+                        {ok, #member{state = ?STATE_RUNNING}}  ->
+                            catch exec(ServerType, Managers, Callback);
                         _ ->
-                            catch exec(ServerType, Managers)
+                            void
                     end
-            end,
+            end
+    end,
 
-            defer_heartbeat(Interval),
-            State#state{timestamp = ThisTime}
-    end.
+    defer_heartbeat(Interval),
+    State#state{timestamp = leo_date:now() * 1000}.
 
 
 %% @doc Heartbeat
@@ -227,34 +240,31 @@ defer_heartbeat(Time) ->
 
 %% @doc Execute for manager-nodes.
 %% @private
--spec(exec(?SERVER_MANAGER | ?SERVER_STORAGE | ?SERVER_GATEWAY, list()) ->
+-spec(exec(?SERVER_MANAGER | ?SERVER_STORAGE | ?SERVER_GATEWAY, list(), function()) ->
              ok | {error, any()}).
-exec(?SERVER_MANAGER = ServerType, Managers) ->
+exec(?SERVER_MANAGER = ServerType, Managers, Callback) ->
     ClusterNodes =
         case leo_redundant_manager_tbl_member:find_all() of
             {ok, Members} ->
-                lists:map(fun(#member{node = Node, state = State}) ->
-                                  {storage, Node ,State}
-                          end, Members);
+                [{Node, State} || #member{node  = Node,
+                                          state = State} <- Members];
             _ ->
                 []
         end,
-    exec1(ServerType, Managers, ClusterNodes);
+    exec_1(ServerType, Managers, ClusterNodes, Callback);
 
 %% @doc Execute for gateway and storage nodes.
 %% @private
-exec(ServerType, Managers) ->
+exec(ServerType, Managers, Callback) ->
     {ok, Options} = leo_redundant_manager_api:get_options(),
     BitOfRing     = leo_misc:get_value('bit_of_ring', Options),
     AddrId        = random:uniform(leo_math:power(2, BitOfRing)),
 
     case leo_redundant_manager_api:get_redundancies_by_addr_id(AddrId) of
         {ok, #redundancies{nodes = Redundancies}} ->
-            Nodes = lists:map(fun(#redundant_node{node = Node,
-                                                  available = State}) ->
-                                      {storage, Node, State}
-                              end, Redundancies),
-            exec1(ServerType, Managers, Nodes);
+            Nodes = [{Node, State} || #redundant_node{node = Node,
+                                                      available = State} <- Redundancies],
+            exec_1(ServerType, Managers, Nodes, Callback);
         _Other ->
             void
     end.
@@ -262,24 +272,36 @@ exec(ServerType, Managers) ->
 
 %% @doc Execute for manager-nodes.
 %% @private
--spec(exec1(?SERVER_MANAGER | ?SERVER_STORAGE | ?SERVER_GATEWAY, list(), list()) ->
+-spec(exec_1(?SERVER_MANAGER | ?SERVER_STORAGE | ?SERVER_GATEWAY, list(), list(), function()) ->
              ok | {error, any()}).
-exec1(_,_,[]) ->
+exec_1(_,_,[],_) ->
     ok;
+exec_1(?SERVER_MANAGER = ServerType, Managers, [{Node, State}|T], Callback) ->
+    SleepTime = erlang:phash2(leo_date:clock(), ?DEF_MAX_INTERVAL),
+    SleepTime_1 = case SleepTime < ?DEF_MIN_INTERVAL of
+                      true  -> ?DEF_MIN_INTERVAL;
+                      false -> SleepTime
+                  end,
+    timer:sleep(SleepTime_1),
 
-exec1(?SERVER_MANAGER = ServerType, Managers, [{_, Node,_State}|T]) ->
-    case leo_redundant_manager_api:get_member_by_node(Node) of
-        {ok, #member{state = ?STATE_SUSPEND}}   -> void;
-        {ok, #member{state = ?STATE_DETACHED}}  -> void;
-        {ok, #member{state = ?STATE_RESTARTED}} -> void;
+    case State of
+        ?STATE_RUNNING ->
+            case is_function(Callback) of
+                true ->
+                    catch Callback(Node);
+                false ->
+                    void
+            end,
+            _ = compare_manager_with_remote_chksum(Node, Managers);
         _ ->
-            _ = compare_manager_with_remote_chksum(Node, Managers)
+            void
     end,
-    exec1(ServerType, Managers, T);
+    exec_1(ServerType, Managers, T, Callback);
 
 %% @doc Execute for gateway-nodes and storage-nodes.
+%%      Storage and Gateway does not use the parameter of "callback"
 %% @private
-exec1(ServerType, Managers, [{_, Node, State}|T]) ->
+exec_1(ServerType, Managers, [{Node, State}|T], Callback) ->
     case (erlang:node() == Node) of
         true ->
             void;
@@ -287,10 +309,10 @@ exec1(ServerType, Managers, [{_, Node, State}|T]) ->
             Ret = compare_with_remote_chksum(Node),
             _ = inspect_result(Ret, [ServerType, Managers, Node, State])
     end,
-    exec1(ServerType, Managers, T);
+    exec_1(ServerType, Managers, T, Callback);
 
-exec1(ServerType, Managers, [_|T]) ->
-    exec1(ServerType, Managers, T).
+exec_1(ServerType, Managers, [_|T], Callback) ->
+    exec_1(ServerType, Managers, T, Callback).
 
 
 %% @doc Inspect result value

@@ -92,6 +92,11 @@ attach_1_({Hostname}) ->
     ok = prepare(Hostname, gateway),
     {ok, _, _} = leo_redundant_manager_api:create(?VER_CUR),
     {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
+
+    {ok, {Chksum0, Chksum1}} = leo_redundant_manager_api:checksum(?CHECKSUM_RING),
+    ?assertEqual(true, (Chksum0 > -1)),
+    ?assertEqual(true, (Chksum1 > -1)),
+
     Size_1 = leo_redundant_manager_tbl_ring:size({ets, ?RING_TBL_CUR}),
     ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), Size_1),
     timer:sleep(100),

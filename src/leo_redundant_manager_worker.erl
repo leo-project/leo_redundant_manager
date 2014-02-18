@@ -47,12 +47,13 @@
 -define(DEF_SYNC_MIN_INTERVAL,  10).
 -define(DEF_SYNC_MAX_INTERVAL,  50).
 -define(DEF_TIMEOUT,          3000).
+-define(DEF_TIMEOUT_LONG,     3000).
 -else.
 -define(CURRENT_TIME, leo_date:now()).
 -define(DEF_SYNC_MIN_INTERVAL,  250).
 -define(DEF_SYNC_MAX_INTERVAL, 1500).
-
--define(DEF_TIMEOUT, 3000).
+-define(DEF_TIMEOUT,          30000).
+-define(DEF_TIMEOUT_LONG,  infinity).
 -endif.
 
 -define(DEF_NUM_OF_DIV, 32).
@@ -119,7 +120,7 @@ last(ServerRef, Table) ->
 -spec(force_sync(atom(), atom()) ->
              {ok, #redundancies{}} | not_found).
 force_sync(ServerRef, Table) ->
-    gen_server:call(ServerRef, {force_sync, Table}, ?DEF_TIMEOUT).
+    gen_server:call(ServerRef, {force_sync, Table}, ?DEF_TIMEOUT_LONG).
 
 -spec(redundancies(atom(), atom(), number(), list(#member{})) ->
              {ok, #redundancies{}} | not_found).
