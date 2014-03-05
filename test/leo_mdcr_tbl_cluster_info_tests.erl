@@ -19,7 +19,7 @@
 %% under the License.
 %%
 %%======================================================================
--module(leo_redundant_manager_tbl_cluster_info_tests).
+-module(leo_mdcr_tbl_cluster_info_tests).
 -author('Yosuke Hara').
 
 -include("leo_redundant_manager.hrl").
@@ -72,31 +72,31 @@ teardown(_) ->
 
 suite_(_) ->
     application:start(mnesia),
-    {atomic,ok} = leo_redundant_manager_tbl_cluster_info:create_table(ram_copies, [node()]),
+    {atomic,ok} = leo_mdcr_tbl_cluster_info:create_table(ram_copies, [node()]),
 
-    Res1 = leo_redundant_manager_tbl_cluster_info:all(),
+    Res1 = leo_mdcr_tbl_cluster_info:all(),
     ?assertEqual(not_found, Res1),
 
-    Res2 = leo_redundant_manager_tbl_cluster_info:update(?CONF_1),
-    Res3 = leo_redundant_manager_tbl_cluster_info:update(?CONF_2),
-    Res4 = leo_redundant_manager_tbl_cluster_info:update(?CONF_3),
+    Res2 = leo_mdcr_tbl_cluster_info:update(?CONF_1),
+    Res3 = leo_mdcr_tbl_cluster_info:update(?CONF_2),
+    Res4 = leo_mdcr_tbl_cluster_info:update(?CONF_3),
     ?assertEqual(ok, Res2),
     ?assertEqual(ok, Res3),
     ?assertEqual(ok, Res4),
 
-    Res5 = leo_redundant_manager_tbl_cluster_info:get("cluster_12"),
+    Res5 = leo_mdcr_tbl_cluster_info:get("cluster_12"),
     ?assertEqual({ok, ?CONF_2}, Res5),
 
-    {ok, Res6} = leo_redundant_manager_tbl_cluster_info:all(),
+    {ok, Res6} = leo_mdcr_tbl_cluster_info:all(),
     ?assertEqual(3, length(Res6)),
 
-    Res7 = leo_redundant_manager_tbl_cluster_info:delete("cluster_12"),
+    Res7 = leo_mdcr_tbl_cluster_info:delete("cluster_12"),
     ?assertEqual(ok, Res7),
 
-    Res8 = leo_redundant_manager_tbl_cluster_info:get("cluster_12"),
+    Res8 = leo_mdcr_tbl_cluster_info:get("cluster_12"),
     ?assertEqual(not_found, Res8),
 
-    {ok, Res9} = leo_redundant_manager_tbl_cluster_info:all(),
+    {ok, Res9} = leo_mdcr_tbl_cluster_info:all(),
     ?assertEqual(2, length(Res9)),
 
     application:stop(mnesia),

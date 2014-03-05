@@ -18,15 +18,9 @@
 %% specific language governing permissions and limitations
 %% under the License.
 %%
-%% ---------------------------------------------------------------------
-%% Leo Redundant Manager - ETS/Mnesia Handler
-%% @doc
-%% @end
 %%======================================================================
--module(leo_redundant_manager_tbl_cluster_stat).
-
+-module(leo_mdcr_tbl_cluster_mgr).
 -author('Yosuke Hara').
-
 
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -36,20 +30,19 @@
 -export([create_table/2,
          all/0, get/1, update/1, delete/1]).
 
+
 %% @doc Create a table of system-configutation
 %%
 create_table(Mode, Nodes) ->
     mnesia:create_table(
-      ?TBL_CLUSTER_STAT,
+      ?TBL_CLUSTER_MGR,
       [{Mode, Nodes},
        {type, set},
-       {record_name, ?CLUSTER_STAT},
-       {attributes, record_info(fields, cluster_stat)},
+       {record_name, cluster_manager},
+       {attributes, record_info(fields, cluster_manager)},
        {user_properties,
-        [{cluster_id, string,      primary},
-         {status,     atom,        false  },
-         {checksum,   pos_integer, false  },
-         {updated_at, pos_integer, false  }
+        [{node,       string, primary},
+         {cluster_id, string, false}
         ]}
       ]).
 
@@ -59,7 +52,7 @@ create_table(Mode, Nodes) ->
 -spec(all() ->
              {ok, [#system_conf{}]} | not_found | {error, any()}).
 all() ->
-    Tbl = ?TBL_CLUSTER_STAT,
+    Tbl = ?TBL_CLUSTER_MGR,
 
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
@@ -79,7 +72,7 @@ all() ->
 -spec(get(string()) ->
              {ok, #system_conf{}} | not_found | {error, any()}).
 get(ClusterId) ->
-    Tbl = ?TBL_CLUSTER_STAT,
+    Tbl = ?TBL_CLUSTER_MGR,
 
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
@@ -87,15 +80,10 @@ get(ClusterId) ->
         _ ->
             F = fun() ->
                         Q = qlc:q([X || X <- mnesia:table(Tbl),
-                                        X#?CLUSTER_STAT.cluster_id == ClusterId]),
+                                        X#cluster_manager.cluster_id == ClusterId]),
                         qlc:e(Q)
                 end,
-            case leo_mnesia:read(F) of
-                {ok, [H|_]} ->
-                    {ok, H};
-                Other ->
-                    Other
-            end
+            leo_mnesia:read(F)
     end.
 
 
@@ -103,14 +91,14 @@ get(ClusterId) ->
 %%
 -spec(update(#system_conf{}) ->
              ok | {error, any()}).
-update(ClusterStat) ->
-    Tbl = ?TBL_CLUSTER_STAT,
+update(ClusterMgr) ->
+    Tbl = ?TBL_CLUSTER_MGR,
 
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
         _ ->
-            F = fun()-> mnesia:write(Tbl, ClusterStat, write) end,
+            F = fun()-> mnesia:write(Tbl, ClusterMgr, write) end,
             leo_mnesia:write(F)
     end.
 
@@ -120,14 +108,20 @@ update(ClusterStat) ->
 -spec(delete(string()) ->
              ok | {error, any()}).
 delete(ClusterId) ->
-    Tbl = ?TBL_CLUSTER_STAT,
+    Tbl = ?TBL_CLUSTER_MGR,
 
     case ?MODULE:get(ClusterId) of
-        {ok, ClusterStat} ->
-            Fun = fun() ->
-                          mnesia:delete_object(Tbl, ClusterStat, write)
-                  end,
-            leo_mnesia:delete(Fun);
+        {ok, ClusterMgrs} ->
+            delete_1(ClusterMgrs, Tbl);
         Error ->
             Error
     end.
+
+delete_1([],_Tbl) ->
+    ok;
+delete_1([Value|Rest], Tbl) ->
+    Fun = fun() ->
+                  mnesia:delete_object(Tbl, Value, write)
+          end,
+    leo_mnesia:delete(Fun),
+    delete_1(Rest, Tbl).

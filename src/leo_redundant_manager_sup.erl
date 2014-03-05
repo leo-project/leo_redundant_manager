@@ -240,8 +240,8 @@ server_type(Type)   -> Type.
 %% @private
 -ifdef(TEST).
 init_tables(_)  ->
-    catch leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_CUR),
-    catch leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_PREV),
+    catch leo_cluster_tbl_member:create_table(?MEMBER_TBL_CUR),
+    catch leo_cluster_tbl_member:create_table(?MEMBER_TBL_PREV),
     catch ets:new(?RING_TBL_CUR, [named_table, ordered_set, public, {read_concurrency, true}]),
     catch ets:new(?RING_TBL_PREV,[named_table, ordered_set, public, {read_concurrency, true}]),
     ok.
@@ -250,8 +250,8 @@ init_tables(manager) -> ok;
 init_tables(master)  -> ok;
 init_tables(slave)   -> ok;
 init_tables(_Other)  ->
-    catch leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_CUR),
-    catch leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_PREV),
+    catch leo_cluster_tbl_member:create_table(?MEMBER_TBL_CUR),
+    catch leo_cluster_tbl_member:create_table(?MEMBER_TBL_PREV),
     catch ets:new(?RING_TBL_CUR, [named_table, ordered_set, public, {read_concurrency, true}]),
     catch ets:new(?RING_TBL_PREV,[named_table, ordered_set, public, {read_concurrency, true}]),
     ok.

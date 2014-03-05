@@ -244,7 +244,7 @@ defer_heartbeat(Time) ->
              ok | {error, any()}).
 exec(?SERVER_MANAGER = ServerType, Managers, Callback) ->
     ClusterNodes =
-        case leo_redundant_manager_tbl_member:find_all() of
+        case leo_cluster_tbl_member:find_all() of
             {ok, Members} ->
                 [{Node, State} || #member{node  = Node,
                                           state = State} <- Members];

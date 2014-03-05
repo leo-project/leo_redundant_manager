@@ -295,9 +295,9 @@ maybe_sync(#state{cur  = #ring_info{checksum = CurHash},
 -spec(maybe_sync_1(#state{}, {pos_integer(), pos_integer()}, {pos_integer(), pos_integer()}) ->
              #state{}).
 maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
-    case leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_CUR) of
+    case leo_cluster_tbl_member:find_all(?MEMBER_TBL_CUR) of
         {ok, MembersCur} ->
-            case leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_PREV) of
+            case leo_cluster_tbl_member:find_all(?MEMBER_TBL_PREV) of
                 {ok, MembersPrev} ->
                     CurSyncInfo  = #sync_info{target = ?SYNC_TARGET_RING_CUR,
                                               org_checksum = R1,
@@ -497,7 +497,7 @@ redundancies(_,_,NumOfReplicas,_,_) when NumOfReplicas < ?DEF_MIN_REPLICAS;
 redundancies(_,_,NumOfReplicas, L2,_) when (NumOfReplicas - L2) < 1 ->
     {error, invalid_level2};
 redundancies(Table, VNodeId_0, NumOfReplicas, L2, Members) ->
-    case leo_redundant_manager_tbl_ring:lookup(Table, VNodeId_0) of
+    case leo_cluster_tbl_ring:lookup(Table, VNodeId_0) of
         {error, Cause} ->
             {error, Cause};
         [] ->
@@ -515,7 +515,7 @@ redundancies(Table, VNodeId_0, NumOfReplicas, L2, Members) ->
 
 %% @private
 redundancies_1(Table, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members) ->
-    case leo_redundant_manager_tbl_ring:lookup(Table, VNodeId_Hop) of
+    case leo_cluster_tbl_ring:lookup(Table, VNodeId_Hop) of
         {error, Cause} ->
             {error, Cause};
         [] ->
@@ -555,7 +555,7 @@ redundancies_2(_Table,0,_L2,_Members,_VNodeId, #redundancies{nodes = Acc} = R) -
 redundancies_2(Table, NumOfReplicas, L2, Members, VNodeId_0, R) ->
     case get_node_by_vnodeid(Table, VNodeId_0) of
         {ok, VNodeId_1} ->
-            case leo_redundant_manager_tbl_ring:lookup(Table, VNodeId_1) of
+            case leo_cluster_tbl_ring:lookup(Table, VNodeId_1) of
                 {error, Cause} ->
                     {error, Cause};
                 [] ->
@@ -604,9 +604,9 @@ redundancies_3(Table, NumOfReplicas, L2, Members, VNodeId, Node_1, R) ->
 -spec(get_node_by_vnodeid({ets|mnesia, ?RING_TBL_CUR|?RING_TBL_PREV}, pos_integer()) ->
              {ok, pos_integer()} | {error, no_entry}).
 get_node_by_vnodeid(Table, VNodeId) ->
-    case leo_redundant_manager_tbl_ring:next(Table, VNodeId) of
+    case leo_cluster_tbl_ring:next(Table, VNodeId) of
         '$end_of_table' ->
-            case leo_redundant_manager_tbl_ring:first(Table) of
+            case leo_cluster_tbl_ring:first(Table) of
                 '$end_of_table' ->
                     {error, no_entry};
                 Node ->
@@ -654,7 +654,7 @@ reply_redundancies_1(Redundancies, AddrId, [],_NumOfReplicas,_Index,Acc) ->
 
 reply_redundancies_1(Redundancies, AddrId, [#redundant_node{node = Node}|Rest], NumOfReplicas, Index, Acc) ->
     NextIndex = Index + 1,
-    case leo_redundant_manager_tbl_member:lookup(Node) of
+    case leo_cluster_tbl_member:lookup(Node) of
         {ok, #member{state = State}} ->
             Available = (State == ?STATE_RUNNING),
             CanReadRepair = (NumOfReplicas >= (length(Acc) + 1)),
@@ -769,9 +769,9 @@ find_redundancies_by_addr_id_1([_|Rest], AddrId) ->
 -spec(force_sync_fun(?SYNC_TARGET_RING_CUR|?SYNC_TARGET_RING_PREV, #state{}) ->
              #state{}).
 force_sync_fun(TargetRing, State) ->
-    case leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_CUR) of
+    case leo_cluster_tbl_member:find_all(?MEMBER_TBL_CUR) of
         {ok, MembersCur} ->
-            case leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_PREV) of
+            case leo_cluster_tbl_member:find_all(?MEMBER_TBL_PREV) of
                 {ok, MembersPrev} ->
                     State_1 = State#state{cur  = #ring_info{members = MembersCur},
                                           prev = #ring_info{members = MembersPrev}},

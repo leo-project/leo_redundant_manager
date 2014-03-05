@@ -48,7 +48,7 @@
              ok).
 add(Table, Member) ->
     {ok, List} = add_1(0, Member, []),
-    leo_redundant_manager_tbl_ring:bulk_insert(Table, List).
+    leo_cluster_tbl_ring:bulk_insert(Table, List).
 
 %% @private
 add_1(N, #member{num_of_vnodes = N}, Acc) ->
@@ -63,7 +63,7 @@ add_1(N, #member{alias = Alias,
 %% @doc Insert recods from the list
 add_from_list(Table, Members) ->
     {ok, List} = add_from_list_1(Members, []),
-    leo_redundant_manager_tbl_ring:bulk_insert(Table, List).
+    leo_cluster_tbl_ring:bulk_insert(Table, List).
 
 %% @private
 add_from_list_1([], Acc) ->
@@ -79,7 +79,7 @@ add_from_list_1([Member|Rest], Acc) ->
              ok).
 remove(Table, Member) ->
     {ok, List} = remove_1(0, Member, []),
-    leo_redundant_manager_tbl_ring:bulk_delete(Table, List).
+    leo_cluster_tbl_ring:bulk_delete(Table, List).
 
 %% @private
 remove_1(N, #member{num_of_vnodes = N}, Acc) ->
@@ -92,7 +92,7 @@ remove_1(N, #member{alias = Alias} = Member, Acc) ->
 %% @doc Remove recods from the list
 remove_from_list(Table, Members) ->
     {ok, List} = remove_from_list_1(Members, []),
-    leo_redundant_manager_tbl_ring:bulk_delete(Table, List).
+    leo_cluster_tbl_ring:bulk_delete(Table, List).
 
 %% @private
 remove_from_list_1([], Acc) ->
@@ -144,8 +144,8 @@ rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
     {_, TblNameCur} = TblInfoCur,
 
     %% Judge whether it match which case
-    CurLastVNodeId  = leo_redundant_manager_tbl_ring:last({mnesia, ?RING_TBL_CUR}),
-    PrevLastVNodeId = leo_redundant_manager_tbl_ring:last({mnesia, ?RING_TBL_PREV}),
+    CurLastVNodeId  = leo_cluster_tbl_ring:last({mnesia, ?RING_TBL_CUR}),
+    PrevLastVNodeId = leo_cluster_tbl_ring:last({mnesia, ?RING_TBL_PREV}),
 
     {ok, #redundancies{vnode_id_to = PrevVNodeIdTo,
                        nodes = PrevNodes}} =
@@ -215,7 +215,7 @@ rebalance_1_1(VNodeIdTo, SrcNode, [DestNode|Rest], Acc) ->
 -spec(checksum(ring_table_info()) ->
              integer()).
 checksum(Table) ->
-    case catch leo_redundant_manager_tbl_ring:tab2list(Table) of
+    case catch leo_cluster_tbl_ring:tab2list(Table) of
         {'EXIT', _Cause} ->
             {ok, -1};
         [] ->
@@ -243,11 +243,11 @@ vnode_id(_, _) ->
 -spec(export(atom(), string()) ->
              ok | {error, any()}).
 export(Table, FileName) ->
-    case leo_redundant_manager_tbl_ring:size(Table) of
+    case leo_cluster_tbl_ring:size(Table) of
         0 ->
             ok;
         _ ->
-            List0 = leo_redundant_manager_tbl_ring:tab2list(Table),
+            List0 = leo_cluster_tbl_ring:tab2list(Table),
             leo_file:file_unconsult(FileName, List0)
     end.
 

@@ -57,8 +57,8 @@ setup() ->
     leo_redundant_manager_api:create(?VER_CUR),
     leo_redundant_manager_api:create(?VER_PREV),
 
-    CurRows_2  = leo_redundant_manager_tbl_ring:tab2list({?DB_ETS, 'leo_ring_cur'}),
-    PrevRows_2 = leo_redundant_manager_tbl_ring:tab2list({?DB_ETS, 'leo_ring_cur'}),
+    CurRows_2  = leo_cluster_tbl_ring:tab2list({?DB_ETS, 'leo_ring_cur'}),
+    PrevRows_2 = leo_cluster_tbl_ring:tab2list({?DB_ETS, 'leo_ring_cur'}),
     ?assertEqual((?DEF_NUMBER_OF_VNODES * 5), length(CurRows_2)),
     ?assertEqual((?DEF_NUMBER_OF_VNODES * 5), length(PrevRows_2)),
 

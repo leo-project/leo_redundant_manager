@@ -17,12 +17,9 @@
 %% KIND, either express or implied.  See the License for the
 %% specific language governing permissions and limitations
 %% under the License.
-%%
 %%======================================================================
--module(leo_redundant_manager_tbl_cluster_mgr).
-
+-module(leo_cluster_tbl_conf).
 -author('Yosuke Hara').
-
 
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -30,31 +27,41 @@
 
 %% API
 -export([create_table/2,
-         all/0, get/1, update/1, delete/1]).
+         get/0,
+         update/1]).
 
 
 %% @doc Create a table of system-configutation
 %%
 create_table(Mode, Nodes) ->
     mnesia:create_table(
-      ?TBL_CLUSTER_MGR,
+      ?TBL_SYSTEM_CONF,
       [{Mode, Nodes},
        {type, set},
-       {record_name, cluster_manager},
-       {attributes, record_info(fields, cluster_manager)},
+       {record_name, ?SYSTEM_CONF},
+       {attributes, record_info(fields, ?SYSTEM_CONF)},
        {user_properties,
-        [{node,       string, primary},
-         {cluster_id, string, false}
+        [
+         {version,              pos_integer, primary},
+         {cluster_id,           string,      false},
+         {dc_id,                string,      false},
+         {n,                    pos_integer, false},
+         {r,                    pos_integer, false},
+         {w,                    pos_integer, false},
+         {d,                    pos_integer, false},
+         {bit_of_ring,          pos_integer, false},
+         {num_of_dc_replicas,   pos_integer, false},
+         {num_of_rack_replicas, pos_integer, false}
         ]}
       ]).
 
 
-%% @doc Retrieve system configuration by cluster-id
+%% @doc Retrieve system configuration
 %%
--spec(all() ->
-             {ok, [#system_conf{}]} | not_found | {error, any()}).
-all() ->
-    Tbl = ?TBL_CLUSTER_MGR,
+-spec(get() ->
+             {ok, #system_conf{}} | not_found | {error, any()}).
+get() ->
+    Tbl = ?TBL_SYSTEM_CONF,
 
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
@@ -65,65 +72,25 @@ all() ->
                         Q2 = qlc:sort(Q1, [{order, descending}]),
                         qlc:e(Q2)
                 end,
-            leo_mnesia:read(F)
+            get_1(leo_mnesia:read(F))
     end.
-
-
-%% @doc Retrieve system configuration by cluster-id
-%%
--spec(get(string()) ->
-             {ok, #system_conf{}} | not_found | {error, any()}).
-get(ClusterId) ->
-    Tbl = ?TBL_CLUSTER_MGR,
-
-    case catch mnesia:table_info(Tbl, all) of
-        {'EXIT', _Cause} ->
-            {error, ?ERROR_MNESIA_NOT_START};
-        _ ->
-            F = fun() ->
-                        Q = qlc:q([X || X <- mnesia:table(Tbl),
-                                        X#cluster_manager.cluster_id == ClusterId]),
-                        qlc:e(Q)
-                end,
-            leo_mnesia:read(F)
-    end.
+get_1({ok, [H|_]}) ->
+    {ok, H};
+get_1(Other) ->
+    Other.
 
 
 %% @doc Modify system-configuration
 %%
 -spec(update(#system_conf{}) ->
              ok | {error, any()}).
-update(ClusterMgr) ->
-    Tbl = ?TBL_CLUSTER_MGR,
+update(SystemConfig) ->
+    Tbl = ?TBL_SYSTEM_CONF,
 
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
         _ ->
-            F = fun()-> mnesia:write(Tbl, ClusterMgr, write) end,
+            F = fun()-> mnesia:write(Tbl, SystemConfig, write) end,
             leo_mnesia:write(F)
     end.
-
-
-%% @doc Remove system-configuration
-%%
--spec(delete(string()) ->
-             ok | {error, any()}).
-delete(ClusterId) ->
-    Tbl = ?TBL_CLUSTER_MGR,
-
-    case ?MODULE:get(ClusterId) of
-        {ok, ClusterMgrs} ->
-            delete_1(ClusterMgrs, Tbl);
-        Error ->
-            Error
-    end.
-
-delete_1([],_Tbl) ->
-    ok;
-delete_1([Value|Rest], Tbl) ->
-    Fun = fun() ->
-                  mnesia:delete_object(Tbl, Value, write)
-          end,
-    leo_mnesia:delete(Fun),
-    delete_1(Rest, Tbl).
