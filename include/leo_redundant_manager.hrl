@@ -227,6 +227,19 @@
          }).
 
 -record(system_conf_1, {
+          version = 0         :: integer(),
+          cluster_id = []     :: string(),
+          dc_id      = []     :: string(),
+          n       = 1         :: integer(),
+          r       = 1         :: integer(),
+          w       = 1         :: integer(),
+          d       = 1         :: integer(),
+          bit_of_ring = 128   :: integer(),
+          num_of_dc_replicas   = 0 :: integer(),
+          num_of_rack_replicas = 0 :: integer()
+         }).
+
+-record(system_conf_2, {
           version = 0         :: integer(),      %% version
           cluster_id = []     :: string(),       %% cluster-id
           dc_id      = []     :: string(),       %% dc-id
@@ -235,10 +248,11 @@
           w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
           d       = 1         :: integer(),      %% # of replicas needed for a successful DELETE operation
           bit_of_ring = 128   :: integer(),      %% # of bits for the hash-ring (fixed 128bit)
-          num_of_dc_replicas   = 0 :: integer(), %% # of DC-awareness replicas
+          num_of_mdcr_targets  = 0 :: integer(), %% # of multi-dc replication targets for MDC-replication
+          num_of_dc_replicas   = 0 :: integer(), %% # of destination of nodes a cluster for MDC-replication
           num_of_rack_replicas = 0 :: integer()  %% # of Rack-awareness replicas
          }).
--define(SYSTEM_CONF, 'system_conf_1').
+-define(SYSTEM_CONF, 'system_conf_2').
 
 
 -record(cluster_info, {
