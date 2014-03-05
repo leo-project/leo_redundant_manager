@@ -30,24 +30,24 @@
 %%--------------------------------------------------------------------
 -ifdef(EUNIT).
 
--define(MEMBER1, #cluster_member{node = 'manager_0@10.0.0.1',
-                                 cluster_id = "cluster_11",
-                                 alias = 'manager_13075',
-                                 ip = "10.0.0.1",
-                                 status = 'running'
-                                }).
--define(MEMBER2, #cluster_member{node = 'manager_0@10.0.0.2',
-                                 cluster_id = "cluster_12",
-                                 alias = 'manager_13076',
-                                 ip = "10.0.0.2",
-                                 status = 'running'
-                                }).
--define(MEMBER3, #cluster_member{node = 'manager_0@10.0.0.3',
-                                 cluster_id = "cluster_15",
-                                 alias = 'manager_13077',
-                                 ip = "10.0.0.3",
-                                 status = 'suspend'
-                                }).
+-define(MEMBER1, #?CLUSTER_MEMBER{node = 'manager_0@10.0.0.1',
+                                  cluster_id = "cluster_11",
+                                  alias = 'manager_13075',
+                                  ip = "10.0.0.1",
+                                  state = 'running'
+                                 }).
+-define(MEMBER2, #?CLUSTER_MEMBER{node = 'manager_0@10.0.0.2',
+                                  cluster_id = "cluster_12",
+                                  alias = 'manager_13076',
+                                  ip = "10.0.0.2",
+                                  state = 'running'
+                                 }).
+-define(MEMBER3, #?CLUSTER_MEMBER{node = 'manager_0@10.0.0.3',
+                                  cluster_id = "cluster_15",
+                                  alias = 'manager_13077',
+                                  ip = "10.0.0.3",
+                                  state = 'suspend'
+                                 }).
 
 table_cluster_test_() ->
     {timeout, 300,

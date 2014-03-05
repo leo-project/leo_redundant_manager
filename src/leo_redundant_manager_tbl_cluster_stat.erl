@@ -43,7 +43,7 @@ create_table(Mode, Nodes) ->
       ?TBL_CLUSTER_STAT,
       [{Mode, Nodes},
        {type, set},
-       {record_name, cluster_stat},
+       {record_name, ?CLUSTER_STAT},
        {attributes, record_info(fields, cluster_stat)},
        {user_properties,
         [{cluster_id, string,      primary},
@@ -87,7 +87,7 @@ get(ClusterId) ->
         _ ->
             F = fun() ->
                         Q = qlc:q([X || X <- mnesia:table(Tbl),
-                                        X#cluster_stat.cluster_id == ClusterId]),
+                                        X#?CLUSTER_STAT.cluster_id == ClusterId]),
                         qlc:e(Q)
                 end,
             case leo_mnesia:read(F) of

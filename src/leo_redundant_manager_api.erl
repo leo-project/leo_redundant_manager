@@ -933,9 +933,9 @@ get_cluster_status() ->
         {ok, Members} ->
             Status = judge_cluster_status(Members),
             {ok, {Checksum,_}} = checksum(?CHECKSUM_MEMBER),
-            {ok, #cluster_stat{cluster_id = ClusterId,
-                               status = Status,
-                               checksum = Checksum}};
+            {ok, #?CLUSTER_STAT{cluster_id = ClusterId,
+                                state      = Status,
+                                checksum = Checksum}};
         _ ->
             not_found
     end.

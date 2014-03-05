@@ -182,12 +182,12 @@ exec([#cluster_manager{node = Node,
                        cluster_id = ClusterId}|Rest], PrevClusterId) ->
     %% Retrieve the status of remote-cluster
     Ret = case catch leo_rpc:call(Node, leo_redundant_manager_api, get_cluster_status, []) of
-              {ok, #cluster_stat{status  = Status_1,
-                                 checksum = Checksum_1} = ClusterStat} ->
+              {ok, #?CLUSTER_STAT{state    = Status_1,
+                                  checksum = Checksum_1} = ClusterStat} ->
                   %% Compare its status in the local with the retrieved data
                   case leo_redundant_manager_tbl_cluster_stat:get(ClusterId) of
-                      {ok, #cluster_stat{status   = Status_2,
-                                         checksum = Checksum_2}}
+                      {ok, #?CLUSTER_STAT{state    = Status_2,
+                                          checksum = Checksum_2}}
                         when Status_1   == Status_2,
                              Checksum_1 == Checksum_2 ->
                           ok;
@@ -262,15 +262,15 @@ exec_3([#member{node = Node,
                 state = State,
                 num_of_vnodes = NumOfVNodes}|Rest], ClusterId) ->
     case leo_redundant_manager_tbl_cluster_member:update(
-           #cluster_member{node = Node,
-                           cluster_id = ClusterId,
-                           alias = Alias,
-                           ip = IP,
-                           port  = Port,
-                           inet  = Inet,
-                           clock = Clock,
-                           num_of_vnodes = NumOfVNodes,
-                           status = State}) of
+           #?CLUSTER_MEMBER{node = Node,
+                            cluster_id = ClusterId,
+                            alias = Alias,
+                            ip    = IP,
+                            port  = Port,
+                            inet  = Inet,
+                            clock = Clock,
+                            num_of_vnodes = NumOfVNodes,
+                            state = State}) of
         ok ->
             exec_3(Rest, ClusterId);
         {error, Cause} ->

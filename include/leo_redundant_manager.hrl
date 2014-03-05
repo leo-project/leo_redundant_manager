@@ -261,6 +261,14 @@
           updated_at = 0  :: pos_integer()  %% updated at
          }).
 
+-record(cluster_stat_1, {
+          cluster_id = [] :: string(),      %% cluster-id
+          state = null    :: node_state(),  %% status:[running | stop]
+          checksum = 0    :: pos_integer(), %% checksum of members
+          updated_at = 0  :: pos_integer()  %% updated at
+         }).
+-define(CLUSTER_STAT, 'cluster_stat_1').
+
 %% Cluster Manager
 -record(cluster_manager, {
           node                :: atom(),        %% actual node-name
@@ -279,6 +287,18 @@
           num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
           status = null       :: node_state()
          }).
+-record(cluster_member_1, {
+          node                :: atom(),        %% actual node-name
+          cluster_id = []     :: string(),      %% cluster-id
+          alias = []          :: string(),      %% node-alias
+          ip = "0.0.0.0"      :: string(),      %% ip-address
+          port  = 13075       :: pos_integer(), %% port-number
+          inet  = 'ipv4'      :: 'ipv4'|'ipv6', %% type of ip
+          clock = 0           :: pos_integer(), %% joined at
+          num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
+          state = null        :: node_state()
+         }).
+-define(CLUSTER_MEMBER, 'cluster_member_1').
 
 
 -record(member,

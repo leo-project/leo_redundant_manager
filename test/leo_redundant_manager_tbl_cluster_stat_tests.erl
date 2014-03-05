@@ -30,18 +30,18 @@
 %%--------------------------------------------------------------------
 -ifdef(EUNIT).
 
--define(STAT_1, #cluster_stat{cluster_id = "cluster_11",
-                              status = ?STATE_RUNNING,
+-define(STAT_1,#?CLUSTER_STAT{cluster_id = "cluster_11",
+                              state = ?STATE_RUNNING,
                               checksum = 12345,
                               updated_at = 139018453328000
                              }).
--define(STAT_2, #cluster_stat{cluster_id = "cluster_12",
-                              status = ?STATE_SUSPEND,
+-define(STAT_2,#?CLUSTER_STAT{cluster_id = "cluster_12",
+                              state = ?STATE_SUSPEND,
                               checksum = 23456,
                               updated_at = 139018453328000
                              }).
--define(STAT_3, #cluster_stat{cluster_id = "cluster_15",
-                              status = ?STATE_STOP,
+-define(STAT_3,#?CLUSTER_STAT{cluster_id = "cluster_15",
+                              state = ?STATE_STOP,
                               checksum = 34567,
                               updated_at = 139018453328000
                              }).

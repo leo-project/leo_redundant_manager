@@ -30,7 +30,8 @@
 
 %% API
 -export([create_table/2,
-         all/0, get/1, update/1, delete/1]).
+         all/0, get/1, find_by_state/2,
+         update/1, delete/1]).
 
 
 %% @doc Create a table of system-configutation
@@ -40,11 +41,11 @@ create_table(Mode, Nodes) ->
       ?TBL_CLUSTER_MEMBER,
       [{Mode, Nodes},
        {type, set},
-       {record_name, cluster_member},
+       {record_name, ?CLUSTER_MEMBER},
        {attributes, record_info(fields, cluster_member)},
        {user_properties,
-        [{node,       string, primary},
-         {cluster_id, string, false},
+        [{node,          string,  primary},
+         {cluster_id,    string,  false},
          {alias,         varchar, false},
          {ip,            varchar, false},
          {port,          integer, false},
@@ -59,7 +60,7 @@ create_table(Mode, Nodes) ->
 %% @doc Retrieve system configuration by cluster-id
 %%
 -spec(all() ->
-             {ok, [#cluster_member{}]} | not_found | {error, any()}).
+             {ok, [#?CLUSTER_MEMBER{}]} | not_found | {error, any()}).
 all() ->
     Tbl = ?TBL_CLUSTER_MEMBER,
 
@@ -69,17 +70,17 @@ all() ->
         _ ->
             F = fun() ->
                         Q1 = qlc:q([X || X <- mnesia:table(Tbl)]),
-                        Q2 = qlc:sort(Q1, [{order, descending}]),
+                        Q2 = qlc:sort(Q1, [{order, ascending}]),
                         qlc:e(Q2)
                 end,
             leo_mnesia:read(F)
     end.
 
 
-%% @doc Retrieve system configuration by cluster-id
+%% @doc Retrieve members by cluster-id
 %%
 -spec(get(string()) ->
-             {ok, #cluster_member{}} | not_found | {error, any()}).
+             {ok, #?CLUSTER_MEMBER{}} | not_found | {error, any()}).
 get(ClusterId) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
 
@@ -88,9 +89,33 @@ get(ClusterId) ->
             {error, ?ERROR_MNESIA_NOT_START};
         _ ->
             F = fun() ->
-                        Q = qlc:q([X || X <- mnesia:table(Tbl),
-                                        X#cluster_manager.cluster_id == ClusterId]),
-                        qlc:e(Q)
+                        Q1 = qlc:q([X || X <- mnesia:table(Tbl),
+                                         X#?CLUSTER_MEMBER.cluster_id == ClusterId]),
+                        Q2 = qlc:sort(Q1, [{order, ascending}]),
+                        qlc:e(Q2)
+                end,
+            leo_mnesia:read(F)
+    end.
+
+
+%% @doc Retrieve members by cluseter-id and state
+%%
+-spec(find_by_state(atom(), node_state()) ->
+             {ok, list(# cluster_member{})} | not_found | {error, any()}).
+find_by_state(ClusterId, State) ->
+    Tbl = ?TBL_CLUSTER_MEMBER,
+
+    case catch mnesia:table_info(Tbl, all) of
+        {'EXIT', _Cause} ->
+            {error, ?ERROR_MNESIA_NOT_START};
+        _ ->
+            F = fun() ->
+                        Q1 = qlc:q([X || X <- mnesia:table(Tbl),
+                                         (X#?CLUSTER_MEMBER.cluster_id == ClusterId andalso
+                                          X#?CLUSTER_MEMBER.state == State)
+                                   ]),
+                        Q2 = qlc:sort(Q1, [{order, ascending}]),
+                        qlc:e(Q2)
                 end,
             leo_mnesia:read(F)
     end.
@@ -98,7 +123,7 @@ get(ClusterId) ->
 
 %% @doc Modify system-configuration
 %%
--spec(update(#cluster_member{}) ->
+-spec(update(#?CLUSTER_MEMBER{}) ->
              ok | {error, any()}).
 update(Member) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
