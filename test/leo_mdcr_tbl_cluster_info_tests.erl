@@ -102,6 +102,17 @@ suite_(_) ->
     {ok, Res9} = leo_mdcr_tbl_cluster_info:all(),
     ?assertEqual(2, length(Res9)),
 
+
+    %% check find-by-limit/2
+    {ok, Res10} = leo_mdcr_tbl_cluster_info:find_by_limit(1),
+    ?assertEqual(1, length(Res10)),
+
+    {ok, Res11} = leo_mdcr_tbl_cluster_info:find_by_limit(2),
+    ?assertEqual(2, length(Res11)),
+
+    {ok, Res12} = leo_mdcr_tbl_cluster_info:find_by_limit(3),
+    ?assertEqual(2, length(Res12)),
+
     application:stop(mnesia),
     ok.
 

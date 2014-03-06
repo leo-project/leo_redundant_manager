@@ -28,10 +28,11 @@
 
 %% API
 -export([create_table/2,
-         all/0, get/1, update/1, delete/1]).
+         all/0, get/1, find_by_limit/1,
+         update/1, delete/1]).
 
 
-%% @doc Create a table of system-configutation
+%% @doc Create a table of configuration of clusters
 %%
 create_table(Mode, Nodes) ->
     mnesia:create_table(
@@ -55,7 +56,7 @@ create_table(Mode, Nodes) ->
       ]).
 
 
-%% @doc Retrieve system configuration by cluster-id
+%% @doc Retrieve all configuration of remote-clusters
 %%
 -spec(all() ->
              {ok, [#?CLUSTER_INFO{}]} | not_found | {error, any()}).
@@ -75,7 +76,7 @@ all() ->
     end.
 
 
-%% @doc Retrieve system configuration by cluster-id
+%% @doc Retrieve configuration of remote-clusters by cluster-id
 %%
 -spec(get(string()) ->
              {ok, #?CLUSTER_INFO{}} | not_found | {error, any()}).
@@ -100,7 +101,51 @@ get(ClusterId) ->
     end.
 
 
-%% @doc Modify system-configuration
+%% @doc Retrieve records by limit
+%%
+-spec(find_by_limit(pos_integer()) ->
+             {ok, #?CLUSTER_INFO{}} | not_found | {error, any()}).
+find_by_limit(Rows) ->
+    find_by_limit(Rows, []).
+
+find_by_limit(Rows, Acc) when Rows == length(Acc) ->
+    {ok, Acc};
+find_by_limit(Rows, []) ->
+    Table =  ?TBL_CLUSTER_INFO,
+    case catch mnesia:ets(fun ets:first/1, [Table]) of
+        {'EXIT', Cause} ->
+            {error, Cause};
+        '$end_of_table' ->
+            not_found;
+        Key ->
+            case leo_mdcr_tbl_cluster_info:get(Key) of
+                {ok, #?CLUSTER_INFO{} = Value} ->
+                    find_by_limit(Rows, Key, [Value]);
+                Error ->
+                    Error
+            end
+    end.
+
+find_by_limit(Rows,_ClusterId, Acc) when Rows == length(Acc) ->
+    {ok, Acc};
+find_by_limit(Rows, ClusterId, Acc) ->
+    Table =  ?TBL_CLUSTER_INFO,
+    case catch mnesia:ets(fun ets:next/2, [Table, ClusterId]) of
+        {'EXIT', Cause} ->
+            {error, Cause};
+        '$end_of_table' ->
+            {ok, Acc};
+        Key ->
+            case leo_mdcr_tbl_cluster_info:get(Key) of
+                {ok, #?CLUSTER_INFO{} = Value} ->
+                    find_by_limit(Rows, Key, [Value|Acc]);
+                Error ->
+                    Error
+            end
+    end.
+
+
+%% @doc Modify configuration of a cluster
 %%
 -spec(update(#?CLUSTER_INFO{}) ->
              ok | {error, any()}).
@@ -116,7 +161,7 @@ update(ClusterInfo) ->
     end.
 
 
-%% @doc Remove system-configuration
+%% @doc Remove configuration of a cluster
 %%
 -spec(delete(string()) ->
              ok | {error, any()}).
