@@ -30,6 +30,7 @@
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+%% Ring-related
 -export([create/0, create/1, create/2, create/3,
          set_options/1, get_options/0,
          attach/1, attach/2, attach/3, attach/4,
@@ -38,13 +39,13 @@
          checksum/1, synchronize/2, synchronize/3,
          get_ring/0, get_ring/1, dump/1
         ]).
-
+%% Redundancy-related
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
          get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2, get_redundancies_by_addr_id/3,
          range_of_vnodes/1, rebalance/0,
          get_alias/2, get_alias/3
         ]).
-
+%% Member-related
 -export([has_member/1, has_charge_of_node/1,
          get_members/0, get_members/1, get_member_by_node/1, get_members_count/0,
          get_members_by_status/1, get_members_by_status/2,
@@ -53,9 +54,14 @@
          force_sync_workers/0,
          get_cluster_status/0
         ]).
-
 -export([get_server_id/0, get_server_id/1]).
 
+%% Multi-DC-replciation-related
+-export([get_remote_clusters/0, get_remote_clusters/1,
+         get_remote_members/1, get_remote_members/2
+        ]).
+
+%% Request type
 -type(method() :: put | get | delete | head).
 
 %%--------------------------------------------------------------------
@@ -975,6 +981,41 @@ get_server_id(AddrId) ->
     Index = erlang:phash2(AddrId, Procs),
     list_to_atom(lists:append([?WORKER_POOL_NAME_PREFIX,
                                integer_to_list(Index)])).
+
+
+%%--------------------------------------------------------------------
+%% API-4  FUNCTIONS
+%%--------------------------------------------------------------------
+%% @doc Retrieve conf of remote clusters
+%%
+-spec(get_remote_clusters() ->
+             {ok, list(#cluster_info{})} | {error, any()}).
+get_remote_clusters() ->
+    case leo_cluster_tbl_conf:get() of
+        {ok, #?SYSTEM_CONF{num_of_mdcr_targets = NumOfDestClusters}} ->
+            get_remote_clusters(NumOfDestClusters);
+        _ ->
+            not_found
+    end.
+
+-spec(get_remote_clusters(pos_integer()) ->
+             {ok, list(#cluster_info{})} | {error, any()}).
+get_remote_clusters(NumOfDestClusters) ->
+    leo_mdcr_tbl_cluster_info:find_by_limit(NumOfDestClusters).
+
+
+%% @doc Retrieve remote cluster members
+%%
+-spec(get_remote_members(atom()) ->
+             {ok, #cluster_member{}} | {error, any()}).
+get_remote_members(ClusterId) ->
+    get_remote_members(ClusterId, ?DEF_NUM_OF_REMOTE_MEMBERS).
+
+-spec(get_remote_members(atom(), pos_integer()) ->
+             {ok, #cluster_member{}} | {error, any()}).
+get_remote_members(ClusterId, NumOfMembers) ->
+    leo_mdcr_tbl_cluster_member:find_by_limit(ClusterId, NumOfMembers).
+
 
 %%--------------------------------------------------------------------
 %% INNTERNAL FUNCTIONS

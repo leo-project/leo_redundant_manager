@@ -108,6 +108,7 @@ get(ClusterId) ->
 find_by_limit(Rows) ->
     find_by_limit(Rows, []).
 
+%% @private
 find_by_limit(Rows, Acc) when Rows == length(Acc) ->
     {ok, Acc};
 find_by_limit(Rows, []) ->
@@ -126,6 +127,7 @@ find_by_limit(Rows, []) ->
             end
     end.
 
+%% @private
 find_by_limit(Rows,_ClusterId, Acc) when Rows == length(Acc) ->
     {ok, Acc};
 find_by_limit(Rows, ClusterId, Acc) ->

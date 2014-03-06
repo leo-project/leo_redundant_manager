@@ -37,17 +37,30 @@
                                   state = 'running'
                                  }).
 -define(MEMBER2, #?CLUSTER_MEMBER{node = 'manager_0@10.0.0.2',
-                                  cluster_id = "cluster_12",
+                                  cluster_id = "cluster_11",
                                   alias = 'manager_13076',
                                   ip = "10.0.0.2",
                                   state = 'running'
                                  }).
 -define(MEMBER3, #?CLUSTER_MEMBER{node = 'manager_0@10.0.0.3',
-                                  cluster_id = "cluster_15",
+                                  cluster_id = "cluster_11",
                                   alias = 'manager_13077',
                                   ip = "10.0.0.3",
                                   state = 'suspend'
                                  }).
+-define(MEMBER4, #?CLUSTER_MEMBER{node = 'manager_0@10.0.0.4',
+                                  cluster_id = "cluster_12",
+                                  alias = 'manager_13077',
+                                  ip = "10.0.0.4",
+                                  state = 'running'
+                                 }).
+-define(MEMBER5, #?CLUSTER_MEMBER{node = 'manager_0@10.0.0.5',
+                                  cluster_id = "cluster_12",
+                                  alias = 'manager_13077',
+                                  ip = "10.0.0.5",
+                                  state = 'restarted'
+                                 }).
+
 
 table_cluster_test_() ->
     {timeout, 300,
@@ -71,24 +84,32 @@ suite_(_) ->
     Res2 = leo_mdcr_tbl_cluster_member:update(?MEMBER1),
     Res3 = leo_mdcr_tbl_cluster_member:update(?MEMBER2),
     Res4 = leo_mdcr_tbl_cluster_member:update(?MEMBER3),
+    Res5 = leo_mdcr_tbl_cluster_member:update(?MEMBER4),
+    Res6 = leo_mdcr_tbl_cluster_member:update(?MEMBER5),
+
     ?assertEqual(ok, Res2),
     ?assertEqual(ok, Res3),
     ?assertEqual(ok, Res4),
+    ?assertEqual(ok, Res5),
+    ?assertEqual(ok, Res6),
 
-    Res5 = leo_mdcr_tbl_cluster_member:get("cluster_12"),
-    ?assertEqual({ok, [?MEMBER2]}, Res5),
+    Res7 = leo_mdcr_tbl_cluster_member:get("cluster_12"),
+    ?assertEqual({ok, [?MEMBER4,?MEMBER5]}, Res7),
 
-    {ok, Res6} = leo_mdcr_tbl_cluster_member:all(),
-    ?assertEqual(3, length(Res6)),
+    {ok, Res8} = leo_mdcr_tbl_cluster_member:all(),
+    ?assertEqual(5, length(Res8)),
 
-    Res7 = leo_mdcr_tbl_cluster_member:delete("cluster_12"),
-    ?assertEqual(ok, Res7),
+    Res9 = leo_mdcr_tbl_cluster_member:delete("cluster_12"),
+    ?assertEqual(ok, Res9),
 
-    Res8 = leo_mdcr_tbl_cluster_member:get("cluster_12"),
-    ?assertEqual(not_found, Res8),
+    Res10 = leo_mdcr_tbl_cluster_member:get("cluster_12"),
+    ?assertEqual(not_found, Res10),
 
-    {ok, Res9} = leo_mdcr_tbl_cluster_member:all(),
-    ?assertEqual(2, length(Res9)),
+    {ok, Res11} = leo_mdcr_tbl_cluster_member:all(),
+    ?assertEqual(3, length(Res11)),
+
+    {ok, Res12} = leo_mdcr_tbl_cluster_member:find_by_limit("cluster_11", 2),
+    ?assertEqual(2, length(Res12)),
 
     application:stop(mnesia),
     ok.

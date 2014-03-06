@@ -28,7 +28,9 @@
 
 %% API
 -export([create_table/2,
-         all/0, get/1, find_by_state/2,
+         all/0, get/1,
+         find_by_state/2, find_by_node/1,
+         find_by_limit/2,
          update/1, delete/1]).
 
 
@@ -99,7 +101,7 @@ get(ClusterId) ->
 %% @doc Retrieve members by cluseter-id and state
 %%
 -spec(find_by_state(atom(), node_state()) ->
-             {ok, list(# cluster_member{})} | not_found | {error, any()}).
+             {ok, list(#?CLUSTER_MEMBER{})} | not_found | {error, any()}).
 find_by_state(ClusterId, State) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
 
@@ -116,6 +118,49 @@ find_by_state(ClusterId, State) ->
                         qlc:e(Q2)
                 end,
             leo_mnesia:read(F)
+    end.
+
+
+%% @doc Retrieve a member by a node
+%%
+-spec(find_by_node(atom())->
+             {ok, list(#?CLUSTER_MEMBER{})} | not_found | {error, any()}).
+find_by_node(Node) ->
+    Tbl = ?TBL_CLUSTER_MEMBER,
+
+    case catch mnesia:table_info(Tbl, all) of
+        {'EXIT', _Cause} ->
+            {error, ?ERROR_MNESIA_NOT_START};
+        _ ->
+            F = fun() ->
+                        Q = qlc:q([X || X <- mnesia:table(Tbl),
+                                        X#?CLUSTER_MEMBER.node == Node
+                                  ]),
+                        qlc:e(Q)
+                end,
+            Ret = leo_mnesia:read(F),
+            find_by_node_1(Ret)
+    end.
+
+%% @private
+find_by_node_1({ok, [H|_]}) ->
+    {ok, H};
+find_by_node_1(Other) ->
+    Other.
+
+
+%% @doc Retrieve members by limit
+%%
+-spec(find_by_limit(atom(), pos_integer()) ->
+             {ok, #?CLUSTER_MEMBER{}} | not_found | {error, any()}).
+find_by_limit(ClusterId, Rows) ->
+    case find_by_state(ClusterId, ?STATE_RUNNING) of
+        {ok, List} when Rows >= length(List) ->
+            {ok, List};
+        {ok, List} ->
+            {ok, lists:sublist(List, Rows)};
+        Other ->
+            Other
     end.
 
 

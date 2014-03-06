@@ -95,6 +95,8 @@
 -define(DEF_OPT_W, 1).
 -define(DEF_OPT_D, 1).
 -define(DEF_OPT_BIT_OF_RING, ?MD5).
+-define(DEF_NUM_OF_REMOTE_MEMBERS, 3).
+
 -ifdef(TEST).
 -define(DEF_NUMBER_OF_VNODES, 32).
 -else.
