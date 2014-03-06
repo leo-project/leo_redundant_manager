@@ -38,8 +38,8 @@ create_table(Mode, Nodes) ->
       ?TBL_CLUSTER_INFO,
       [{Mode, Nodes},
        {type, set},
-       {record_name, cluster_info},
-       {attributes, record_info(fields, cluster_info)},
+       {record_name, ?CLUSTER_INFO},
+       {attributes, record_info(fields, ?CLUSTER_INFO)},
        {user_properties,
         [{cluster_id,           string,      primary},
          {dc_id,                string,      false  },
@@ -48,6 +48,7 @@ create_table(Mode, Nodes) ->
          {w,                    pos_integer, false  },
          {d,                    pos_integer, false  },
          {bit_of_ring,          pos_integer, false  },
+         {num_of_mdcr_targets,  pos_integer, false  },
          {num_of_dc_replicas,   pos_integer, false  },
          {num_of_rack_replicas, pos_integer, false  }
         ]}
@@ -57,7 +58,7 @@ create_table(Mode, Nodes) ->
 %% @doc Retrieve system configuration by cluster-id
 %%
 -spec(all() ->
-             {ok, [#cluster_info{}]} | not_found | {error, any()}).
+             {ok, [#?CLUSTER_INFO{}]} | not_found | {error, any()}).
 all() ->
     Tbl = ?TBL_CLUSTER_INFO,
 
@@ -77,7 +78,7 @@ all() ->
 %% @doc Retrieve system configuration by cluster-id
 %%
 -spec(get(string()) ->
-             {ok, #cluster_info{}} | not_found | {error, any()}).
+             {ok, #?CLUSTER_INFO{}} | not_found | {error, any()}).
 get(ClusterId) ->
     Tbl = ?TBL_CLUSTER_INFO,
 
@@ -87,7 +88,7 @@ get(ClusterId) ->
         _ ->
             F = fun() ->
                         Q = qlc:q([X || X <- mnesia:table(Tbl),
-                                        X#cluster_info.cluster_id == ClusterId]),
+                                        X#?CLUSTER_INFO.cluster_id == ClusterId]),
                         qlc:e(Q)
                 end,
             case leo_mnesia:read(F) of
@@ -101,7 +102,7 @@ get(ClusterId) ->
 
 %% @doc Modify system-configuration
 %%
--spec(update(#cluster_info{}) ->
+-spec(update(#?CLUSTER_INFO{}) ->
              ok | {error, any()}).
 update(ClusterInfo) ->
     Tbl = ?TBL_CLUSTER_INFO,

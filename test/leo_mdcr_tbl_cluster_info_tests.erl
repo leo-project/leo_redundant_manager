@@ -30,33 +30,36 @@
 %%--------------------------------------------------------------------
 -ifdef(EUNIT).
 
--define(CONF_1, #cluster_info{cluster_id = "cluster_11",
-                              dc_id = "tokyo_1",
-                              n = 3,
-                              w = 2,
-                              r = 1,
-                              d = 1,
-                              num_of_dc_replicas = 1,
-                              num_of_rack_replicas = 1
-                             }).
--define(CONF_2, #cluster_info{cluster_id = "cluster_12",
-                              dc_id = "singapore_1",
-                              n = 2,
-                              w = 1,
-                              r = 1,
-                              d = 1,
-                              num_of_dc_replicas = 1,
-                              num_of_rack_replicas = 1
-                             }).
--define(CONF_3, #cluster_info{cluster_id = "cluster_15",
-                              dc_id = "europe_1",
-                              n = 5,
-                              w = 3,
-                              r = 2,
-                              d = 2,
-                              num_of_dc_replicas = 1,
-                              num_of_rack_replicas = 1
-                             }).
+-define(CONF_1, #?CLUSTER_INFO{cluster_id = "cluster_11",
+                               dc_id = "tokyo_1",
+                               n = 3,
+                               w = 2,
+                               r = 1,
+                               d = 1,
+                               num_of_mdcr_targets = 1,
+                               num_of_dc_replicas = 1,
+                               num_of_rack_replicas = 1
+                              }).
+-define(CONF_2, #?CLUSTER_INFO{cluster_id = "cluster_12",
+                               dc_id = "singapore_1",
+                               n = 2,
+                               w = 1,
+                               r = 1,
+                               d = 1,
+                               num_of_mdcr_targets = 1,
+                               num_of_dc_replicas = 1,
+                               num_of_rack_replicas = 1
+                              }).
+-define(CONF_3, #?CLUSTER_INFO{cluster_id = "cluster_15",
+                               dc_id = "europe_1",
+                               n = 5,
+                               w = 3,
+                               r = 2,
+                               d = 2,
+                               num_of_mdcr_targets = 1,
+                               num_of_dc_replicas = 1,
+                               num_of_rack_replicas = 1
+                              }).
 
 table_cluster_test_() ->
     {timeout, 300,

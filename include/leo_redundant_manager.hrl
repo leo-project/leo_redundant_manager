@@ -267,6 +267,21 @@
           num_of_rack_replicas = 0 :: integer()  %% # of Rack-awareness replicas
          }).
 
+-record(cluster_info_1, {
+          cluster_id = []     :: string(),       %% cluster-id
+          dc_id      = []     :: string(),       %% dc-id
+          n       = 1         :: integer(),      %% # of replicas
+          r       = 1         :: integer(),      %% # of replicas needed for a successful READ operation
+          w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
+          d       = 1         :: integer(),      %% # of replicas needed for a successful DELETE operation
+          bit_of_ring = 128   :: integer(),      %% # of bits for the hash-ring (fixed 128bit)
+          num_of_mdcr_targets  = 0 :: integer(), %% # of multi-dc replication targets for MDC-replication
+          num_of_dc_replicas   = 0 :: integer(), %% # of DC-awareness replicas
+          num_of_rack_replicas = 0 :: integer()  %% # of Rack-awareness replicas
+         }).
+-define(CLUSTER_INFO, 'cluster_info_1').
+
+
 %% For Multi-DC Replication
 -record(cluster_stat, {
           cluster_id = [] :: string(),      %% cluster-id
@@ -407,3 +422,4 @@
                     tbl_cur            :: atom(),
                     tbl_prev           :: atom()
                    }).
+

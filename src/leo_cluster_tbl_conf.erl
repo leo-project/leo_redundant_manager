@@ -60,7 +60,7 @@ create_table(Mode, Nodes) ->
 %% @doc Retrieve system configuration
 %%
 -spec(get() ->
-             {ok, #system_conf{}} | not_found | {error, any()}).
+             {ok, #?SYSTEM_CONF{}} | not_found | {error, any()}).
 get() ->
     Tbl = ?TBL_SYSTEM_CONF,
 
@@ -83,7 +83,7 @@ get_1(Other) ->
 
 %% @doc Modify system-configuration
 %%
--spec(update(#system_conf{}) ->
+-spec(update(#?SYSTEM_CONF{}) ->
              ok | {error, any()}).
 update(SystemConfig) ->
     Tbl = ?TBL_SYSTEM_CONF,
