@@ -992,8 +992,8 @@ get_server_id(AddrId) ->
              {ok, list(#cluster_info{})} | {error, any()}).
 get_remote_clusters() ->
     case leo_cluster_tbl_conf:get() of
-        {ok, #?SYSTEM_CONF{num_of_mdcr_targets = NumOfDestClusters}} ->
-            get_remote_clusters(NumOfDestClusters);
+        {ok, #?SYSTEM_CONF{max_mdc_targets = MaxTargetClusters}} ->
+            get_remote_clusters(MaxTargetClusters);
         _ ->
             not_found
     end.
