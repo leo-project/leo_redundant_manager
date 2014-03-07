@@ -152,7 +152,7 @@ find_by_node_1(Other) ->
 %% @doc Retrieve members by limit
 %%
 -spec(find_by_limit(atom(), pos_integer()) ->
-             {ok, #?CLUSTER_MEMBER{}} | not_found | {error, any()}).
+             {ok, list(#?CLUSTER_MEMBER{})} | not_found | {error, any()}).
 find_by_limit(ClusterId, Rows) ->
     case find_by_state(ClusterId, ?STATE_RUNNING) of
         {ok, List} when Rows >= length(List) ->

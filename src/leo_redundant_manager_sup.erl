@@ -24,7 +24,6 @@
 %% @end
 %%======================================================================
 -module(leo_redundant_manager_sup).
-
 -author('Yosuke Hara').
 
 -behaviour(supervisor).
@@ -186,7 +185,14 @@ init([ServerType]) ->
                          permanent,
                          2000,
                          worker,
-                         [leo_redundant_manager]}
+                         [leo_redundant_manager]},
+
+                        {leo_mdcr_manager,
+                         {leo_mdcr_manager, start_link, []},
+                         permanent,
+                         2000,
+                         worker,
+                         [leo_mdcr_manager]}
                        ]
                end,
 
