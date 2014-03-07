@@ -265,7 +265,7 @@
           w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
           d       = 1         :: integer(),      %% # of replicas needed for a successful DELETE operation
           bit_of_ring = 128   :: integer(),      %% # of bits for the hash-ring (fixed 128bit)
-          num_of_dc_replicas   = 0 :: integer(), %% # of DC-awareness replicas
+          num_of_dc_replicas   = 0 :: integer(), %% # of replicas a DC for MDC-replication
           num_of_rack_replicas = 0 :: integer()  %% # of Rack-awareness replicas
          }).
 
@@ -277,8 +277,8 @@
           w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
           d       = 1         :: integer(),      %% # of replicas needed for a successful DELETE operation
           bit_of_ring = 128   :: integer(),      %% # of bits for the hash-ring (fixed 128bit)
-          num_of_mdcr_targets  = 0 :: integer(), %% # of multi-dc replication targets for MDC-replication
-          num_of_dc_replicas   = 0 :: integer(), %% # of DC-awareness replicas
+          max_mdc_targets      = 0 :: integer(), %% max multi-dc replication targets for MDC-replication
+          num_of_dc_replicas   = 0 :: integer(), %% # of replicas a DC for MDC-replication
           num_of_rack_replicas = 0 :: integer()  %% # of Rack-awareness replicas
          }).
 -define(CLUSTER_INFO, 'cluster_info_1').

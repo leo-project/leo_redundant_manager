@@ -50,7 +50,7 @@ create_table(Mode, Nodes) ->
          {w,                    pos_integer, false},
          {d,                    pos_integer, false},
          {bit_of_ring,          pos_integer, false},
-         {num_of_mdcr_targets,  pos_integer, false},
+         {max_mdc_targets,      pos_integer, false},
          {num_of_dc_replicas,   pos_integer, false},
          {num_of_rack_replicas, pos_integer, false}
         ]}

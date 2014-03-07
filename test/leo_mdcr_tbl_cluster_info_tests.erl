@@ -36,7 +36,7 @@
                                w = 2,
                                r = 1,
                                d = 1,
-                               num_of_mdcr_targets = 1,
+                               max_mdc_targets = 1,
                                num_of_dc_replicas = 1,
                                num_of_rack_replicas = 1
                               }).
@@ -46,7 +46,7 @@
                                w = 1,
                                r = 1,
                                d = 1,
-                               num_of_mdcr_targets = 1,
+                               max_mdc_targets = 1,
                                num_of_dc_replicas = 1,
                                num_of_rack_replicas = 1
                               }).
@@ -56,7 +56,7 @@
                                w = 3,
                                r = 2,
                                d = 2,
-                               num_of_mdcr_targets = 1,
+                               max_mdc_targets = 1,
                                num_of_dc_replicas = 1,
                                num_of_rack_replicas = 1
                               }).
