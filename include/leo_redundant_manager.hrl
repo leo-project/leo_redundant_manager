@@ -96,6 +96,7 @@
 -define(DEF_OPT_D, 1).
 -define(DEF_OPT_BIT_OF_RING, ?MD5).
 -define(DEF_NUM_OF_REMOTE_MEMBERS, 3).
+-define(DEF_MAX_MDC_TARGETS, 2).
 
 -ifdef(TEST).
 -define(DEF_NUMBER_OF_VNODES, 32).
@@ -277,9 +278,9 @@
           w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
           d       = 1         :: integer(),      %% # of replicas needed for a successful DELETE operation
           bit_of_ring = 128   :: integer(),      %% # of bits for the hash-ring (fixed 128bit)
-          max_mdc_targets      = 0 :: integer(), %% max multi-dc replication targets for MDC-replication
           num_of_dc_replicas   = 0 :: integer(), %% # of replicas a DC for MDC-replication
-          num_of_rack_replicas = 0 :: integer()  %% # of Rack-awareness replicas
+          num_of_rack_replicas = 0 :: integer(), %% # of Rack-awareness replicas
+          max_mdc_targets = ?DEF_MAX_MDC_TARGETS :: integer() %% max multi-dc replication targets for MDC-replication
          }).
 -define(CLUSTER_INFO, 'cluster_info_1').
 
