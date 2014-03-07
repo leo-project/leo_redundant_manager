@@ -466,6 +466,11 @@ get_redundancies_by_addr_id(ServerRef, Method, AddrId) ->
         {ok, Options} ->
             get_redundancies_by_addr_id_1(ServerRef, ring_table(Method), AddrId, Options);
         _ ->
+            error_logger:warning_msg("~p,~p,~p,~p~n",
+                                     [{module, ?MODULE_STRING},
+                                      {function, "get_redundancies_by_addr_id/3"},
+                                      {line, ?LINE},
+                                      {body, "Could not retrieve redundancies"}]),
             {error, not_found}
     end.
 
@@ -492,8 +497,21 @@ get_redundancies_by_addr_id_1(ServerRef, TblInfo, AddrId, Options) ->
                                            w = W,
                                            d = D,
                                            ring_hash = CurRingHash}};
-        Error ->
-            Error
+        not_found = Cause ->
+            error_logger:warning_msg("~p,~p,~p,~p~n",
+                                     [{module, ?MODULE_STRING},
+                                      {function, "get_redundancies_by_addr_id_1/4"},
+                                      {line, ?LINE},
+                                      {body, "Could not retrieve redundancies"}]),
+            {error, Cause};
+        {error, Cause} ->
+            error_logger:warning_msg("~p,~p,~p,~p~n",
+                                     [{module, ?MODULE_STRING},
+                                      {function, "get_redundancies_by_addr_id_1/4"},
+                                      {line, ?LINE},
+                                      {body, Cause}]),
+
+            {error, Cause}
     end.
 
 
