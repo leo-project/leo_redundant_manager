@@ -58,8 +58,7 @@
 
 %% Multi-DC-replciation-related
 -export([get_remote_clusters/0, get_remote_clusters/1,
-         get_remote_members/1, get_remote_members/2,
-         transfer_replication_proc/2
+         get_remote_members/1, get_remote_members/2
         ]).
 
 %% Request type
@@ -1034,14 +1033,6 @@ get_remote_members(ClusterId) ->
              {ok, #cluster_member{}} | {error, any()}).
 get_remote_members(ClusterId, NumOfMembers) ->
     leo_mdcr_tbl_cluster_member:find_by_limit(ClusterId, NumOfMembers).
-
-
-%% @doc Transfer replication between clusters
-%%
--spec(transfer_replication_proc(any(), atom()) ->
-             ok).
-transfer_replication_proc(Metadata, Callback) ->
-    leo_mdcr_manager:transfer(Metadata, Callback).
 
 
 %%--------------------------------------------------------------------

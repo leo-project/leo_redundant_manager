@@ -47,9 +47,7 @@ redundant_manager_test_() ->
                             fun suspend_/1,
 
                             fun rack_aware_1_/1,
-                            fun rack_aware_2_/1,
-
-                            fun transfer_replication_proc_/1
+                            fun rack_aware_2_/1
                            ]]}}.
 
 
@@ -593,59 +591,6 @@ rack_aware_2_({Hostname}) ->
               ?assertEqual(5, length(Nodes))
       end, lists:seq(1, 300)),
     ok.
-
-
-transfer_replication_proc_({Hostname}) ->
-    ok = prepare(Hostname, storage),
-    ClusterId = "cluster_1",
-
-    ok = meck:new(leo_cluster_tbl_conf, [non_strict]),
-    ok = meck:expect(leo_cluster_tbl_conf, get,
-                     fun() ->
-                             {ok, #?SYSTEM_CONF{num_of_dc_replicas = 2}}
-                     end),
-
-    ok = meck:new(leo_mdcr_tbl_cluster_info, [non_strict]),
-    ok = meck:expect(leo_mdcr_tbl_cluster_info, all,
-                     fun() ->
-                             {ok, [#?CLUSTER_INFO{cluster_id = ClusterId,
-                                                    dc_id = "tokyo_1",
-                                                    n = 3,
-                                                    w = 2,
-                                                    r = 1,
-                                                    d = 1,
-                                                    max_mdc_targets = 1,
-                                                    num_of_dc_replicas = 1,
-                                                    num_of_rack_replicas = 1
-                                                 }]}
-                     end),
-
-    ok = meck:new(leo_mdcr_tbl_cluster_member, [non_strict]),
-    ok = meck:expect(leo_mdcr_tbl_cluster_member, find_by_limit,
-                     fun(_,_) ->
-                             {ok, [#?CLUSTER_MEMBER{node = 'manager_0@10.0.0.1',
-                                                    cluster_id = ClusterId,
-                                                    alias = 'manager_13075',
-                                                    ip = "10.0.0.1",
-                                                    state = 'running'
-                                                   },
-                                   #?CLUSTER_MEMBER{node = 'manager_0@10.0.0.2',
-                                                    cluster_id = ClusterId,
-                                                    alias = 'manager_13076',
-                                                    ip = "10.0.0.2",
-                                                    state = 'running'
-                                                   }
-                                  ]}
-                     end),
-
-    %% check "transfer_replication_proc"
-    Callback = leo_mdcr_manage_sample,
-    ok =  leo_redundant_manager_api:transfer_replication_proc([{metadata,'test'}], Callback),
-    timer:sleep(timer:seconds(3)),
-
-    meck:unload(),
-    ok.
-
 
 %% -------------------------------------------------------------------
 %% INNER FUNCTION

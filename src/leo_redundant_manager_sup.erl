@@ -185,14 +185,7 @@ init([ServerType]) ->
                          permanent,
                          2000,
                          worker,
-                         [leo_redundant_manager]},
-
-                        {leo_mdcr_manager,
-                         {leo_mdcr_manager, start_link, []},
-                         permanent,
-                         2000,
-                         worker,
-                         [leo_mdcr_manager]}
+                         [leo_redundant_manager]}
                        ]
                end,
 
@@ -217,7 +210,6 @@ init([ServerType]) ->
 -spec(after_proc({ok, pid()} | {error, any()}) ->
              {ok, pid()} | {error, any()}).
 after_proc({ok, RefSup}) ->
-    %% MQ
     MQPid = case whereis(leo_mq_sup) of
                 undefined ->
                     ChildSpec = {leo_mq_sup,
