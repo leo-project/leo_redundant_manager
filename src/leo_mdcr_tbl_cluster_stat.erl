@@ -27,7 +27,8 @@
 
 %% API
 -export([create_table/2,
-         all/0, get/1, update/1, delete/1]).
+         all/0, get/1, find_by_state/1,
+         update/1, delete/1]).
 
 %% @doc Create a table of system-configutation
 %%
@@ -40,7 +41,7 @@ create_table(Mode, Nodes) ->
        {attributes, record_info(fields, cluster_stat)},
        {user_properties,
         [{cluster_id, string,      primary},
-         {status,     atom,        false  },
+         {state,      atom,        false  },
          {checksum,   pos_integer, false  },
          {updated_at, pos_integer, false  }
         ]}
@@ -86,6 +87,32 @@ get(ClusterId) ->
             case leo_mnesia:read(F) of
                 {ok, [H|_]} ->
                     {ok, H};
+                Other ->
+                    Other
+            end
+    end.
+
+
+%% @doc Retrieve system configuration by cluster-id
+%%
+-spec(find_by_state(atom()) ->
+             {ok, #system_conf{}} | not_found | {error, any()}).
+find_by_state(State) ->
+    Tbl = ?TBL_CLUSTER_STAT,
+
+    case catch mnesia:table_info(Tbl, all) of
+        {'EXIT', _Cause} ->
+            {error, ?ERROR_MNESIA_NOT_START};
+        _ ->
+            F = fun() ->
+                        Q1 = qlc:q([X || X <- mnesia:table(Tbl),
+                                         X#?CLUSTER_STAT.state == State]),
+                        Q2 = qlc:sort(Q1, [{order, descending}]),
+                        qlc:e(Q2)
+                end,
+            case leo_mnesia:read(F) of
+                {ok, Ret} ->
+                    {ok, Ret};
                 Other ->
                     Other
             end

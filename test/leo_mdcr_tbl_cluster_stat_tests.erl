@@ -75,6 +75,8 @@ suite_(_) ->
     Res5 = leo_mdcr_tbl_cluster_stat:get("cluster_12"),
     ?assertEqual({ok, ?STAT_2}, Res5),
 
+    {ok, [?STAT_1]} = leo_mdcr_tbl_cluster_stat:find_by_state(?STATE_RUNNING),
+
     {ok, Res6} = leo_mdcr_tbl_cluster_stat:all(),
     ?assertEqual(3, length(Res6)),
 
