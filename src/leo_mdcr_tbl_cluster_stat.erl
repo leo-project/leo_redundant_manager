@@ -27,8 +27,11 @@
 
 %% API
 -export([create_table/2,
-         all/0, get/1, find_by_state/1,
-         update/1, delete/1]).
+         all/0, get/1,
+         find_by_state/1, find_by_cluster_id/1,
+         update/1, delete/1,
+         checksum/1
+        ]).
 
 %% @doc Create a table of system-configutation
 %%
@@ -61,7 +64,7 @@ all() ->
         _ ->
             F = fun() ->
                         Q1 = qlc:q([X || X <- mnesia:table(Tbl)]),
-                        Q2 = qlc:sort(Q1, [{order, descending}]),
+                        Q2 = qlc:sort(Q1, [{order, ascending}]),
                         qlc:e(Q2)
                 end,
             leo_mnesia:read(F)
@@ -93,7 +96,7 @@ get(ClusterId) ->
     end.
 
 
-%% @doc Retrieve system configuration by cluster-id
+%% @doc Retrieve system configuration by State
 %%
 -spec(find_by_state(atom()) ->
              {ok, #system_conf{}} | not_found | {error, any()}).
@@ -107,7 +110,33 @@ find_by_state(State) ->
             F = fun() ->
                         Q1 = qlc:q([X || X <- mnesia:table(Tbl),
                                          X#?CLUSTER_STAT.state == State]),
-                        Q2 = qlc:sort(Q1, [{order, descending}]),
+                        Q2 = qlc:sort(Q1, [{order, ascending}]),
+                        qlc:e(Q2)
+                end,
+            case leo_mnesia:read(F) of
+                {ok, Ret} ->
+                    {ok, Ret};
+                Other ->
+                    Other
+            end
+    end.
+
+
+%% @doc Retrieve system configuration by cluster-id
+%%
+-spec(find_by_cluster_id(string()) ->
+             {ok, #system_conf{}} | not_found | {error, any()}).
+find_by_cluster_id(ClusterId) ->
+    Tbl = ?TBL_CLUSTER_STAT,
+
+    case catch mnesia:table_info(Tbl, all) of
+        {'EXIT', _Cause} ->
+            {error, ?ERROR_MNESIA_NOT_START};
+        _ ->
+            F = fun() ->
+                        Q1 = qlc:q([X || X <- mnesia:table(Tbl),
+                                         X#?CLUSTER_STAT.cluster_id == ClusterId]),
+                        Q2 = qlc:sort(Q1, [{order, ascending}]),
                         qlc:e(Q2)
                 end,
             case leo_mnesia:read(F) of
@@ -148,6 +177,19 @@ delete(ClusterId) ->
                           mnesia:delete_object(Tbl, ClusterStat, write)
                   end,
             leo_mnesia:delete(Fun);
+        Error ->
+            Error
+    end.
+
+
+%% @doc Retrieve a checksum by cluster-id
+%%
+-spec(checksum(string()) ->
+             {ok, pos_integer()} | {error, any()}).
+checksum(ClusterId) ->
+    case find_by_cluster_id(ClusterId) of
+        {ok, Vals} ->
+            {ok, erlang:crc32(term_to_binary(Vals))};
         Error ->
             Error
     end.

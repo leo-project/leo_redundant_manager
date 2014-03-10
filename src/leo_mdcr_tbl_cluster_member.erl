@@ -30,8 +30,10 @@
 -export([create_table/2,
          all/0, get/1,
          find_by_state/2, find_by_node/1,
-         find_by_limit/2,
-         update/1, delete/1]).
+         find_by_limit/2, find_by_cluster_id/1,
+         update/1, delete/1,
+         checksum/1
+        ]).
 
 
 %% @doc Create a table of system-configutation
@@ -164,6 +166,28 @@ find_by_limit(ClusterId, Rows) ->
     end.
 
 
+%% @doc Retrieve members by cluster-id
+%%
+-spec(find_by_cluster_id(string()) ->
+             {ok, list(#?CLUSTER_MEMBER{})} | not_found | {error, any()}).
+find_by_cluster_id(ClusterId) ->
+    Tbl = ?TBL_CLUSTER_MEMBER,
+
+    case catch mnesia:table_info(Tbl, all) of
+        {'EXIT', _Cause} ->
+            {error, ?ERROR_MNESIA_NOT_START};
+        _ ->
+            F = fun() ->
+                        Q1 = qlc:q([X || X <- mnesia:table(Tbl),
+                                         (X#?CLUSTER_MEMBER.cluster_id == ClusterId)
+                                   ]),
+                        Q2 = qlc:sort(Q1, [{order, ascending}]),
+                        qlc:e(Q2)
+                end,
+            leo_mnesia:read(F)
+    end.
+
+
 %% @doc Modify system-configuration
 %%
 -spec(update(#?CLUSTER_MEMBER{}) ->
@@ -202,3 +226,16 @@ delete_1([Value|Rest], Tbl) ->
           end,
     leo_mnesia:delete(Fun),
     delete_1(Rest, Tbl).
+
+
+%% @doc Retrieve a checksum by cluster-id
+%%
+-spec(checksum(string()) ->
+             {ok, pos_integer()} | {error, any()}).
+checksum(ClusterId) ->
+    case find_by_cluster_id(ClusterId) of
+        {ok, Vals} ->
+            {ok, erlang:crc32(term_to_binary(Vals))};
+        Error ->
+            Error
+    end.

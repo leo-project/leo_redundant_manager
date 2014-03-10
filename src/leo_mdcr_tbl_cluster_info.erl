@@ -29,7 +29,9 @@
 %% API
 -export([create_table/2,
          all/0, get/1, find_by_limit/1,
-         update/1, delete/1]).
+         update/1, delete/1,
+         checksum/0
+        ]).
 
 
 %% @doc Create a table of configuration of clusters
@@ -176,6 +178,19 @@ delete(ClusterId) ->
                           mnesia:delete_object(Tbl, ClusterInfo, write)
                   end,
             leo_mnesia:delete(Fun);
+        Error ->
+            Error
+    end.
+
+
+%% @doc Retrieve a checksum
+%%
+-spec(checksum() ->
+             {ok, pos_integer()} | {error, any()}).
+checksum() ->
+    case all() of
+        {ok, Vals} ->
+            {ok, erlang:crc32(term_to_binary(Vals))};
         Error ->
             Error
     end.

@@ -113,6 +113,9 @@ suite_(_) ->
     {ok, Res12} = leo_mdcr_tbl_cluster_info:find_by_limit(3),
     ?assertEqual(2, length(Res12)),
 
+    {ok, Res15} = leo_mdcr_tbl_cluster_info:checksum(),
+    ?assertEqual(true, is_integer(Res15)),
+
     application:stop(mnesia),
     ok.
 
