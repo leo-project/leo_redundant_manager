@@ -236,6 +236,8 @@ checksum(ClusterId) ->
     case find_by_cluster_id(ClusterId) of
         {ok, Vals} ->
             {ok, erlang:crc32(term_to_binary(Vals))};
+        not_found ->
+            {ok, -1};
         Error ->
             Error
     end.
