@@ -145,7 +145,7 @@ maybe_heartbeat(#state{interval  = Interval,
         false ->
             case leo_mdcr_tbl_cluster_mgr:all() of
                 {ok, Managers} ->
-                    ok = exec(Managers, []);
+                    ok = exec(Managers);
                 not_found ->
                     void;
                 {error, Cause} ->
@@ -172,41 +172,42 @@ defer_heartbeat(Time) ->
 %% @doc Retrieve status and members from a remote-cluster
 %%      and then compare 'hash' whether equal or not
 %% @private
--spec(exec(list(), atom()) ->
+-spec(exec(list(#cluster_manager{})) ->
              ok | {error, any()}).
-exec([], _) ->
+exec([]) ->
     ok;
-exec([#cluster_manager{cluster_id = ClusterId}|Rest], ClusterId) ->
-    exec(Rest, ClusterId);
 exec([#cluster_manager{node = Node,
-                       cluster_id = ClusterId}|Rest], PrevClusterId) ->
-    %% Retrieve the status of remote-cluster
-    Ret = case catch leo_rpc:call(Node, leo_redundant_manager_api, get_cluster_status, []) of
-              {ok, #?CLUSTER_STAT{state    = Status_1,
-                                  checksum = Checksum_1} = ClusterStat} ->
-                  %% Compare its status in the local with the retrieved data
-                  case leo_mdcr_tbl_cluster_stat:get(ClusterId) of
-                      {ok, #?CLUSTER_STAT{state    = Status_2,
-                                          checksum = Checksum_2}}
-                        when Status_1   == Status_2,
-                             Checksum_1 == Checksum_2 ->
-                          ok;
-                      {ok, LocalClusterStat} ->
-                          exec_1(Node, ClusterStat, LocalClusterStat);
-                      not_found ->
-                          exec_1(Node, ClusterStat, undefined);
-                      _ ->
-                          ok
-                  end;
-              _ ->
-                  ok
-          end,
-
-    case Ret of
-        ok ->
-            exec(Rest, ClusterId);
-        {error,_Cause} ->
-            exec(Rest, PrevClusterId)
+                       cluster_id = ClusterId}|Rest]) ->
+    %% Retrieve own cluster-id
+    case leo_cluster_tbl_conf:get() of
+        {ok,  #?SYSTEM_CONF{cluster_id = ClusterId}} ->
+            ok;
+        {ok,  #?SYSTEM_CONF{}} ->
+            %% Retrieve the status of remote-cluster,
+            %% then compare its status in the local with the retrieved data
+            case catch leo_rpc:call(Node, leo_redundant_manager_api,
+                                    get_cluster_status, []) of
+                {ok, #?CLUSTER_STAT{state    = Status_1,
+                                    checksum = Checksum_1} = ClusterStat} ->
+                    case leo_mdcr_tbl_cluster_stat:get(ClusterId) of
+                        {ok, #?CLUSTER_STAT{state    = Status_2,
+                                            checksum = Checksum_2}}
+                          when Status_1   == Status_2,
+                               Checksum_1 == Checksum_2 ->
+                            ok;
+                        {ok, LocalClusterStat} ->
+                            exec_1(Node, ClusterStat, LocalClusterStat);
+                        not_found ->
+                            exec_1(Node, ClusterStat, undefined);
+                        _ ->
+                            ok
+                    end;
+                _ ->
+                    ok
+            end,
+            exec(Rest);
+        Error ->
+            Error
     end.
 
 
@@ -235,7 +236,8 @@ exec_1(Node, #cluster_stat{checksum   = Checksum_1,
 
 %% @private
 exec_2(Node, ClusterId) ->
-    case catch leo_rpc:call(Node, leo_redundant_manager_api, get_members, []) of
+    case catch leo_rpc:call(Node, leo_redundant_manager_api,
+                            get_members, []) of
         {ok, Members} ->
             Checksum = erlang:crc32(term_to_binary(lists:sort(Members))),
             case exec_3(Members, ClusterId) of
@@ -244,9 +246,11 @@ exec_2(Node, ClusterId) ->
                 {error, Cause} ->
                     {error, Cause}
             end;
-        {'EXIT', Cause} ->
-            {error, Cause};
-        {error, Cause} ->
+        {_, Cause} ->
+            error_logger:error_msg("~p,~p,~p,~p~n",
+                                   [{module, ?MODULE_STRING},
+                                    {function, "exec_2/2"},
+                                    {line, ?LINE}, {body, Cause}]),
             {error, Cause}
     end.
 
