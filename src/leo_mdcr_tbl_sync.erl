@@ -143,25 +143,27 @@ sync_tables(manager,_Managers) ->
         ok ->
             ok;
         {Node, BadItems} ->
-            %% @TODO
-            %% leo_manager_api:sync_cluster_tbls(Node, BadItems)
-            ?debugVal({Node, BadItems}),
-            ok
+            {ok, [Mod, Method]} = application:get_env(?APP, ?PROP_SYNC_MF),
+            case Mod:Method(BadItems, Node) of
+                ok ->
+                    ok;
+                {error, Cause} ->
+                    {error, Cause}
+            end
     end;
 sync_tables(_ServerType, []) ->
     ok;
 sync_tables(ServerType, [Manager|Rest]) ->
-    Redundancies = ?rnd_nodes_from_ring(),
-    case sync_tables_1(Redundancies) of
+    case sync_tables_1(?rnd_nodes_from_ring()) of
         ok ->
             ok;
         {Node, BadItems} ->
-            %% @TODO
-            case rpc:call(Manager, leo_manager_api,
-                          sync_cluster_tbls, [erlang:node(), Node, BadItems], ?DEF_TIMEOUT) of
+            {ok, [Mod, Method]} = application:get_env(?APP, ?PROP_SYNC_MF),
+            case rpc:call(Manager, Mod, Method,
+                          [BadItems, erlang:node(), Node], ?DEF_TIMEOUT) of
                 ok ->
                     ok;
-                _ ->
+                _Error ->
                     sync_tables(ServerType, Rest)
             end
     end.

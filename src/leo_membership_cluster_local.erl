@@ -406,15 +406,14 @@ compare_with_remote_chksum_1(Node, HashType, LocalChksum) ->
 -spec(notify_error_to_manager(list(), ?CHECKSUM_RING | ?CHECKSUM_MEMBER, list()) ->
              ok).
 notify_error_to_manager(Managers, HashType, Hashes) ->
-    {ok, [Mod, Fun]} = application:get_env(?APP, ?PROP_SYNC_MF),
-
     lists:foldl(
       fun(Node0, false) ->
+              {ok, [Mod, Method]} = application:get_env(?APP, ?PROP_SYNC_MF),
               Node1 = case is_atom(Node0) of
                           true  -> Node0;
                           false -> list_to_atom(Node0)
                       end,
-              case rpc:call(Node1, Mod, Fun, [HashType, Hashes], ?DEF_TIMEOUT) of
+              case rpc:call(Node1, Mod, Method, [HashType, Hashes], ?DEF_TIMEOUT) of
                   ok ->
                       true;
                   Error ->
