@@ -95,6 +95,9 @@
 -define(DEF_OPT_W, 1).
 -define(DEF_OPT_D, 1).
 -define(DEF_OPT_BIT_OF_RING, ?MD5).
+-define(DEF_NUM_OF_REMOTE_MEMBERS, 5).
+-define(DEF_MAX_MDC_TARGETS, 2).
+
 -ifdef(TEST).
 -define(DEF_NUMBER_OF_VNODES, 32).
 -else.
@@ -227,6 +230,19 @@
          }).
 
 -record(system_conf_1, {
+          version = 0         :: integer(),
+          cluster_id = []     :: string(),
+          dc_id      = []     :: string(),
+          n       = 1         :: integer(),
+          r       = 1         :: integer(),
+          w       = 1         :: integer(),
+          d       = 1         :: integer(),
+          bit_of_ring = 128   :: integer(),
+          num_of_dc_replicas   = 0 :: integer(),
+          num_of_rack_replicas = 0 :: integer()
+         }).
+
+-record(system_conf_2, {
           version = 0         :: integer(),      %% version
           cluster_id = []     :: string(),       %% cluster-id
           dc_id      = []     :: string(),       %% dc-id
@@ -235,10 +251,11 @@
           w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
           d       = 1         :: integer(),      %% # of replicas needed for a successful DELETE operation
           bit_of_ring = 128   :: integer(),      %% # of bits for the hash-ring (fixed 128bit)
-          num_of_dc_replicas   = 0 :: integer(), %% # of DC-awareness replicas
-          num_of_rack_replicas = 0 :: integer()  %% # of Rack-awareness replicas
+          num_of_dc_replicas   = 0 :: integer(), %% # of destination of nodes a cluster for MDC-replication
+          num_of_rack_replicas = 0 :: integer(), %% # of Rack-awareness replicas
+          max_mdc_targets = ?DEF_MAX_MDC_TARGETS :: integer() %% max multi-dc replication targets for MDC-replication
          }).
--define(SYSTEM_CONF, 'system_conf_1').
+-define(SYSTEM_CONF, 'system_conf_2').
 
 
 -record(cluster_info, {
@@ -249,9 +266,24 @@
           w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
           d       = 1         :: integer(),      %% # of replicas needed for a successful DELETE operation
           bit_of_ring = 128   :: integer(),      %% # of bits for the hash-ring (fixed 128bit)
-          num_of_dc_replicas   = 0 :: integer(), %% # of DC-awareness replicas
+          num_of_dc_replicas   = 0 :: integer(), %% # of replicas a DC for MDC-replication
           num_of_rack_replicas = 0 :: integer()  %% # of Rack-awareness replicas
          }).
+
+-record(cluster_info_1, {
+          cluster_id = []     :: string(),       %% cluster-id
+          dc_id      = []     :: string(),       %% dc-id
+          n       = 1         :: integer(),      %% # of replicas
+          r       = 1         :: integer(),      %% # of replicas needed for a successful READ operation
+          w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
+          d       = 1         :: integer(),      %% # of replicas needed for a successful DELETE operation
+          bit_of_ring = 128   :: integer(),      %% # of bits for the hash-ring (fixed 128bit)
+          num_of_dc_replicas   = 0 :: integer(), %% # of replicas a DC for MDC-replication
+          num_of_rack_replicas = 0 :: integer(), %% # of Rack-awareness replicas
+          max_mdc_targets = ?DEF_MAX_MDC_TARGETS :: integer() %% max multi-dc replication targets for MDC-replication
+         }).
+-define(CLUSTER_INFO, 'cluster_info_1').
+
 
 %% For Multi-DC Replication
 -record(cluster_stat, {
@@ -301,18 +333,18 @@
 -define(CLUSTER_MEMBER, 'cluster_member_1').
 
 
--record(member,
-        {node                 :: atom(),        %% actual node-name
-         alias = []           :: string(),      %% node-alias
-         ip = "0.0.0.0"       :: string(),      %% ip-address
-         port  = 13075        :: pos_integer(), %% port-number
-         inet  = 'ipv4'       :: 'ipv4'|'ipv6', %% type of ip
-         clock = 0            :: pos_integer(), %% joined at
-         state = null         :: node_state(),  %% current-status
-         num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
-         grp_level_1 = []     :: string(),      %% Group of level_1 for multi-dc replication
-         grp_level_2 = []     :: string()       %% Group of level_2 for rack-awareness replication
-        }).
+-record(member, {
+          node                 :: atom(),        %% actual node-name
+          alias = []           :: string(),      %% node-alias
+          ip = "0.0.0.0"       :: string(),      %% ip-address
+          port  = 13075        :: pos_integer(), %% port-number
+          inet  = 'ipv4'       :: 'ipv4'|'ipv6', %% type of ip
+          clock = 0            :: pos_integer(), %% joined at
+          state = null         :: node_state(),  %% current-status
+          num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
+          grp_level_1 = []     :: string(),      %% Group of level_1 for multi-dc replication
+          grp_level_2 = []     :: string()       %% Group of level_2 for rack-awareness replication
+         }).
 
 
 -record(sync_info, {
@@ -359,37 +391,45 @@
                                     %%   [leader, follower_1. follower_2, observer]
          }).
 
--record(redundancies,
-        {id = -1               :: pos_integer(), %% ring's address
-         vnode_id_from = -1    :: pos_integer(), %% start of vnode_id
-         vnode_id_to = -1      :: pos_integer(), %% end   of vnode_id (ex. vnode_id)
-         temp_nodes = []       :: list(),        %% tempolary objects of redundant-nodes
-         temp_level_2 = []     :: list(),        %% tempolary list of level-2's node
-         nodes = []            :: list(#redundant_node{}), %% objects of redundant-nodes
-         n = 0                 :: pos_integer(), %% # of replicas
-         r = 0                 :: pos_integer(), %% # of successes of READ
-         w = 0                 :: pos_integer(), %% # of successes of WRITE
-         d = 0                 :: pos_integer(), %% # of successes of DELETE
-         level_1 = 0           :: pos_integer(), %% # of dc-awareness's replicas
-         level_2 = 0           :: pos_integer(), %% # of rack-awareness's replicas
-         ring_hash = -1        :: pos_integer()  %% ring-hash when writing an object
-        }).
+-record(redundancies, {
+          id = -1               :: pos_integer(), %% ring's address
+          vnode_id_from = -1    :: pos_integer(), %% start of vnode_id
+          vnode_id_to = -1      :: pos_integer(), %% end   of vnode_id (ex. vnode_id)
+          temp_nodes = []       :: list(),        %% tempolary objects of redundant-nodes
+          temp_level_2 = []     :: list(),        %% tempolary list of level-2's node
+          nodes = []            :: list(#redundant_node{}), %% objects of redundant-nodes
+          n = 0                 :: pos_integer(), %% # of replicas
+          r = 0                 :: pos_integer(), %% # of successes of READ
+          w = 0                 :: pos_integer(), %% # of successes of WRITE
+          d = 0                 :: pos_integer(), %% # of successes of DELETE
+          level_1 = 0           :: pos_integer(), %% # of dc-awareness's replicas
+          level_2 = 0           :: pos_integer(), %% # of rack-awareness's replicas
+          ring_hash = -1        :: pos_integer()  %% ring-hash when writing an object
+         }).
 
 
--record(ring,
-        {vnode_id = -1 :: pos_integer(),
-         node          :: atom()
-        }).
--record(ring_0_16_8,
-        {vnode_id = -1 :: pos_integer(),
-         node          :: atom(),
-         clock = 0     :: pos_integer()
+-record(ring, {
+          vnode_id = -1 :: pos_integer(),
+          node          :: atom()
+         }).
+-record(ring_0_16_8, {
+          vnode_id = -1 :: pos_integer(),
+          node          :: atom(),
+          clock = 0     :: pos_integer()
         }).
 -define(RING, 'ring_0_16_8').
 
 
--record(rebalance, {members_cur  = []  :: list(),
-                    members_prev = []  :: list(),
-                    tbl_cur            :: atom(),
-                    tbl_prev           :: atom()
-                   }).
+-record(rebalance, {
+          members_cur  = []  :: list(),
+          members_prev = []  :: list(),
+          tbl_cur            :: atom(),
+          tbl_prev           :: atom()
+         }).
+
+-record(mdc_replication_info, {
+          cluster_id = []      :: string(),
+          num_of_replicas = 0  :: pos_integer(),
+          cluster_members = [] :: list(),
+          metadata             :: any()
+         }).

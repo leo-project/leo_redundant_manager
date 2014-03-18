@@ -143,7 +143,7 @@ maybe_heartbeat(#state{interval  = Interval,
         true ->
             void;
         false ->
-            case leo_redundant_manager_tbl_cluster_mgr:all() of
+            case leo_mdcr_tbl_cluster_mgr:all() of
                 {ok, Managers} ->
                     ok = exec(Managers, []);
                 not_found ->
@@ -185,7 +185,7 @@ exec([#cluster_manager{node = Node,
               {ok, #?CLUSTER_STAT{state    = Status_1,
                                   checksum = Checksum_1} = ClusterStat} ->
                   %% Compare its status in the local with the retrieved data
-                  case leo_redundant_manager_tbl_cluster_stat:get(ClusterId) of
+                  case leo_mdcr_tbl_cluster_stat:get(ClusterId) of
                       {ok, #?CLUSTER_STAT{state    = Status_2,
                                           checksum = Checksum_2}}
                         when Status_1   == Status_2,
@@ -223,7 +223,7 @@ exec_1(Node, #cluster_stat{checksum   = Checksum_1,
             case exec_2(Node, ClusterId) of
                 {ok, Checksum} ->
                     %% Update status
-                    ok = leo_redundant_manager_tbl_cluster_stat:update(
+                    ok = leo_mdcr_tbl_cluster_stat:update(
                            ClusterStat#cluster_stat{checksum = Checksum,
                                                     updated_at = leo_date:now()});
                 {error, Cause} ->
@@ -261,7 +261,7 @@ exec_3([#member{node = Node,
                 clock = Clock,
                 state = State,
                 num_of_vnodes = NumOfVNodes}|Rest], ClusterId) ->
-    case leo_redundant_manager_tbl_cluster_member:update(
+    case leo_mdcr_tbl_cluster_member:update(
            #?CLUSTER_MEMBER{node = Node,
                             cluster_id = ClusterId,
                             alias = Alias,

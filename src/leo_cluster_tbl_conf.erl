@@ -17,16 +17,9 @@
 %% KIND, either express or implied.  See the License for the
 %% specific language governing permissions and limitations
 %% under the License.
-%%
-%% ---------------------------------------------------------------------
-%% Leo Redundant Manager - ETS/Mnesia Handler
-%% @doc
-%% @end
 %%======================================================================
--module(leo_redundant_manager_tbl_conf).
-
+-module(leo_cluster_tbl_conf).
 -author('Yosuke Hara').
-
 
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -58,7 +51,8 @@ create_table(Mode, Nodes) ->
          {d,                    pos_integer, false},
          {bit_of_ring,          pos_integer, false},
          {num_of_dc_replicas,   pos_integer, false},
-         {num_of_rack_replicas, pos_integer, false}
+         {num_of_rack_replicas, pos_integer, false},
+         {max_mdc_targets,      pos_integer, false}
         ]}
       ]).
 
@@ -66,7 +60,7 @@ create_table(Mode, Nodes) ->
 %% @doc Retrieve system configuration
 %%
 -spec(get() ->
-             {ok, #system_conf{}} | not_found | {error, any()}).
+             {ok, #?SYSTEM_CONF{}} | not_found | {error, any()}).
 get() ->
     Tbl = ?TBL_SYSTEM_CONF,
 
@@ -89,7 +83,7 @@ get_1(Other) ->
 
 %% @doc Modify system-configuration
 %%
--spec(update(#system_conf{}) ->
+-spec(update(#?SYSTEM_CONF{}) ->
              ok | {error, any()}).
 update(SystemConfig) ->
     Tbl = ?TBL_SYSTEM_CONF,

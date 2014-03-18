@@ -17,14 +17,8 @@
 %% KIND, either express or implied.  See the License for the
 %% specific language governing permissions and limitations
 %% under the License.
-%%
-%% ---------------------------------------------------------------------
-%% Leo Redundant Manager - ETS/Mnesia Handler
-%% @doc
-%% @end
 %%======================================================================
--module(leo_redundant_manager_tbl_ring).
-
+-module(leo_cluster_tbl_ring).
 -author('Yosuke Hara').
 
 -include("leo_redundant_manager.hrl").
