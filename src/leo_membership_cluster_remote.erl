@@ -160,7 +160,6 @@ maybe_heartbeat(#state{interval  = Interval,
     State#state{timestamp = leo_date:now() * 1000}.
 
 
-
 %% @doc Heartbeat
 %% @private
 -spec(defer_heartbeat(integer()) ->

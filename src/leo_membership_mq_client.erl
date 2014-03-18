@@ -202,4 +202,3 @@ notify_error_to_manager(?MQ_INSTANCE_ID_MANAGER, RemoteNode, Error) ->
 
 notify_error_to_manager(_,_,_) ->
     {error, badarg}.
-

@@ -204,6 +204,11 @@
 -undef(ERROR_MNESIA_NOT_START).
 -define(ERROR_MNESIA_NOT_START, "Mnesia is not available").
 
+-define(CHKSUM_CLUSTER_INFO,   'cluster_info').
+-define(CHKSUM_CLUSTER_MGR,    'cluster_mgr').
+-define(CHKSUM_CLUSTER_MEMBER, 'cluster_member').
+-define(CHKSUM_CLUSTER_STAT,   'cluster_stat').
+
 
 %% Dump File
 %%
@@ -409,27 +414,51 @@
 
 
 -record(ring, {
-          vnode_id = -1 :: pos_integer(),
-          node          :: atom()
+          vnode_id = -1 :: pos_integer(), %% vnode-id
+          node          :: atom()         %% node
          }).
 -record(ring_0_16_8, {
-          vnode_id = -1 :: pos_integer(),
-          node          :: atom(),
-          clock = 0     :: pos_integer()
+          vnode_id = -1 :: pos_integer(), %% vnode-id
+          node          :: atom(),        %% node
+          clock = 0     :: pos_integer()  %% clock
         }).
 -define(RING, 'ring_0_16_8').
 
 
 -record(rebalance, {
-          members_cur  = []  :: list(),
-          members_prev = []  :: list(),
-          tbl_cur            :: atom(),
-          tbl_prev           :: atom()
+          members_cur  = []  :: list(), %% current members
+          members_prev = []  :: list(), %% previous members
+          tbl_cur            :: atom(), %% current table
+          tbl_prev           :: atom()  %% previous table
          }).
 
 -record(mdc_replication_info, {
-          cluster_id = []      :: string(),
-          num_of_replicas = 0  :: pos_integer(),
-          cluster_members = [] :: list(),
-          metadata             :: any()
+          cluster_id = []      :: string(),      %% cluster-id
+          num_of_replicas = 0  :: pos_integer(), %% num of replicas
+          cluster_members = [] :: list(),        %% cluster members
+          metadata             :: any()          %% metadata
          }).
+
+
+-record(cluster_tbl_checksum, {
+          info    = 0 :: pos_integer(), %% cluster-info-tables's checksum
+          manager = 0 :: pos_integer(), %% cluster-manager-table's checksum
+          member  = 0 :: pos_integer(), %% cluster-member-table's checksum
+          state   = 0 :: pos_integer()  %% cluster-state-table's checksum
+         }).
+
+
+%% Macro
+-define(rnd_nodes_from_ring(),
+        begin
+            {ok,_Options} = leo_redundant_manager_api:get_options(),
+            _BitOfRing = leo_misc:get_value('bit_of_ring',_Options),
+            _AddrId    = random:uniform(leo_math:power(2,_BitOfRing)),
+
+            case leo_redundant_manager_api:get_redundancies_by_addr_id(_AddrId) of
+                {ok, #redundancies{nodes = _Redundancies}} ->
+                    _Redundancies;
+                _ ->
+                    []
+            end
+        end).

@@ -255,18 +255,11 @@ exec(?SERVER_MANAGER = ServerType, Managers, Callback) ->
 %% @doc Execute for gateway and storage nodes.
 %% @private
 exec(ServerType, Managers, Callback) ->
-    {ok, Options} = leo_redundant_manager_api:get_options(),
-    BitOfRing     = leo_misc:get_value('bit_of_ring', Options),
-    AddrId        = random:uniform(leo_math:power(2, BitOfRing)),
-
-    case leo_redundant_manager_api:get_redundancies_by_addr_id(AddrId) of
-        {ok, #redundancies{nodes = Redundancies}} ->
-            Nodes = [{Node, State} || #redundant_node{node = Node,
-                                                      available = State} <- Redundancies],
-            exec_1(ServerType, Managers, Nodes, Callback);
-        _Other ->
-            void
-    end.
+    Redundancies = ?rnd_nodes_from_ring(),
+    Nodes = [{Node, State} ||
+                #redundant_node{node = Node,
+                                available = State} <- Redundancies],
+    exec_1(ServerType, Managers, Nodes, Callback).
 
 
 %% @doc Execute for manager-nodes.
