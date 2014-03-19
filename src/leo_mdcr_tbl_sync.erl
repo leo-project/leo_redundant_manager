@@ -144,7 +144,7 @@ sync_tables(manager,_Managers) ->
         ok ->
             ok;
         {Node, BadItems} ->
-            {ok, [Mod, Method]} = application:get_env(?APP, ?PROP_SYNC_MF),
+            {ok, [Mod, Method]} = ?env_sync_mod_and_method(),
             case erlang:apply(Mod, Method, [BadItems, erlang:node(), Node]) of
                 ok ->
                     ok;

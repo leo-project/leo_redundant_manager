@@ -63,7 +63,6 @@ create_table(Mode, Nodes) ->
     end.
 
 
-
 %% @doc Retrieve all configuration of remote-clusters
 %%
 -spec(all() ->
