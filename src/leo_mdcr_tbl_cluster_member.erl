@@ -32,7 +32,7 @@
          find_by_state/2, find_by_node/1,
          find_by_limit/2, find_by_cluster_id/1,
          update/1, delete/1,
-         checksum/1
+         checksum/0, checksum/1
         ]).
 
 
@@ -230,12 +230,26 @@ delete_1([Value|Rest], Tbl) ->
 
 %% @doc Retrieve a checksum by cluster-id
 %%
+-spec(checksum() ->
+             {ok, pos_integer()} | {error, any()}).
+checksum() ->
+    case all() of
+        {ok, Vals} ->
+            {ok, erlang:crc32(term_to_binary(Vals))};
+        not_found ->
+            {ok, -1};
+        Error ->
+            Error
+    end.
+
 -spec(checksum(string()) ->
              {ok, pos_integer()} | {error, any()}).
 checksum(ClusterId) ->
     case find_by_cluster_id(ClusterId) of
         {ok, Vals} ->
             {ok, erlang:crc32(term_to_binary(Vals))};
+        not_found ->
+            {ok, -1};
         Error ->
             Error
     end.

@@ -85,15 +85,10 @@ start_link(ServerType, Managers, MQStoragePath, Conf, MembershipCallback) ->
                     ok = leo_redundant_manager_api:set_options(Conf)
             end,
 
-            %% Launch membership for local-cluster
-            case supervisor:start_child(leo_redundant_manager_sup,
-                                        {leo_membership_cluster_local,
-                                         {leo_membership_cluster_local,
-                                          start_link,
-                                          [ServerType_1, Managers, MembershipCallback]},
-                                         permanent, 2000, worker,
-                                         [leo_membership_cluster_local]}) of
-                {ok, _Pid} ->
+            %% Launch membership for local-cluster,
+            %% then lunch mdc-tables sync
+            case start_link_3(ServerType, Managers, MembershipCallback) of
+                ok ->
                     ok = leo_membership_mq_client:start(ServerType_1, MQStoragePath),
                     ok = leo_membership_cluster_local:start_heartbeat(),
                     {ok, RefSup};
@@ -136,6 +131,32 @@ start_link_2({ok, _} = Ret, ServerType) ->
     Reply;
 start_link_2(Error,_ServerType) ->
     Error.
+
+%% @private
+start_link_3(ServerType, Managers, MembershipCallback) ->
+    case supervisor:start_child(leo_redundant_manager_sup,
+                                {leo_membership_cluster_local,
+                                 {leo_membership_cluster_local,
+                                  start_link,
+                                  [ServerType, Managers, MembershipCallback]},
+                                 permanent, 2000, worker,
+                                 [leo_membership_cluster_local]}) of
+        {ok,_} ->
+            case supervisor:start_child(leo_redundant_manager_sup,
+                                        {leo_mdcr_tbl_sync,
+                                         {leo_mdcr_tbl_sync,
+                                          start_link,
+                                          [ServerType, Managers]},
+                                         permanent, 2000, worker,
+                                         [leo_mdcr_tbl_sync]}) of
+                {ok,_} ->
+                    ok;
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end.
 
 
 %% @spec () -> ok |

@@ -255,18 +255,11 @@ exec(?SERVER_MANAGER = ServerType, Managers, Callback) ->
 %% @doc Execute for gateway and storage nodes.
 %% @private
 exec(ServerType, Managers, Callback) ->
-    {ok, Options} = leo_redundant_manager_api:get_options(),
-    BitOfRing     = leo_misc:get_value('bit_of_ring', Options),
-    AddrId        = random:uniform(leo_math:power(2, BitOfRing)),
-
-    case leo_redundant_manager_api:get_redundancies_by_addr_id(AddrId) of
-        {ok, #redundancies{nodes = Redundancies}} ->
-            Nodes = [{Node, State} || #redundant_node{node = Node,
-                                                      available = State} <- Redundancies],
-            exec_1(ServerType, Managers, Nodes, Callback);
-        _Other ->
-            void
-    end.
+    Redundancies = ?rnd_nodes_from_ring(),
+    Nodes = [{Node, State} ||
+                #redundant_node{node = Node,
+                                available = State} <- Redundancies],
+    exec_1(ServerType, Managers, Nodes, Callback).
 
 
 %% @doc Execute for manager-nodes.
@@ -324,8 +317,8 @@ inspect_result(ok, [ServerType, _, Node, false]) ->
 inspect_result(ok, _) ->
     ok;
 
-inspect_result({error, {HashType, ?ERR_TYPE_INCONSISTENT_HASH, Hashes}}, [_, Managers, _, _]) ->
-    notify_error_to_manager(Managers, HashType, Hashes);
+inspect_result({error, {HashType, ?ERR_TYPE_INCONSISTENT_HASH, NodesWithChksum}}, [_, Managers, _, _]) ->
+    notify_error_to_manager(Managers, HashType, NodesWithChksum);
 
 inspect_result({error, ?ERR_TYPE_NODE_DOWN}, [ServerType,_,Node,_]) ->
     leo_membership_mq_client:publish(ServerType, Node, ?ERR_TYPE_NODE_DOWN);
@@ -410,18 +403,17 @@ compare_with_remote_chksum_1(Node, HashType, LocalChksum) ->
 
 %% @doc Notify an incorrect-info to manager-node
 %% @private
--spec(notify_error_to_manager(list(), ?CHECKSUM_RING | ?CHECKSUM_MEMBER, list()) ->
+-spec(notify_error_to_manager(list(), ?CHECKSUM_RING | ?CHECKSUM_MEMBER, list({atom(),pos_integer()})) ->
              ok).
-notify_error_to_manager(Managers, HashType, Hashes) ->
-    {ok, [Mod, Fun]} = application:get_env(?APP, ?PROP_SYNC_MF),
-
+notify_error_to_manager(Managers, HashType, NodesWithChksum) ->
     lists:foldl(
       fun(Node0, false) ->
+              {ok, [Mod, Method]} = application:get_env(?APP, ?PROP_SYNC_MF),
               Node1 = case is_atom(Node0) of
                           true  -> Node0;
                           false -> list_to_atom(Node0)
                       end,
-              case rpc:call(Node1, Mod, Fun, [HashType, Hashes], ?DEF_TIMEOUT) of
+              case rpc:call(Node1, Mod, Method, [HashType, NodesWithChksum], ?DEF_TIMEOUT) of
                   ok ->
                       true;
                   Error ->

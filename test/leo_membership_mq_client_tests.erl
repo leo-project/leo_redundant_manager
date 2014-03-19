@@ -77,6 +77,8 @@ teardown({Mgr0, Node0, Path}) ->
     slave:stop(Node0),
 
     os:cmd("rm -rf " ++ Path),
+
+    timer:sleep(timer:seconds(1)),
     ok.
 
 %% @doc publish

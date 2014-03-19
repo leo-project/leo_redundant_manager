@@ -52,7 +52,8 @@
          update_member/1, update_members/1, update_member_by_node/2, update_member_by_node/3,
          delete_member_by_node/1, is_alive/0, table_info/1,
          force_sync_workers/0,
-         get_cluster_status/0
+         get_cluster_status/0,
+         get_cluster_tbl_checksums/0
         ]).
 -export([get_server_id/0, get_server_id/1]).
 
@@ -984,6 +985,22 @@ judge_cluster_status(Members) ->
                 false -> ?STATE_STOP
             end
     end.
+
+
+%% @doc Retrieve checksums of cluster-related tables
+%%
+-spec(get_cluster_tbl_checksums() ->
+             list(tuple())).
+get_cluster_tbl_checksums() ->
+    Chksum_1 = leo_mdcr_tbl_cluster_info:checksum(),
+    Chksum_2 = leo_mdcr_tbl_cluster_mgr:checksum(),
+    Chksum_3 = leo_mdcr_tbl_cluster_member:checksum(),
+    Chksum_4 = leo_mdcr_tbl_cluster_stat:checksum(),
+    {ok, [{?CHKSUM_CLUSTER_INFO,    Chksum_1},
+          {?CHKSUM_CLUSTER_MGR,     Chksum_2},
+          {?CHKSUM_CLUSTER_MEMBER,  Chksum_3},
+          {?CHKSUM_CLUSTER_STAT,    Chksum_4}
+         ]}.
 
 
 %% @doc Retrieve a srever id

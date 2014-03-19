@@ -1,4 +1,3 @@
-%% -*- mode: erlang;erlang-indent-level: 4;indent-tabs-mode: nil -*-
 %%======================================================================
 %%
 %% Leo Redundant Manager
@@ -20,21 +19,19 @@
 %% under the License.
 %%
 %%======================================================================
-{require_otp_vsn, "R15B03|R16B*"}.
+-module(leo_cluster_tbl_sync_behaviour).
+-author('Yosuke Hara').
 
-{deps, [
-        {leo_mq,  ".*", {git, "https://github.com/leo-project/leo_mq.git",  {branch, "develop"}}},
-        {leo_rpc, ".*", {git, "https://github.com/leo-project/leo_rpc.git", {branch, "develop"}}},
-        {meck,    ".*", {git, "https://github.com/eproxus/meck.git",        {tag, "0.7.2"}}}
-       ]}.
+%% @doc Synchronize bad items with records of a manager node
+-callback(synchronize(HashType::atom(), list()) ->
+                 ok | {error, any()}).
 
-{erl_opts, [{d, 'NOTEST'},
-            warn_obsolete_guard,
-            warn_unused_import,
-            warnings_as_errors,
-            warn_shadow_vars,
-            warn_export_vars,
-            warn_export_all]}.
-{xref_checks, [undefined_function_calls]}.
-{cover_enabled, true}.
-{clean_files, []}.
+-callback(synchronize(BadItems::list(atom()), Node_1::atom(), Node_2::atom()) ->
+                 ok | {error, any()}).
+
+
+%% @doc Notify a message to a manager
+-callback(notify(sync, VNodeId::pos_integer(), Node::atom()) ->
+                 ok | {error, any()}).
+-callback(notify(error, Node_1::atom(), Node_2::atom(), Error::any()) ->
+                 ok | {error, any()}).

@@ -28,7 +28,9 @@
 
 %% API
 -export([create_table/2,
-         all/0, get/1, update/1, delete/1]).
+         all/0, get/1, update/1, delete/1,
+         checksum/0
+        ]).
 
 
 %% @doc Create a table of system-configutation
@@ -125,3 +127,18 @@ delete_1([Value|Rest], Tbl) ->
           end,
     leo_mnesia:delete(Fun),
     delete_1(Rest, Tbl).
+
+
+%% @doc Retrieve a checksum
+%%
+-spec(checksum() ->
+             pos_integer()).
+checksum() ->
+    case all() of
+        {ok, Vals} ->
+            {ok, erlang:crc32(term_to_binary(Vals))};
+        not_found ->
+            {ok, -1};
+        Error ->
+            Error
+    end.

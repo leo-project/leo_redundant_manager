@@ -191,6 +191,8 @@ checksum() ->
     case all() of
         {ok, Vals} ->
             {ok, erlang:crc32(term_to_binary(Vals))};
+        not_found ->
+            {ok, -1};
         Error ->
             Error
     end.
