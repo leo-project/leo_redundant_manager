@@ -76,7 +76,7 @@ teardown(_) ->
 
 suite_(_) ->
     application:start(mnesia),
-    {atomic,ok} = leo_mdcr_tbl_cluster_member:create_table(ram_copies, [node()]),
+    ok = leo_mdcr_tbl_cluster_member:create_table(ram_copies, [node()]),
 
     Res1 = leo_mdcr_tbl_cluster_member:all(),
     ?assertEqual(not_found, Res1),

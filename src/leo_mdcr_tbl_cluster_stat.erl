@@ -36,19 +36,24 @@
 %% @doc Create a table of system-configutation
 %%
 create_table(Mode, Nodes) ->
-    mnesia:create_table(
-      ?TBL_CLUSTER_STAT,
-      [{Mode, Nodes},
-       {type, set},
-       {record_name, ?CLUSTER_STAT},
-       {attributes, record_info(fields, cluster_stat)},
-       {user_properties,
-        [{cluster_id, string,      primary},
-         {state,      atom,        false  },
-         {checksum,   pos_integer, false  },
-         {updated_at, pos_integer, false  }
-        ]}
-      ]).
+    case mnesia:create_table(
+           ?TBL_CLUSTER_STAT,
+           [{Mode, Nodes},
+            {type, set},
+            {record_name, ?CLUSTER_STAT},
+            {attributes, record_info(fields, cluster_stat)},
+            {user_properties,
+             [{cluster_id, string,      primary},
+              {state,      atom,        false  },
+              {checksum,   pos_integer, false  },
+              {updated_at, pos_integer, false  }
+             ]}
+           ]) of
+        {atomic, ok} ->
+            ok;
+        {aborted, Reason} ->
+            {error, Reason}
+    end.
 
 
 %% @doc Retrieve system configuration by cluster-id

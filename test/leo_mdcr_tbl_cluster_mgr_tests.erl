@@ -54,7 +54,7 @@ teardown(_) ->
 
 suite_(_) ->
     application:start(mnesia),
-    {atomic,ok} = leo_mdcr_tbl_cluster_mgr:create_table(ram_copies, [node()]),
+    ok = leo_mdcr_tbl_cluster_mgr:create_table(ram_copies, [node()]),
 
     Res1 = leo_mdcr_tbl_cluster_mgr:all(),
     ?assertEqual(not_found, Res1),

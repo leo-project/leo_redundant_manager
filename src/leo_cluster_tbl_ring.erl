@@ -43,18 +43,24 @@ create_table_current(Mode) ->
     create_table_current(Mode, [erlang:node()]).
 
 create_table_current(Mode, Nodes) ->
-    mnesia:create_table(
-      ?RING_TBL_CUR,
-      [{Mode, Nodes},
-       {type, ordered_set},
-       {record_name, ?RING},
-       {attributes, record_info(fields, ?RING)},
-       {user_properties,
-        [{vnode_id, integer, primary},
-         {atom,     varchar, false},
-         {clock,    integer, false}
-        ]}
-      ]).
+    case mnesia:create_table(
+           ?RING_TBL_CUR,
+           [{Mode, Nodes},
+            {type, ordered_set},
+            {record_name, ?RING},
+            {attributes, record_info(fields, ?RING)},
+            {user_properties,
+             [{vnode_id, integer, primary},
+              {atom,     varchar, false},
+              {clock,    integer, false}
+             ]}
+           ]) of
+        {atomic, ok} ->
+            ok;
+        {aborted, Reason} ->
+            {error, Reason}
+    end.
+
 
 %% @doc create ring-prev table
 %%

@@ -37,25 +37,31 @@
 %% @doc Create a table of configuration of clusters
 %%
 create_table(Mode, Nodes) ->
-    mnesia:create_table(
-      ?TBL_CLUSTER_INFO,
-      [{Mode, Nodes},
-       {type, set},
-       {record_name, ?CLUSTER_INFO},
-       {attributes, record_info(fields, ?CLUSTER_INFO)},
-       {user_properties,
-        [{cluster_id,           string,      primary},
-         {dc_id,                string,      false  },
-         {n,                    pos_integer, false  },
-         {r,                    pos_integer, false  },
-         {w,                    pos_integer, false  },
-         {d,                    pos_integer, false  },
-         {bit_of_ring,          pos_integer, false  },
-         {num_of_dc_replicas,   pos_integer, false  },
-         {num_of_rack_replicas, pos_integer, false  },
-         {max_mdc_targets,      pos_integer, false  }
-        ]}
-      ]).
+    case mnesia:create_table(
+           ?TBL_CLUSTER_INFO,
+           [{Mode, Nodes},
+            {type, set},
+            {record_name, ?CLUSTER_INFO},
+            {attributes, record_info(fields, ?CLUSTER_INFO)},
+            {user_properties,
+             [{cluster_id,           string,      primary},
+              {dc_id,                string,      false  },
+              {n,                    pos_integer, false  },
+              {r,                    pos_integer, false  },
+              {w,                    pos_integer, false  },
+              {d,                    pos_integer, false  },
+              {bit_of_ring,          pos_integer, false  },
+              {num_of_dc_replicas,   pos_integer, false  },
+              {num_of_rack_replicas, pos_integer, false  },
+              {max_mdc_targets,      pos_integer, false  }
+             ]}
+           ]) of
+        {atomic, ok} ->
+            ok;
+        {aborted, Reason} ->
+            {error, Reason}
+    end.
+
 
 
 %% @doc Retrieve all configuration of remote-clusters

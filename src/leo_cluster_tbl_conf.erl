@@ -34,27 +34,32 @@
 %% @doc Create a table of system-configutation
 %%
 create_table(Mode, Nodes) ->
-    mnesia:create_table(
-      ?TBL_SYSTEM_CONF,
-      [{Mode, Nodes},
-       {type, set},
-       {record_name, ?SYSTEM_CONF},
-       {attributes, record_info(fields, ?SYSTEM_CONF)},
-       {user_properties,
-        [
-         {version,              pos_integer, primary},
-         {cluster_id,           string,      false},
-         {dc_id,                string,      false},
-         {n,                    pos_integer, false},
-         {r,                    pos_integer, false},
-         {w,                    pos_integer, false},
-         {d,                    pos_integer, false},
-         {bit_of_ring,          pos_integer, false},
-         {num_of_dc_replicas,   pos_integer, false},
-         {num_of_rack_replicas, pos_integer, false},
-         {max_mdc_targets,      pos_integer, false}
-        ]}
-      ]).
+    case mnesia:create_table(
+           ?TBL_SYSTEM_CONF,
+           [{Mode, Nodes},
+            {type, set},
+            {record_name, ?SYSTEM_CONF},
+            {attributes, record_info(fields, ?SYSTEM_CONF)},
+            {user_properties,
+             [
+              {version,              pos_integer, primary},
+              {cluster_id,           string,      false},
+              {dc_id,                string,      false},
+              {n,                    pos_integer, false},
+              {r,                    pos_integer, false},
+              {w,                    pos_integer, false},
+              {d,                    pos_integer, false},
+              {bit_of_ring,          pos_integer, false},
+              {num_of_dc_replicas,   pos_integer, false},
+              {num_of_rack_replicas, pos_integer, false},
+              {max_mdc_targets,      pos_integer, false}
+             ]}
+           ]) of
+        {atomic, ok} ->
+            ok;
+        {aborted, Reason} ->
+            {error, Reason}
+    end.
 
 
 %% @doc Retrieve system configuration

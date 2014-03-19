@@ -67,26 +67,30 @@ create_table(Table) ->
 
 -spec(create_table(mnesia_copies(), list(), member_table()) -> ok).
 create_table(Mode, Nodes, Table) ->
-    mnesia:create_table(
-      Table,
-      [{Mode, Nodes},
-       {type, set},
-       {record_name, member},
-       {attributes, record_info(fields, member)},
-       {user_properties,
-        [{node,          varchar, primary},
-         {alias,         varchar, false},
-         {ip,            varchar, false},
-         {port,          integer, false},
-         {inet,          varchar, false},
-         {clock,         integer, false},
-         {num_of_vnodes, integer, false},
-         {state,         varchar, false},
-         {grp_level_1,   varchar, false},
-         {grp_level_2,   varchar, false}
-        ]}
-      ]),
-    ok.
+    case mnesia:create_table(
+           Table,
+           [{Mode, Nodes},
+            {type, set},
+            {record_name, member},
+            {attributes, record_info(fields, member)},
+            {user_properties,
+             [{node,          varchar, primary},
+              {alias,         varchar, false},
+              {ip,            varchar, false},
+              {port,          integer, false},
+              {inet,          varchar, false},
+              {clock,         integer, false},
+              {num_of_vnodes, integer, false},
+              {state,         varchar, false},
+              {grp_level_1,   varchar, false},
+              {grp_level_2,   varchar, false}
+             ]}
+           ]) of
+        {atomic, ok} ->
+            ok;
+        {aborted, Reason} ->
+            {error, Reason}
+    end.
 
 
 %% @doc Retrieve a record by key from the table.
