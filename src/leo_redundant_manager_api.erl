@@ -951,7 +951,7 @@ force_sync_workers_1(Index) ->
 
 %% Retrieve local cluster's status
 -spec(get_cluster_status() ->
-             {ok, #cluster_stat{}} | not_found).
+             {ok, #?CLUSTER_STAT{}} | not_found).
 get_cluster_status() ->
     {ok, #?SYSTEM_CONF{cluster_id = ClusterId}} = leo_cluster_tbl_conf:get(),
     case get_members() of
@@ -1024,7 +1024,7 @@ get_server_id(AddrId) ->
 %% @doc Retrieve conf of remote clusters
 %%
 -spec(get_remote_clusters() ->
-             {ok, list(#cluster_info{})} | {error, any()}).
+             {ok, list(#?CLUSTER_INFO{})} | {error, any()}).
 get_remote_clusters() ->
     case leo_cluster_tbl_conf:get() of
         {ok, #?SYSTEM_CONF{max_mdc_targets = MaxTargetClusters}} ->
@@ -1034,7 +1034,7 @@ get_remote_clusters() ->
     end.
 
 -spec(get_remote_clusters(pos_integer()) ->
-             {ok, list(#cluster_info{})} | {error, any()}).
+             {ok, list(#?CLUSTER_INFO{})} | {error, any()}).
 get_remote_clusters(NumOfDestClusters) ->
     leo_mdcr_tbl_cluster_info:find_by_limit(NumOfDestClusters).
 
@@ -1042,12 +1042,12 @@ get_remote_clusters(NumOfDestClusters) ->
 %% @doc Retrieve remote cluster members
 %%
 -spec(get_remote_members(atom()) ->
-             {ok, #cluster_member{}} | {error, any()}).
+             {ok, #?CLUSTER_MEMBER{}} | {error, any()}).
 get_remote_members(ClusterId) ->
     get_remote_members(ClusterId, ?DEF_NUM_OF_REMOTE_MEMBERS).
 
 -spec(get_remote_members(atom(), pos_integer()) ->
-             {ok, #cluster_member{}} | {error, any()}).
+             {ok, #?CLUSTER_MEMBER{}} | {error, any()}).
 get_remote_members(ClusterId, NumOfMembers) ->
     leo_mdcr_tbl_cluster_member:find_by_limit(ClusterId, NumOfMembers).
 

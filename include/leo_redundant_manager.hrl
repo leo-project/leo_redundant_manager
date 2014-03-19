@@ -445,14 +445,6 @@
           metadata             :: any()          %% metadata
          }).
 
-%% -record(cluster_tbl_checksum, {
-%%           info    = 0 :: pos_integer(), %% cluster-info-tables's checksum
-%%           manager = 0 :: pos_integer(), %% cluster-manager-table's checksum
-%%           member  = 0 :: pos_integer(), %% cluster-member-table's checksum
-%%           state   = 0 :: pos_integer()  %% cluster-state-table's checksum
-%%          }).
-
-
 -ifdef(TEST).
 -define(rnd_nodes_from_ring(),
         begin

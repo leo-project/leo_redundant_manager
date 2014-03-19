@@ -212,10 +212,10 @@ exec([#cluster_manager{node = Node,
 
 %% @private
 exec_1(Node, ClusterStat, undefined) ->
-    exec_1(Node, ClusterStat, #cluster_stat{});
-exec_1(Node, #cluster_stat{checksum   = Checksum_1,
-                           cluster_id = ClusterId} = ClusterStat,
-       #cluster_stat{checksum = Checksum_2}) ->
+    exec_1(Node, ClusterStat, #?CLUSTER_STAT{});
+exec_1(Node, #?CLUSTER_STAT{checksum   = Checksum_1,
+                            cluster_id = ClusterId} = ClusterStat,
+       #?CLUSTER_STAT{checksum = Checksum_2}) ->
     %% Retrieve new members and then store them
     case (Checksum_1 /= Checksum_2) of
         true ->
@@ -224,8 +224,8 @@ exec_1(Node, #cluster_stat{checksum   = Checksum_1,
                 {ok, Checksum} ->
                     %% Update status
                     ok = leo_mdcr_tbl_cluster_stat:update(
-                           ClusterStat#cluster_stat{checksum = Checksum,
-                                                    updated_at = leo_date:now()});
+                           ClusterStat#?CLUSTER_STAT{checksum = Checksum,
+                                                     updated_at = leo_date:now()});
                 {error, Cause} ->
                     {error, Cause}
             end;
