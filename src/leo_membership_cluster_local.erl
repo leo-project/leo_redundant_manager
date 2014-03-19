@@ -317,8 +317,8 @@ inspect_result(ok, [ServerType, _, Node, false]) ->
 inspect_result(ok, _) ->
     ok;
 
-inspect_result({error, {HashType, ?ERR_TYPE_INCONSISTENT_HASH, Hashes}}, [_, Managers, _, _]) ->
-    notify_error_to_manager(Managers, HashType, Hashes);
+inspect_result({error, {HashType, ?ERR_TYPE_INCONSISTENT_HASH, NodesWithChksum}}, [_, Managers, _, _]) ->
+    notify_error_to_manager(Managers, HashType, NodesWithChksum);
 
 inspect_result({error, ?ERR_TYPE_NODE_DOWN}, [ServerType,_,Node,_]) ->
     leo_membership_mq_client:publish(ServerType, Node, ?ERR_TYPE_NODE_DOWN);
@@ -403,9 +403,9 @@ compare_with_remote_chksum_1(Node, HashType, LocalChksum) ->
 
 %% @doc Notify an incorrect-info to manager-node
 %% @private
--spec(notify_error_to_manager(list(), ?CHECKSUM_RING | ?CHECKSUM_MEMBER, list()) ->
+-spec(notify_error_to_manager(list(), ?CHECKSUM_RING | ?CHECKSUM_MEMBER, list({atom(),pos_integer()})) ->
              ok).
-notify_error_to_manager(Managers, HashType, Hashes) ->
+notify_error_to_manager(Managers, HashType, NodesWithChksum) ->
     lists:foldl(
       fun(Node0, false) ->
               {ok, [Mod, Method]} = application:get_env(?APP, ?PROP_SYNC_MF),
@@ -413,7 +413,7 @@ notify_error_to_manager(Managers, HashType, Hashes) ->
                           true  -> Node0;
                           false -> list_to_atom(Node0)
                       end,
-              case rpc:call(Node1, Mod, Method, [HashType, Hashes], ?DEF_TIMEOUT) of
+              case rpc:call(Node1, Mod, Method, [HashType, NodesWithChksum], ?DEF_TIMEOUT) of
                   ok ->
                       true;
                   Error ->
