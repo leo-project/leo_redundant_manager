@@ -30,7 +30,8 @@
          all/0, get/1,
          find_by_state/1, find_by_cluster_id/1,
          update/1, delete/1,
-         checksum/0, checksum/1
+         checksum/0, checksum/1,
+         synchronize/1
         ]).
 
 %% @doc Create a table of system-configutation
@@ -209,6 +210,21 @@ checksum(ClusterId) ->
             {ok, erlang:crc32(term_to_binary(Vals))};
         not_found ->
             {ok, -1};
+        Error ->
+            Error
+    end.
+
+
+%% @doc Synchronize records
+%%
+-spec(synchronize(list()) ->
+             ok | {error, any()}).
+synchronize([]) ->
+    ok;
+synchronize([V|Rest]) ->
+    case update(V) of
+        ok ->
+            synchronize(Rest);
         Error ->
             Error
     end.
