@@ -445,13 +445,28 @@
           metadata             :: any()          %% metadata
          }).
 
--record(cluster_tbl_checksum, {
-          info    = 0 :: pos_integer(), %% cluster-info-tables's checksum
-          manager = 0 :: pos_integer(), %% cluster-manager-table's checksum
-          member  = 0 :: pos_integer(), %% cluster-member-table's checksum
-          state   = 0 :: pos_integer()  %% cluster-state-table's checksum
-         }).
+%% -record(cluster_tbl_checksum, {
+%%           info    = 0 :: pos_integer(), %% cluster-info-tables's checksum
+%%           manager = 0 :: pos_integer(), %% cluster-manager-table's checksum
+%%           member  = 0 :: pos_integer(), %% cluster-member-table's checksum
+%%           state   = 0 :: pos_integer()  %% cluster-state-table's checksum
+%%          }).
 
+
+-ifdef(TEST).
+-define(rnd_nodes_from_ring(),
+        begin
+            {ok,_Host} = inet:gethostname(),
+            [
+             #redundant_node{node = list_to_atom("sync_test_me@" ++ _Host),
+                             available = true},
+             #redundant_node{node = list_to_atom("sync_test_node_0@" ++ _Host),
+                             available = false},
+             #redundant_node{node = list_to_atom("sync_test_node_1@" ++ _Host),
+                             available = true}
+            ]
+        end).
+-else.
 -define(rnd_nodes_from_ring(),
         begin
             {ok,_Options} = leo_redundant_manager_api:get_options(),
@@ -464,4 +479,24 @@
                 _ ->
                     []
             end
+        end).
+-endif.
+
+
+%% @doc Retrieve method and method of sync-fun
+-define(env_sync_mod_and_method(),
+        case application:get_env(?APP, ?PROP_SYNC_MF) of
+            {ok, [_Mod,_Method]} = Ret ->
+                Ret;
+            undefined ->
+                {ok, [leo_manager_api, synchronize]}
+        end).
+
+%% @doc Retrieve method and method of notify-fun
+-define(env_notify_mod_and_method(),
+        case application:get_env(?APP, ?PROP_NOTIFY_MF) of
+            {ok, [_Mod,_Method]} = Ret ->
+                Ret;
+            undefined ->
+                {ok, [leo_manager_api, notify]}
         end).

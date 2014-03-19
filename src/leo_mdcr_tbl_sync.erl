@@ -47,7 +47,7 @@
          }).
 
 -ifdef(TEST).
--define(DEF_MEMBERSHIP_INTERVAL, 1000).
+-define(DEF_MEMBERSHIP_INTERVAL, 500).
 -define(DEF_TIMEOUT, 1000).
 -else.
 -define(DEF_MEMBERSHIP_INTERVAL, 20000).
@@ -77,7 +77,6 @@ stop() ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 init([ServerType, Managers, Interval]) ->
-    ?debugVal({ServerType, Managers, Interval}),
     {ok, #state{
             server_type = ServerType,
             managers = Managers,
@@ -103,7 +102,9 @@ handle_cast(_, #state{interval = Interval} = State) ->
 handle_info(timeout, #state{server_type = ServerType,
                             managers = Managers,
                             interval = Interval} = State) ->
-    timer:sleep(erlang:phash2(leo_date:clock(), 250)),
+    Delay = 250,
+    timer:sleep(erlang:phash2(leo_date:clock(), Delay) + Delay),
+
     %% Synchronize mdcr-related tables
     spawn(fun() ->
                   sync_tables(ServerType, Managers)
@@ -158,7 +159,7 @@ sync_tables(ServerType, [Manager|Rest]) ->
         ok ->
             ok;
         {Node, BadItems} ->
-            {ok, [Mod, Method]} = application:get_env(?APP, ?PROP_SYNC_MF),
+            {ok, [Mod, Method]} = ?env_sync_mod_and_method(),
             case rpc:call(Manager, Mod, Method,
                           [BadItems, erlang:node(), Node], ?DEF_TIMEOUT) of
                 ok ->
@@ -178,31 +179,18 @@ sync_tables_1([#redundant_node{node = Node,
                                available = true}|Rest]) ->
     case rpc:call(Node, leo_redundant_manager_api, get_remote_clusters, []) of
         {ok, ResL_1} ->
-            {ok, ResL_2}   = leo_redundant_manager_api:get_remote_clusters(),
-            case check_consistency(checksums(ResL_1),
-                                   checksums(ResL_2)) of
+            {ok, ResL_2} = leo_redundant_manager_api:get_remote_clusters(),
+            case check_consistency(ResL_1, ResL_2) of
                 [] ->
                     ok;
                 BadItems ->
                     {Node, BadItems}
             end;
-        _ ->
+        _Other ->
             sync_tables_1(Rest)
     end;
-sync_tables_1([_|Rest]) ->
+sync_tables_1([_Node|Rest]) ->
     sync_tables_1(Rest).
-
-
-%% @doc Retrieve checksums with the record from the list
-%% @private
-checksums(ChecksumList) ->
-    #cluster_tbl_checksum{
-       info    = leo_misc:get_value(?CHKSUM_CLUSTER_INFO,   ChecksumList),
-       manager = leo_misc:get_value(?CHKSUM_CLUSTER_MGR,    ChecksumList),
-       member  = leo_misc:get_value(?CHKSUM_CLUSTER_MEMBER, ChecksumList),
-       state   = leo_misc:get_value(?CHKSUM_CLUSTER_STAT,   ChecksumList)
-      }.
-
 
 %% @private
 check_consistency(L1, L2) ->
