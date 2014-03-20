@@ -202,6 +202,7 @@
 -undef(ERROR_MNESIA_NOT_START).
 -define(ERROR_MNESIA_NOT_START, "Mnesia is not available").
 
+-define(CHKSUM_CLUSTER_CONF,   'cluster_conf').
 -define(CHKSUM_CLUSTER_INFO,   'cluster_info').
 -define(CHKSUM_CLUSTER_MGR,    'cluster_mgr').
 -define(CHKSUM_CLUSTER_MEMBER, 'cluster_member').

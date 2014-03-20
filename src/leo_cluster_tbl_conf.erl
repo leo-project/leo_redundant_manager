@@ -27,8 +27,9 @@
 
 %% API
 -export([create_table/2,
-         get/0,
-         update/1]).
+         all/0, get/0, update/1,
+         checksum/0, synchronize/1
+        ]).
 
 
 %% @doc Create a table of system-configutation
@@ -59,6 +60,26 @@ create_table(Mode, Nodes) ->
             ok;
         {aborted, Reason} ->
             {error, Reason}
+    end.
+
+
+%% @doc Retrieve all configuration of remote-clusters
+%%
+-spec(all() ->
+             {ok, [#?SYSTEM_CONF{}]} | not_found | {error, any()}).
+all() ->
+    Tbl = ?TBL_SYSTEM_CONF,
+
+    case catch mnesia:table_info(Tbl, all) of
+        {'EXIT', _Cause} ->
+            {error, ?ERROR_MNESIA_NOT_START};
+        _ ->
+            F = fun() ->
+                        Q1 = qlc:q([X || X <- mnesia:table(Tbl)]),
+                        Q2 = qlc:sort(Q1, [{order, descending}]),
+                        qlc:e(Q2)
+                end,
+            leo_mnesia:read(F)
     end.
 
 
@@ -99,4 +120,34 @@ update(SystemConfig) ->
         _ ->
             F = fun()-> mnesia:write(Tbl, SystemConfig, write) end,
             leo_mnesia:write(F)
+    end.
+
+
+%% @doc Retrieve a checksum by cluster-id
+%%
+-spec(checksum() ->
+             {ok, pos_integer()} | {error, any()}).
+checksum() ->
+    case all() of
+        {ok, Vals} ->
+            {ok, erlang:crc32(term_to_binary(Vals))};
+        not_found ->
+            {ok, -1};
+        Error ->
+            Error
+    end.
+
+
+%% @doc Synchronize records
+%%
+-spec(synchronize(list()) ->
+             ok | {error, any()}).
+synchronize([]) ->
+    ok;
+synchronize([V|Rest]) ->
+    case update(V) of
+        ok ->
+            synchronize(Rest);
+        Error ->
+            Error
     end.

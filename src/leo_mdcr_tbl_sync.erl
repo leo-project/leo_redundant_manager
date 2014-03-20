@@ -200,7 +200,8 @@ sync_tables_1([_Node|Rest]) ->
 
 %% @private
 check_consistency(L1, L2) ->
-    check_consistency([?CHKSUM_CLUSTER_INFO,
+    check_consistency([?CHKSUM_CLUSTER_CONF,
+                       ?CHKSUM_CLUSTER_INFO,
                        ?CHKSUM_CLUSTER_MGR,
                        ?CHKSUM_CLUSTER_MEMBER,
                        ?CHKSUM_CLUSTER_STAT], L1, L2, []).
