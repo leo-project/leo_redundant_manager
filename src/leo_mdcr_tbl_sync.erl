@@ -138,6 +138,10 @@ code_change(_OldVsn, State, _Extra) ->
              ok).
 sync_tables(gateway,_Managers) ->
     ok;
+sync_tables(master, Managers) ->
+    sync_tables(manager, Managers);
+sync_tables(slave,  Managers) ->
+    sync_tables(manager, Managers);
 sync_tables(manager,_Managers) ->
     Redundancies = ?rnd_nodes_from_ring(),
     case sync_tables_1(Redundancies) of
@@ -177,9 +181,9 @@ sync_tables_1([#redundant_node{node = Node,
     sync_tables_1(Rest);
 sync_tables_1([#redundant_node{node = Node,
                                available = true}|Rest]) ->
-    case rpc:call(Node, leo_redundant_manager_api, get_remote_clusters, []) of
+    case rpc:call(Node, leo_redundant_manager_api, get_cluster_tbl_checksums, []) of
         {ok, ResL_1} ->
-            {ok, ResL_2} = leo_redundant_manager_api:get_remote_clusters(),
+            {ok, ResL_2} = leo_redundant_manager_api:get_cluster_tbl_checksums(),
             case check_consistency(ResL_1, ResL_2) of
                 [] ->
                     ok;
