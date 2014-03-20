@@ -43,7 +43,8 @@
          delete_member_by_node/1, dump/1]).
 
 -export([attach/4, attach/5, attach/6,
-         reserve/5, detach/2, detach/3, suspend/2]).
+         reserve/5, reserve/6,
+         detach/2, detach/3, suspend/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -192,8 +193,13 @@ attach(TableInfo, Node, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) ->
 -spec(reserve(atom(), atom(), string(), integer(), integer()) ->
              ok | {error, any()}).
 reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes) ->
+    reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
+
+-spec(reserve(atom(), atom(), string(), integer(), integer(), integer()) ->
+             ok | {error, any()}).
+reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) ->
     gen_server:call(?MODULE, {reserve, Node, CurState,
-                              NumOfAwarenessL2, Clock, NumOfVNodes}, ?DEF_TIMEOUT).
+                              NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort}, ?DEF_TIMEOUT).
 
 %% @doc Change node status to 'detach'.
 %%
@@ -372,7 +378,8 @@ handle_call({_, routing_table,_Filename}, _From, State) ->
     {reply, {error, badarg}, State};
 
 
-handle_call({attach, TblInfo, Node, GroupL2, Clock, NumOfVNodes, RPCPort}, _From, State) ->
+handle_call({attach, TblInfo, Node, GroupL2,
+             Clock, NumOfVNodes, RPCPort}, _From, State) ->
     Member = #member{node  = Node,
                      clock = Clock,
                      state = ?STATE_ATTACHED,
@@ -384,7 +391,8 @@ handle_call({attach, TblInfo, Node, GroupL2, Clock, NumOfVNodes, RPCPort}, _From
     {reply, Reply, State};
 
 
-handle_call({reserve, Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes}, _From, State) ->
+handle_call({reserve, Node, CurState, NumOfAwarenessL2,
+             Clock, NumOfVNodes, RPCPort}, _From, State) ->
     Reply = case leo_cluster_tbl_member:lookup(Node) of
                 {ok, Member} ->
                     leo_cluster_tbl_member:insert(
@@ -404,7 +412,9 @@ handle_call({reserve, Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes}, _Fr
                                      clock = Clock,
                                      state = CurState,
                                      num_of_vnodes = NumOfVNodes,
-                                     grp_level_2   = NumOfAwarenessL2}});
+                                     grp_level_2   = NumOfAwarenessL2,
+                                     port = RPCPort
+                                    }});
                 {error, Cause} ->
                     {error, Cause}
             end,

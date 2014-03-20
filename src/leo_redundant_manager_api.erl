@@ -35,7 +35,8 @@
 -export([create/0, create/1, create/2, create/3,
          set_options/1, get_options/0,
          attach/1, attach/2, attach/3, attach/4, attach/5,
-         reserve/3, reserve/5, detach/1, detach/2,
+         reserve/3, reserve/5, reserve/6,
+         detach/1, detach/2,
          suspend/1, suspend/2,
          checksum/1, synchronize/2, synchronize/3,
          get_ring/0, get_ring/1, dump/1
@@ -225,8 +226,13 @@ reserve(Node, CurState, Clock) ->
 -spec(reserve(atom(), atom(), string(), pos_integer(), pos_integer()) ->
              ok | {error, any()}).
 reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes) ->
+    reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
+
+-spec(reserve(atom(), atom(), string(), pos_integer(), pos_integer(), pos_integer()) ->
+             ok | {error, any()}).
+reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) ->
     case leo_redundant_manager:reserve(
-           Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes) of
+           Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) of
         ok ->
             ok;
         Error ->
