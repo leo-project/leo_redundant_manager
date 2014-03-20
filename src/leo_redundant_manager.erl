@@ -30,6 +30,7 @@
 -behaviour(gen_server).
 
 -include("leo_redundant_manager.hrl").
+-include_lib("leo_rpc/include/leo_rpc.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% API
@@ -41,7 +42,8 @@
          update_member_by_node/2, update_member_by_node/3,
          delete_member_by_node/1, dump/1]).
 
--export([attach/4, attach/5, reserve/5, detach/2, detach/3, suspend/2]).
+-export([attach/4, attach/5, attach/6,
+         reserve/5, detach/2, detach/3, suspend/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -174,12 +176,15 @@ dump(Type) ->
 -spec(attach(atom(), string(), integer(), integer()) ->
              ok | {error, any()}).
 attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
-    attach(leo_redundant_manager_api:table_info(?VER_CUR),
-           Node, NumOfAwarenessL2, Clock, NumOfVNodes).
+    attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
 
-attach(TableInfo, Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
+attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) ->
+    attach(leo_redundant_manager_api:table_info(?VER_CUR),
+           Node, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort).
+
+attach(TableInfo, Node, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) ->
     gen_server:call(?MODULE, {attach, TableInfo, Node,
-                              NumOfAwarenessL2, Clock, NumOfVNodes}, ?DEF_TIMEOUT).
+                              NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort}, ?DEF_TIMEOUT).
 
 
 %% @doc Change node status to 'reserve'.
@@ -367,12 +372,14 @@ handle_call({_, routing_table,_Filename}, _From, State) ->
     {reply, {error, badarg}, State};
 
 
-handle_call({attach, TblInfo, Node, GroupL2, Clock, NumOfVNodes}, _From, State) ->
+handle_call({attach, TblInfo, Node, GroupL2, Clock, NumOfVNodes, RPCPort}, _From, State) ->
     Member = #member{node  = Node,
                      clock = Clock,
                      state = ?STATE_ATTACHED,
                      num_of_vnodes = NumOfVNodes,
-                     grp_level_2   = GroupL2},
+                     grp_level_2   = GroupL2,
+                     port = RPCPort
+                    },
     Reply = attach_1(TblInfo, Member),
     {reply, Reply, State};
 

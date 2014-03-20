@@ -28,12 +28,13 @@
 -author('Yosuke Hara').
 
 -include("leo_redundant_manager.hrl").
+-include_lib("leo_rpc/include/leo_rpc.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% Ring-related
 -export([create/0, create/1, create/2, create/3,
          set_options/1, get_options/0,
-         attach/1, attach/2, attach/3, attach/4,
+         attach/1, attach/2, attach/3, attach/4, attach/5,
          reserve/3, reserve/5, detach/1, detach/2,
          suspend/1, suspend/2,
          checksum/1, synchronize/2, synchronize/3,
@@ -201,8 +202,12 @@ attach(Node, NumOfAwarenessL2, Clock) ->
 -spec(attach(atom(), string(), pos_integer(), pos_integer()) ->
              ok | {error, any()}).
 attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
+    attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
+-spec(attach(atom(), string(), pos_integer(), pos_integer(), pos_integer()) ->
+             ok | {error, any()}).
+attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) ->
     case leo_redundant_manager:attach(
-           Node, NumOfAwarenessL2, Clock, NumOfVNodes) of
+           Node, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) of
         ok ->
             ok;
         Error ->
