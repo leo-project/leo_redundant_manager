@@ -449,28 +449,36 @@
 -ifdef(TEST).
 -define(rnd_nodes_from_ring(),
         begin
-            {ok,_Host} = inet:gethostname(),
-            [
-             #redundant_node{node = list_to_atom("sync_test_me@" ++ _Host),
-                             available = true},
-             #redundant_node{node = list_to_atom("sync_test_node_0@" ++ _Host),
-                             available = false},
-             #redundant_node{node = list_to_atom("sync_test_node_1@" ++ _Host),
-                             available = true}
-            ]
+            case inet:gethostname() of
+                {ok,_Host} ->
+                    [
+                     #redundant_node{node = list_to_atom("sync_test_me@" ++ _Host),
+                                     available = true},
+                     #redundant_node{node = list_to_atom("sync_test_node_0@" ++ _Host),
+                                     available = false},
+                     #redundant_node{node = list_to_atom("sync_test_node_1@" ++ _Host),
+                                     available = true}
+                    ];
+                _ ->
+                    []
+            end
         end).
 -else.
 -define(rnd_nodes_from_ring(),
         begin
-            {ok,_Options} = leo_redundant_manager_api:get_options(),
-            _BitOfRing = leo_misc:get_value('bit_of_ring',_Options),
-            _AddrId    = random:uniform(leo_math:power(2,_BitOfRing)),
+            case leo_redundant_manager_api:get_options() of
+                {ok,_Options} ->
+                    _BitOfRing = leo_misc:get_value('bit_of_ring',_Options),
+                    _AddrId    = random:uniform(leo_math:power(2,_BitOfRing)),
 
-            case leo_redundant_manager_api:get_redundancies_by_addr_id(_AddrId) of
-                {ok, #redundancies{nodes = undefined}} ->
-                    [];
-                {ok, #redundancies{nodes = _Redundancies}} ->
-                    _Redundancies;
+                    case leo_redundant_manager_api:get_redundancies_by_addr_id(_AddrId) of
+                        {ok, #redundancies{nodes = undefined}} ->
+                            [];
+                        {ok, #redundancies{nodes = _Redundancies}} ->
+                            _Redundancies;
+                        _ ->
+                            []
+                    end;
                 _ ->
                     []
             end
