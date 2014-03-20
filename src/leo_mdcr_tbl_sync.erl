@@ -176,6 +176,8 @@ sync_tables(ServerType, [Manager|Rest]) ->
 %% @private
 sync_tables_1([]) ->
     ok;
+sync_tables_1([#redundant_node{node = undefined}|Rest]) ->
+    sync_tables_1(Rest);
 sync_tables_1([#redundant_node{node = Node,
                                available = true}|Rest]) when Node == erlang:node() ->
     sync_tables_1(Rest);

@@ -466,6 +466,8 @@
             _AddrId    = random:uniform(leo_math:power(2,_BitOfRing)),
 
             case leo_redundant_manager_api:get_redundancies_by_addr_id(_AddrId) of
+                {ok, #redundancies{nodes = undefined}} ->
+                    [];
                 {ok, #redundancies{nodes = _Redundancies}} ->
                     _Redundancies;
                 _ ->
