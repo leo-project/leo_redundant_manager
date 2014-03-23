@@ -245,8 +245,8 @@
          }).
 -record(system_conf_2, {
           version = 0         :: integer(),      %% version
-          cluster_id = []     :: string(),       %% cluster-id
-          dc_id      = []     :: string(),       %% dc-id
+          cluster_id = []     :: atom(),         %% cluster-id
+          dc_id      = []     :: atom(),         %% dc-id
           n       = 1         :: integer(),      %% # of replicas
           r       = 1         :: integer(),      %% # of replicas needed for a successful READ operation
           w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation

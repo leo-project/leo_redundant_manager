@@ -48,7 +48,7 @@ create_table(Mode, Nodes) ->
             {attributes, record_info(fields, cluster_member)},
             {user_properties,
              [{node,          string,  primary},
-              {cluster_id,    string,  false},
+              {cluster_id,    atom,    false},
               {alias,         varchar, false},
               {ip,            varchar, false},
               {port,          integer, false},

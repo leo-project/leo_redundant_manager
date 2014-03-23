@@ -62,4 +62,36 @@ transform(#system_conf{version = Vsn,
                   d = D,
                   bit_of_ring = BitOfRing,
                   num_of_dc_replicas = Level1,
-                  num_of_rack_replicas = Level2}.
+                  num_of_rack_replicas = Level2,
+                  max_mdc_targets = ?DEF_MAX_MDC_TARGETS
+                 };
+transform(#system_conf_1{version = Vsn,
+                         cluster_id = ClusterId,
+                         dc_id   = DCId,
+                         n       = N,
+                         r       = R,
+                         w       = W,
+                         d       = D,
+                         bit_of_ring = BitOfRing,
+                         num_of_dc_replicas   = Level1,
+                         num_of_rack_replicas = Level2}) ->
+    ClusterId_1 = case is_atom(ClusterId) of
+                      true  -> ClusterId;
+                      false -> list_to_atom(ClusterId)
+                  end,
+    DCId_1 = case is_atom(DCId) of
+                 true  -> DCId;
+                 false -> list_to_atom(DCId)
+             end,
+    #?SYSTEM_CONF{version = Vsn,
+                  cluster_id = ClusterId_1,
+                  dc_id = DCId_1,
+                  n = N,
+                  r = R,
+                  w = W,
+                  d = D,
+                  bit_of_ring = BitOfRing,
+                  num_of_dc_replicas = Level1,
+                  num_of_rack_replicas = Level2,
+                  max_mdc_targets = ?DEF_MAX_MDC_TARGETS
+                 }.

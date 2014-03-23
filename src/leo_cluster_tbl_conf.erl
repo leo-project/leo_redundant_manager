@@ -44,8 +44,8 @@ create_table(Mode, Nodes) ->
             {user_properties,
              [
               {version,              pos_integer, primary},
-              {cluster_id,           string,      false},
-              {dc_id,                string,      false},
+              {cluster_id,           atom,        false},
+              {dc_id,                atom,        false},
               {n,                    pos_integer, false},
               {r,                    pos_integer, false},
               {w,                    pos_integer, false},

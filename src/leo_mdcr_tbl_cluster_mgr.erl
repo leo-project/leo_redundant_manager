@@ -45,7 +45,7 @@ create_table(Mode, Nodes) ->
             {attributes, record_info(fields, cluster_manager)},
             {user_properties,
              [{node,       string, primary},
-              {cluster_id, string, false}
+              {cluster_id, atom,   false}
              ]}
            ]) of
         {atomic, ok} ->

@@ -44,7 +44,7 @@ create_table(Mode, Nodes) ->
             {record_name, ?CLUSTER_STAT},
             {attributes, record_info(fields, cluster_stat)},
             {user_properties,
-             [{cluster_id, string,      primary},
+             [{cluster_id, atom,        primary},
               {state,      atom,        false  },
               {checksum,   pos_integer, false  },
               {updated_at, pos_integer, false  }
