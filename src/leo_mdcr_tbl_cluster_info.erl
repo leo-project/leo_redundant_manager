@@ -31,7 +31,8 @@
          all/0, get/1, find_by_limit/1,
          update/1, delete/1,
          checksum/0,
-         synchronize/1
+         synchronize/1,
+         transform/0
         ]).
 
 
@@ -217,3 +218,49 @@ synchronize([V|Rest]) ->
         Error ->
             Error
     end.
+
+
+%% @doc Transform records
+%%
+-spec(transform() ->
+             ok | {error, any()}).
+transform() ->
+    {atomic, ok} = mnesia:transform_table(
+                     ?TBL_SYSTEM_CONF,  fun transform/1,
+                     record_info(fields, ?SYSTEM_CONF),
+                     ?SYSTEM_CONF),
+    ok.
+
+
+%% @doc the record is the current verion
+%% @private
+transform(#?CLUSTER_INFO{} = ClusterInfo) ->
+    ClusterInfo;
+transform(#cluster_info{cluster_id = ClusterId,
+                        dc_id   = DCId,
+                        n       = N,
+                        r       = R,
+                        w       = W,
+                        d       = D,
+                        bit_of_ring = BitOfRing,
+                        num_of_dc_replicas   = Level1,
+                        num_of_rack_replicas = Level2}) ->
+    ClusterId_1 = case is_atom(ClusterId) of
+                      true  -> ClusterId;
+                      false -> list_to_atom(ClusterId)
+                  end,
+    DCId_1 = case is_atom(DCId) of
+                 true  -> DCId;
+                 false -> list_to_atom(DCId)
+             end,
+    #?CLUSTER_INFO{cluster_id = ClusterId_1,
+                   dc_id = DCId_1,
+                   n = N,
+                   r = R,
+                   w = W,
+                   d = D,
+                   bit_of_ring = BitOfRing,
+                   num_of_dc_replicas = Level1,
+                   num_of_rack_replicas = Level2,
+                   max_mdc_targets = ?DEF_MAX_MDC_TARGETS
+                  }.
