@@ -31,7 +31,8 @@
          find_by_state/1, find_by_cluster_id/1,
          update/1, delete/1,
          checksum/0, checksum/1,
-         synchronize/1
+         synchronize/1,
+         transform/0
         ]).
 
 %% @doc Create a table of system-configutation
@@ -228,3 +229,34 @@ synchronize([V|Rest]) ->
         Error ->
             Error
     end.
+
+
+
+%% @doc Transform records
+%%
+-spec(transform() ->
+             ok | {error, any()}).
+transform() ->
+    {atomic, ok} = mnesia:transform_table(
+                     ?TBL_CLUSTER_STAT,  fun transform/1,
+                     record_info(fields, ?CLUSTER_STAT),
+                     ?CLUSTER_STAT),
+    ok.
+
+%% @doc the record is the current verion
+%% @private
+transform(#?CLUSTER_STAT{} = ClusterStat) ->
+    ClusterStat;
+transform(#cluster_stat{cluster_id = ClusterId,
+                        status     = State,
+                        checksum   = Checksum,
+                        updated_at = UpdatedAt}) ->
+    ClusterId_1 = case is_atom(ClusterId) of
+                      true  -> ClusterId;
+                      false -> list_to_atom(ClusterId)
+                  end,
+    #?CLUSTER_STAT{cluster_id = ClusterId_1,
+                   state = State,
+                   checksum = Checksum,
+                   updated_at = UpdatedAt
+                  }.

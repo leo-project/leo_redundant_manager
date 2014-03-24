@@ -272,8 +272,8 @@
           num_of_rack_replicas = 0 :: integer()  %% # of Rack-awareness replicas
          }).
 -record(cluster_info_1, {
-          cluster_id = []     :: string(),       %% cluster-id
-          dc_id      = []     :: string(),       %% dc-id
+          cluster_id          :: atom(),         %% cluster-id
+          dc_id               :: atom(),         %% dc-id
           n       = 1         :: integer(),      %% # of replicas
           r       = 1         :: integer(),      %% # of replicas needed for a successful READ operation
           w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
@@ -295,7 +295,7 @@
          }).
 
 -record(cluster_stat_1, {
-          cluster_id = [] :: string(),      %% cluster-id
+          cluster_id      :: atom(),        %% cluster-id
           state = null    :: node_state(),  %% status:[running | stop]
           checksum = 0    :: pos_integer(), %% checksum of members
           updated_at = 0  :: pos_integer()  %% updated at
@@ -324,7 +324,7 @@
          }).
 -record(cluster_member_1, {
           node                :: atom(),        %% actual node-name
-          cluster_id = []     :: atom(),        %% cluster-id
+          cluster_id          :: atom(),        %% cluster-id
           alias = []          :: string(),      %% node-alias
           ip = "0.0.0.0"      :: string(),      %% ip-address
           port  = 13075       :: pos_integer(), %% port-number
