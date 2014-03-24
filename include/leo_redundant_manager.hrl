@@ -324,7 +324,7 @@
          }).
 -record(cluster_member_1, {
           node                :: atom(),        %% actual node-name
-          cluster_id = []     :: string(),      %% cluster-id
+          cluster_id = []     :: atom(),        %% cluster-id
           alias = []          :: string(),      %% node-alias
           ip = "0.0.0.0"      :: string(),      %% ip-address
           port  = 13075       :: pos_integer(), %% port-number
