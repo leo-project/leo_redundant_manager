@@ -276,3 +276,44 @@ synchronize([V|Rest]) ->
         Error ->
             Error
     end.
+
+
+%% @doc Transform records
+%%
+-spec(transform() ->
+             ok | {error, any()}).
+transform() ->
+    {atomic, ok} = mnesia:transform_table(
+                     ?TBL_CLUSTER_MEMBER,  fun transform/1,
+                     record_info(fields, ?CLUSTER_MEMBER),
+                     ?CLUSTER_MEMBER),
+    ok.
+
+%% @doc the record is the current verion
+%% @private
+transform(#?CLUSTER_MEMBER{} = ClusterInfo) ->
+    ClusterInfo;
+transform(#cluster_member{node = Node,
+                          cluster_id = ClusterId,
+                          alias = Alias,
+                          ip = IP,
+                          port  = Port,
+                          inet  = Inet,
+                          clock = Clock,
+                          num_of_vnodes = NumOfVNodes,
+                          status = State
+                         }) ->
+    ClusterId_1 = case is_atom(ClusterId) of
+                      true  -> ClusterId;
+                      false -> list_to_atom(ClusterId)
+                  end,
+    #?CLUSTER_MEMBER{node = Node,
+                     cluster_id = ClusterId_1,
+                     alias = Alias,
+                     ip = IP,
+                     port  = Port,
+                     inet  = Inet,
+                     clock = Clock,
+                     num_of_vnodes = NumOfVNodes,
+                     state = State
+                    }.
