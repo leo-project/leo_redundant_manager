@@ -64,7 +64,6 @@ create_table(Mode, Nodes) ->
              {ok, [#system_conf{}]} | not_found | {error, any()}).
 all() ->
     Tbl = ?TBL_CLUSTER_STAT,
-
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
@@ -84,7 +83,6 @@ all() ->
              {ok, #system_conf{}} | not_found | {error, any()}).
 get(ClusterId) ->
     Tbl = ?TBL_CLUSTER_STAT,
-
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
@@ -109,7 +107,6 @@ get(ClusterId) ->
              {ok, #system_conf{}} | not_found | {error, any()}).
 find_by_state(State) ->
     Tbl = ?TBL_CLUSTER_STAT,
-
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
@@ -135,7 +132,6 @@ find_by_state(State) ->
              {ok, #system_conf{}} | not_found | {error, any()}).
 find_by_cluster_id(ClusterId) ->
     Tbl = ?TBL_CLUSTER_STAT,
-
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
@@ -161,7 +157,6 @@ find_by_cluster_id(ClusterId) ->
              ok | {error, any()}).
 update(ClusterStat) ->
     Tbl = ?TBL_CLUSTER_STAT,
-
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
@@ -171,13 +166,12 @@ update(ClusterStat) ->
     end.
 
 
-%% @doc Remove system-configuration
+%% @doc Remove a cluster-status
 %%
 -spec(delete(string()) ->
              ok | {error, any()}).
 delete(ClusterId) ->
     Tbl = ?TBL_CLUSTER_STAT,
-
     case ?MODULE:get(ClusterId) of
         {ok, ClusterStat} ->
             Fun = fun() ->
@@ -220,16 +214,45 @@ checksum(ClusterId) ->
 %%
 -spec(synchronize(list()) ->
              ok | {error, any()}).
-synchronize([]) ->
-    ok;
-synchronize([V|Rest]) ->
-    case update(V) of
+synchronize(Vals) ->
+    case synchronize_1(Vals) of
         ok ->
-            synchronize(Rest);
+            case all() of
+                {ok, CurVals} ->
+                    ok = synchronize_2(CurVals, Vals);
+                _ ->
+                    void
+            end;
         Error ->
             Error
     end.
 
+%% @private
+synchronize_1([]) ->
+    ok;
+synchronize_1([V|Rest]) ->
+    case update(V) of
+        ok ->
+            synchronize_1(Rest);
+        Error ->
+            Error
+    end.
+
+%% @private
+synchronize_2([],_) ->
+    ok;
+synchronize_2([#?CLUSTER_STAT{cluster_id = ClusterId}|Rest], Vals) ->
+    ok = synchronize_2_1(Vals, ClusterId),
+    synchronize_2(Rest, Vals).
+
+%% @private
+synchronize_2_1([], ClusterId)->
+    ok = delete(ClusterId),
+    ok;
+synchronize_2_1([#?CLUSTER_STAT{cluster_id = ClusterId}|_], ClusterId)->
+    ok;
+synchronize_2_1([#?CLUSTER_STAT{}|Rest], ClusterId) ->
+    synchronize_2_1(Rest, ClusterId).
 
 
 %% @doc Transform records

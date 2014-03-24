@@ -27,7 +27,8 @@
 
 %% API
 -export([create_table/2,
-         all/0, get/0, update/1,
+         all/0, get/0, find_by_ver/1,
+         update/1, delete/1,
          checksum/0, synchronize/1,
          transform/0
         ]).
@@ -70,7 +71,6 @@ create_table(Mode, Nodes) ->
              {ok, [#?SYSTEM_CONF{}]} | not_found | {error, any()}).
 all() ->
     Tbl = ?TBL_SYSTEM_CONF,
-
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
@@ -84,13 +84,12 @@ all() ->
     end.
 
 
-%% @doc Retrieve system configuration
+%% @doc Retrieve a system configuration (latest)
 %%
 -spec(get() ->
              {ok, #?SYSTEM_CONF{}} | not_found | {error, any()}).
 get() ->
     Tbl = ?TBL_SYSTEM_CONF,
-
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
@@ -108,19 +107,56 @@ get_1(Other) ->
     Other.
 
 
-%% @doc Modify system-configuration
+%% @doc Retrieve a system configuration
+%%
+-spec(find_by_ver(pos_integer()) ->
+             {ok, #?SYSTEM_CONF{}} | not_found | {error, any()}).
+find_by_ver(Ver) ->
+    Tbl = ?TBL_SYSTEM_CONF,
+    case catch mnesia:table_info(Tbl, all) of
+        {'EXIT', _Cause} ->
+            {error, ?ERROR_MNESIA_NOT_START};
+        _ ->
+            F = fun() ->
+                        Q = qlc:q([X || X <- mnesia:table(Tbl),
+                                        X#?SYSTEM_CONF.version == Ver]),
+
+                        qlc:e(Q)
+                end,
+            get_1(leo_mnesia:read(F))
+    end.
+
+
+
+%% @doc Modify a system-configuration
 %%
 -spec(update(#?SYSTEM_CONF{}) ->
              ok | {error, any()}).
 update(SystemConfig) ->
     Tbl = ?TBL_SYSTEM_CONF,
-
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
         _ ->
             F = fun()-> mnesia:write(Tbl, SystemConfig, write) end,
             leo_mnesia:write(F)
+    end.
+
+
+%% @doc Remove a system-configuration
+%%
+-spec(delete(#?SYSTEM_CONF{}) ->
+             ok | {error, any()}).
+delete(SystemConfig) ->
+    Tbl = ?TBL_SYSTEM_CONF,
+    case catch mnesia:table_info(Tbl, all) of
+        {'EXIT', _Cause} ->
+            {error, ?ERROR_MNESIA_NOT_START};
+        _ ->
+            Fun = fun() ->
+                          mnesia:delete_object(Tbl, SystemConfig, write)
+                  end,
+            leo_mnesia:delete(Fun)
     end.
 
 
@@ -143,15 +179,50 @@ checksum() ->
 %%
 -spec(synchronize(list()) ->
              ok | {error, any()}).
-synchronize([]) ->
-    ok;
-synchronize([V|Rest]) ->
-    case update(V) of
+synchronize(Vals) ->
+    case synchronize_1(Vals) of 
         ok ->
-            synchronize(Rest);
+            case all() of
+                {ok, CurVals} ->
+                    ok = synchronize_2(CurVals, Vals);
+                _ ->
+                    void
+            end;
         Error ->
             Error
     end.
+
+%% @private
+synchronize_1([]) ->
+    ok;
+synchronize_1([V|Rest]) ->
+    case update(V) of
+        ok ->
+            synchronize_1(Rest);
+        Error ->
+            Error
+    end.
+
+%% @private
+synchronize_2([],_) ->
+    ok;
+synchronize_2([#?SYSTEM_CONF{version = Ver}|Rest], Vals) ->
+    ok = synchronize_2_1(Vals, Ver),
+    synchronize_2(Rest, Vals).
+
+%% @private
+synchronize_2_1([], Ver)->
+    case find_by_ver(Ver) of
+        {ok, #?SYSTEM_CONF{} = SystemConf} ->
+            delete(SystemConf);
+        _ ->
+            void
+    end,
+    ok;
+synchronize_2_1([#?SYSTEM_CONF{version = Ver}|_], Ver)->
+    ok;
+synchronize_2_1([#?SYSTEM_CONF{}|Rest], Ver) ->
+    synchronize_2_1(Rest, Ver).
 
 
 %% @doc Transform records

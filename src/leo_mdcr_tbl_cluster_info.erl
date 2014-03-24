@@ -71,7 +71,6 @@ create_table(Mode, Nodes) ->
              {ok, [#?CLUSTER_INFO{}]} | not_found | {error, any()}).
 all() ->
     Tbl = ?TBL_CLUSTER_INFO,
-
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
@@ -85,13 +84,12 @@ all() ->
     end.
 
 
-%% @doc Retrieve configuration of remote-clusters by cluster-id
+%% @doc Retrieve a configuration of remote-clusters by cluster-id
 %%
 -spec(get(string()) ->
              {ok, #?CLUSTER_INFO{}} | not_found | {error, any()}).
 get(ClusterId) ->
     Tbl = ?TBL_CLUSTER_INFO,
-
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
@@ -156,7 +154,7 @@ find_by_limit(Rows, ClusterId, Acc) ->
     end.
 
 
-%% @doc Modify configuration of a cluster
+%% @doc Modify a configuration of a cluster
 %%
 -spec(update(#?CLUSTER_INFO{}) ->
              ok | {error, any()}).
@@ -172,7 +170,7 @@ update(ClusterInfo) ->
     end.
 
 
-%% @doc Remove configuration of a cluster
+%% @doc Remove a configuration of a cluster
 %%
 -spec(delete(string()) ->
              ok | {error, any()}).
@@ -209,15 +207,45 @@ checksum() ->
 %%
 -spec(synchronize(list()) ->
              ok | {error, any()}).
-synchronize([]) ->
-    ok;
-synchronize([V|Rest]) ->
-    case update(V) of
+synchronize(Vals) ->
+    case synchronize_1(Vals) of
         ok ->
-            synchronize(Rest);
+            case all() of
+                {ok, CurVals} ->
+                    ok = synchronize_2(CurVals, Vals);
+                _ ->
+                    void
+            end;
         Error ->
             Error
     end.
+
+%% @private
+synchronize_1([]) ->
+    ok;
+synchronize_1([V|Rest]) ->
+    case update(V) of
+        ok ->
+            synchronize_1(Rest);
+        Error ->
+            Error
+    end.
+
+%% @private
+synchronize_2([],_) ->
+    ok;
+synchronize_2([#?CLUSTER_INFO{cluster_id = ClusterId}|Rest], Vals) ->
+    ok = synchronize_2_1(Vals, ClusterId),
+    synchronize_2(Rest, Vals).
+
+%% @private
+synchronize_2_1([], ClusterId)->
+    ok = delete(ClusterId),
+    ok;
+synchronize_2_1([#?CLUSTER_INFO{cluster_id = ClusterId}|_], ClusterId)->
+    ok;
+synchronize_2_1([#?CLUSTER_INFO{}|Rest], ClusterId) ->
+    synchronize_2_1(Rest, ClusterId).
 
 
 %% @doc Transform records

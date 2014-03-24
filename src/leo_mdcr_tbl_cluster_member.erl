@@ -31,7 +31,7 @@
          all/0, get/1,
          find_by_state/2, find_by_node/1,
          find_by_limit/2, find_by_cluster_id/1,
-         update/1, delete/1,
+         update/1, delete/1, delete_by_node/1,
          checksum/0, checksum/1,
          synchronize/1,
          transform/0
@@ -73,7 +73,6 @@ create_table(Mode, Nodes) ->
              {ok, [#?CLUSTER_MEMBER{}]} | not_found | {error, any()}).
 all() ->
     Tbl = ?TBL_CLUSTER_MEMBER,
-
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
@@ -93,7 +92,6 @@ all() ->
              {ok, #?CLUSTER_MEMBER{}} | not_found | {error, any()}).
 get(ClusterId) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
-
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
@@ -114,7 +112,6 @@ get(ClusterId) ->
              {ok, list(#?CLUSTER_MEMBER{})} | not_found | {error, any()}).
 find_by_state(ClusterId, State) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
-
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
@@ -137,7 +134,6 @@ find_by_state(ClusterId, State) ->
              {ok, list(#?CLUSTER_MEMBER{})} | not_found | {error, any()}).
 find_by_node(Node) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
-
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
@@ -180,7 +176,6 @@ find_by_limit(ClusterId, Rows) ->
              {ok, list(#?CLUSTER_MEMBER{})} | not_found | {error, any()}).
 find_by_cluster_id(ClusterId) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
-
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
@@ -196,13 +191,12 @@ find_by_cluster_id(ClusterId) ->
     end.
 
 
-%% @doc Modify system-configuration
+%% @doc Modify a member
 %%
 -spec(update(#?CLUSTER_MEMBER{}) ->
              ok | {error, any()}).
 update(Member) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
-
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
@@ -212,13 +206,12 @@ update(Member) ->
     end.
 
 
-%% @doc Remove system-configuration
+%% @doc Remove members by cluster-id
 %%
 -spec(delete(string()) ->
              ok | {error, any()}).
 delete(ClusterId) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
-
     case ?MODULE:get(ClusterId) of
         {ok, Members} ->
             delete_1(Members, Tbl);
@@ -234,6 +227,24 @@ delete_1([Value|Rest], Tbl) ->
           end,
     leo_mnesia:delete(Fun),
     delete_1(Rest, Tbl).
+
+
+%% @doc Remove a member by a node
+%%
+delete_by_node(Node) ->
+    Tbl = ?TBL_CLUSTER_MEMBER,
+    case find_by_node(Node) of
+        {ok, #?CLUSTER_MEMBER{} = Member} ->
+            Fun = fun() ->
+                          mnesia:delete_object(Tbl, Member, write)
+                  end,
+            leo_mnesia:delete(Fun);
+        not_found ->
+            ok;
+        Error ->
+            Error
+    end.
+
 
 
 %% @doc Retrieve a checksum by cluster-id
@@ -267,15 +278,45 @@ checksum(ClusterId) ->
 %%
 -spec(synchronize(list()) ->
              ok | {error, any()}).
-synchronize([]) ->
-    ok;
-synchronize([V|Rest]) ->
-    case update(V) of
+synchronize(Vals) ->
+    case synchronize_1(Vals) of
         ok ->
-            synchronize(Rest);
+            case all() of
+                {ok, CurVals} ->
+                    ok = synchronize_2(CurVals, Vals);
+                _ ->
+                    void
+            end;
         Error ->
             Error
     end.
+
+%% @private
+synchronize_1([]) ->
+    ok;
+synchronize_1([V|Rest]) ->
+    case update(V) of
+        ok ->
+            synchronize_1(Rest);
+        Error ->
+            Error
+    end.
+
+%% @private
+synchronize_2([],_) ->
+    ok;
+synchronize_2([#?CLUSTER_MEMBER{node = Node}|Rest], Vals) ->
+    ok = synchronize_2_1(Vals, Node),
+    synchronize_2(Rest, Vals).
+
+%% @private
+synchronize_2_1([], Node)->
+    ok = delete(Node),
+    ok;
+synchronize_2_1([#?CLUSTER_MEMBER{node = Node}|_], Node)->
+    ok;
+synchronize_2_1([#?CLUSTER_MEMBER{}|Rest], Node) ->
+    synchronize_2_1(Rest, Node).
 
 
 %% @doc Transform records
