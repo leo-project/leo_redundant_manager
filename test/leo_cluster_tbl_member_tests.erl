@@ -188,7 +188,7 @@ inspect(TableType) ->
     ok = leo_cluster_tbl_member:insert(TableType, OldTable, {?NODE_1, ?MEMBER_1}),
     ok = leo_cluster_tbl_member:insert(TableType, OldTable, {?NODE_2, ?MEMBER_2}),
 
-    ok = leo_members_tbl_transformer:transform(),
+    ok = leo_cluster_tbl_member:transform(),
     {ok, MembersOrg}  = leo_cluster_tbl_member:find_all(OldTable),
     {ok, MembersCur}  = leo_cluster_tbl_member:find_all(?MEMBER_TBL_CUR),
     {ok, MembersPrev} = leo_cluster_tbl_member:find_all(?MEMBER_TBL_PREV),

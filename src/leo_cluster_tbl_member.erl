@@ -41,8 +41,8 @@
          tab2list/0, tab2list/1, tab2list/2,
          first/1, next/2
         ]).
+-export([transform/0, transform/1]).
 
-%% -define(TABLE, 'leo_members').
 
 -ifdef(TEST).
 -define(table_type(), ?DB_ETS).
@@ -57,6 +57,7 @@
 -endif.
 
 -type(mnesia_copies() :: disc_copies | ram_copies).
+
 
 %% @doc create member table.
 %%
@@ -639,3 +640,92 @@ next(?DB_MNESIA, Table, MemberName) ->
     mnesia:ets(fun ets:next/2, [Table, MemberName]);
 next(?DB_ETS, Table, MemberName) ->
     ets:next(Table, MemberName).
+
+
+%% @doc Transform records
+%%
+-spec(transform() ->
+             ok | {error, any()}).
+transform() ->
+    transform([]).
+
+-spec(transform(list(atom())) ->
+             ok | {error, any()}).
+transform(MnesiaNodes) ->
+    OldTbl  = 'leo_members',
+    NewTbls = [?MEMBER_TBL_CUR, ?MEMBER_TBL_PREV],
+
+    Ret = mnesia:table_info(OldTbl, size),
+    transform_1(Ret, MnesiaNodes, OldTbl, NewTbls).
+
+
+%% @private
+transform_1(0,_,_,_) ->
+    ok;
+transform_1(_, MnesiaNodes, OldTbl, NewTbls) ->
+    case MnesiaNodes of
+        [] -> void;
+        _  ->
+            leo_cluster_tbl_member:create_table(
+              disc_copies, MnesiaNodes, ?MEMBER_TBL_CUR),
+            leo_cluster_tbl_member:create_table(
+              disc_copies, MnesiaNodes, ?MEMBER_TBL_PREV)
+    end,
+    case catch mnesia:table_info(?MEMBER_TBL_CUR, all) of
+        {'EXIT', _Cause} ->
+            ok;
+        _ ->
+            case catch mnesia:table_info(?MEMBER_TBL_PREV, all) of
+                {'EXIT', _Cause} ->
+                    ok;
+                _ ->
+                    transform_2(OldTbl, NewTbls)
+            end
+    end.
+
+%% @private
+transform_2(OldTbl, NewTbls) ->
+    case (leo_cluster_tbl_member:table_size(OldTbl) > 0) of
+        true ->
+            Node = leo_cluster_tbl_member:first(OldTbl),
+            case transform_3(OldTbl, NewTbls, Node) of
+                ok ->
+                    ok;
+                Error ->
+                    Error
+            end;
+        false ->
+            ok
+    end.
+
+%% @private
+transform_3(OldTbl, NewTbls, Node) ->
+    case leo_cluster_tbl_member:lookup(OldTbl, Node) of
+        {ok, Member} ->
+            case transform_3_1(NewTbls, Member) of
+                ok ->
+                    Ret = leo_cluster_tbl_member:next(OldTbl, Node),
+                    transform_4(Ret, OldTbl, NewTbls);
+                Error ->
+                    Error
+            end;
+        _ ->
+            ok
+    end.
+
+%% @private
+transform_3_1([],_) ->
+    ok;
+transform_3_1([Tbl|Rest], #member{node = Node} = Member) ->
+    case leo_cluster_tbl_member:insert(Tbl, {Node, Member}) of
+        ok ->
+            transform_3_1(Rest, Member);
+        Error ->
+            Error
+    end.
+
+%% @private
+transform_4('$end_of_table',_OldTblInfo,_NewTblInfo) ->
+    ok;
+transform_4(Node, OldTbl, NewTbls) ->
+    transform_3(OldTbl, NewTbls, Node).
