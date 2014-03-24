@@ -99,6 +99,8 @@
 -define(DEF_OPT_BIT_OF_RING, ?MD5).
 -define(DEF_NUM_OF_REMOTE_MEMBERS, 5).
 -define(DEF_MAX_MDC_TARGETS, 2).
+-define(DEF_CLUSTER_ID, 'leofs_1').
+-define(DEF_DC_ID, 'dc_1').
 
 -ifdef(TEST).
 -define(DEF_NUMBER_OF_VNODES, 32).
