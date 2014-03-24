@@ -33,7 +33,8 @@
          find_by_limit/2, find_by_cluster_id/1,
          update/1, delete/1,
          checksum/0, checksum/1,
-         synchronize/1
+         synchronize/1,
+         transform/0
         ]).
 
 

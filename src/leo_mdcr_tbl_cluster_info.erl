@@ -226,9 +226,9 @@ synchronize([V|Rest]) ->
              ok | {error, any()}).
 transform() ->
     {atomic, ok} = mnesia:transform_table(
-                     ?TBL_SYSTEM_CONF,  fun transform/1,
-                     record_info(fields, ?SYSTEM_CONF),
-                     ?SYSTEM_CONF),
+                     ?TBL_CLUSTER_INFO,  fun transform/1,
+                     record_info(fields, ?CLUSTER_INFO),
+                     ?CLUSTER_INFO),
     ok.
 
 
