@@ -35,7 +35,9 @@
 %% API
 -export([start_link/0,
          stop/0]).
--export([heartbeat/0]).
+-export([heartbeat/0,
+         force_sync/0
+        ]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -77,6 +79,9 @@ stop() ->
 heartbeat() ->
     gen_server:cast(?MODULE, heartbeat).
 
+force_sync() ->
+    gen_server:call(?MODULE, force_sync).
+
 
 %%--------------------------------------------------------------------
 %% GEN_SERVER CALLBACKS
@@ -93,7 +98,11 @@ init([Interval]) ->
 
 
 handle_call(stop,_From,State) ->
-    {stop, normal, ok, State}.
+    {stop, normal, ok, State};
+
+handle_call(force_sync,_From, State) ->
+    ok = sync(),
+    {reply, ok, State}.
 
 
 %% Function: handle_cast(Msg, State) -> {noreply, State}          |
@@ -143,17 +152,7 @@ maybe_heartbeat(#state{interval  = Interval,
         true ->
             void;
         false ->
-            case leo_mdcr_tbl_cluster_mgr:all() of
-                {ok, Managers} ->
-                    ok = exec(Managers);
-                not_found ->
-                    void;
-                {error, Cause} ->
-                    error_logger:error_msg("~p,~p,~p,~p~n",
-                                           [{module, ?MODULE_STRING},
-                                            {function, "maybe_heartbeat/1"},
-                                            {line, ?LINE}, {body, Cause}])
-            end
+            sync()
     end,
 
     defer_heartbeat(Interval),
@@ -166,6 +165,23 @@ maybe_heartbeat(#state{interval  = Interval,
              ok | any()).
 defer_heartbeat(Time) ->
     catch timer:apply_after(Time, ?MODULE, heartbeat, []).
+
+
+%% @doc Synchronize remote-cluster's status/configurations
+%% @private
+sync() ->
+    case leo_mdcr_tbl_cluster_mgr:all() of
+        {ok, Managers} ->
+            ok = exec(Managers);
+        not_found ->
+            void;
+        {error, Cause} ->
+            error_logger:error_msg("~p,~p,~p,~p~n",
+                                   [{module, ?MODULE_STRING},
+                                    {function, "maybe_heartbeat/1"},
+                                    {line, ?LINE}, {body, Cause}])
+    end,
+    ok.
 
 
 %% @doc Retrieve status and members from a remote-cluster
