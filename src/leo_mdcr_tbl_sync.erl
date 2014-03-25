@@ -31,6 +31,7 @@
 %% API
 -export([start_link/2,
          stop/0]).
+-export([force_sync/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -65,7 +66,10 @@ start_link(ServerType, Managers) ->
                           [ServerType, Managers, ?DEF_MEMBERSHIP_INTERVAL], []).
 
 stop() ->
-    gen_server:call(?MODULE, stop, 30000).
+    gen_server:call(?MODULE, stop, ?DEF_TIMEOUT).
+
+force_sync() ->
+    gen_server:call(?MODULE, force_sync, ?DEF_TIMEOUT).
 
 
 %%--------------------------------------------------------------------
@@ -84,7 +88,12 @@ init([ServerType, Managers, Interval]) ->
 
 
 handle_call(stop,_From,State) ->
-    {stop, normal, ok, State}.
+    {stop, normal, ok, State};
+
+handle_call(force_sync,_From, #state{server_type = ServerType,
+                                     managers    = Managers} = State) ->
+    ok = sync_tables(ServerType, Managers),
+    {reply, ok, State}.
 
 
 %% Function: handle_cast(Msg, State) -> {noreply, State}          |
