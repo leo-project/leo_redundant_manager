@@ -48,7 +48,7 @@
          get_alias/2, get_alias/3
         ]).
 %% Member-related
--export([has_member/1, has_charge_of_node/1,
+-export([has_member/1, has_charge_of_node/2,
          get_members/0, get_members/1, get_member_by_node/1, get_members_count/0,
          get_members_by_status/1, get_members_by_status/2,
          update_member/1, update_members/1, update_member_by_node/2, update_member_by_node/3,
@@ -804,17 +804,27 @@ has_member(Node) ->
 
 %% @doc Has charge of node?
 %%
--spec(has_charge_of_node(string()) ->
+-spec(has_charge_of_node(binary(), pos_integer()) ->
              boolean()).
-has_charge_of_node(Key) ->
+has_charge_of_node(Key, 0) ->
+    case leo_cluster_tbl_conf:get() of
+        {ok, #?SYSTEM_CONF{n = NumOfReplica}} ->
+            has_charge_of_node(Key, NumOfReplica);
+        _ ->
+            false
+    end;
+has_charge_of_node(Key, NumOfReplica) ->
     case get_redundancies_by_key(put, Key) of
         {ok, #redundancies{nodes = Nodes}} ->
-            lists:foldl(fun(#redundant_node{node = N,
-                                            can_read_repair = CanReadRepair}, false) ->
-                                (N == erlang:node() andalso CanReadRepair == true);
-                           (_, true ) ->
-                                true
-                        end, false, Nodes);
+            Nodes_1 = lists:sublist(Nodes, NumOfReplica),
+            lists:foldl(
+              fun(#redundant_node{node = N,
+                                  can_read_repair = CanReadRepair}, false) ->
+                      (N == erlang:node() andalso
+                       CanReadRepair == true);
+                 (_, true ) ->
+                      true
+              end, false, Nodes_1);
         _ ->
             false
     end.
