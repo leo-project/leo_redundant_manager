@@ -55,6 +55,12 @@
 -define(DEF_TIMEOUT, 10000).
 -endif.
 
+-define(MDC_TABLES, [?CHKSUM_CLUSTER_CONF,
+                     ?CHKSUM_CLUSTER_INFO,
+                     ?CHKSUM_CLUSTER_MGR,
+                     ?CHKSUM_CLUSTER_MEMBER,
+                     ?CHKSUM_CLUSTER_STAT]).
+
 
 %%--------------------------------------------------------------------
 %% API
@@ -90,9 +96,8 @@ init([ServerType, Managers, Interval]) ->
 handle_call(stop,_From,State) ->
     {stop, normal, ok, State};
 
-handle_call(force_sync,_From, #state{server_type = ServerType,
-                                     managers    = Managers} = State) ->
-    ok = sync_tables(ServerType, Managers),
+handle_call(force_sync,_From, #state{managers = Managers} = State) ->
+    ok = sync_tables_with_manager(Managers),
     {reply, ok, State}.
 
 
@@ -207,13 +212,25 @@ sync_tables_1([#redundant_node{node = Node,
 sync_tables_1([_Node|Rest]) ->
     sync_tables_1(Rest).
 
+
+%% @doc Synchronize tables with manager(s)
+%% @private
+sync_tables_with_manager([]) ->
+    ok;
+sync_tables_with_manager([Manager|Rest]) ->
+    {ok, [Mod, Method]} = ?env_sync_mod_and_method(),
+    case rpc:call(Manager, Mod, Method,
+                  [?MDC_TABLES, Manager, erlang:node()], ?DEF_TIMEOUT) of
+        ok ->
+            ok;
+        _Error ->
+            sync_tables_with_manager(Rest)
+    end.
+
+
 %% @private
 check_consistency(L1, L2) ->
-    check_consistency([?CHKSUM_CLUSTER_CONF,
-                       ?CHKSUM_CLUSTER_INFO,
-                       ?CHKSUM_CLUSTER_MGR,
-                       ?CHKSUM_CLUSTER_MEMBER,
-                       ?CHKSUM_CLUSTER_STAT], L1, L2, []).
+    check_consistency(?MDC_TABLES, L1, L2, []).
 check_consistency([],_L1,_L2, Acc) ->
     Acc;
 check_consistency([Item|Rest], L1, L2, Acc) ->
