@@ -36,7 +36,7 @@
 -export([start_link/0,
          stop/0]).
 -export([heartbeat/0,
-         force_sync/1
+         force_sync/2
         ]).
 
 %% gen_server callbacks
@@ -79,9 +79,8 @@ stop() ->
 heartbeat() ->
     gen_server:cast(?MODULE, heartbeat).
 
-force_sync(RemoteManagers) ->
-    ?debugVal(RemoteManagers),
-    gen_server:call(?MODULE, {force_sync, RemoteManagers}).
+force_sync(ClusterId, RemoteManagers) ->
+    gen_server:call(?MODULE, {force_sync, ClusterId, RemoteManagers}).
 
 
 %%--------------------------------------------------------------------
@@ -101,8 +100,11 @@ init([Interval]) ->
 handle_call(stop,_From,State) ->
     {stop, normal, ok, State};
 
-handle_call({force_sync,_RemoteManagers},_From, State) ->
-    ok = sync(),
+handle_call({force_sync, ClusterId, RemoteManagers},_From, State) ->
+    Mgrs = [#cluster_manager{node = N,
+                             cluster_id = ClusterId}
+            || N <- RemoteManagers],
+    ok = exec(Mgrs),
     {reply, ok, State}.
 
 
