@@ -30,7 +30,8 @@
 -export([create_table/2,
          all/0, get/1,
          find_by_state/2, find_by_node/1,
-         find_by_limit/2, find_by_cluster_id/1,
+         find_by_limit/2, find_by_limit_with_rnd/2,
+         find_by_cluster_id/1,
          update/1, delete/1, delete_by_node/1,
          checksum/0, checksum/1, size/0,
          synchronize/1,
@@ -167,6 +168,37 @@ find_by_limit(ClusterId, Rows) ->
             {ok, lists:sublist(List, Rows)};
         Other ->
             Other
+    end.
+
+
+%% @doc Retrieve members by limit
+%%
+-spec(find_by_limit_with_rnd(atom(), pos_integer()) ->
+             {ok, list(#?CLUSTER_MEMBER{})} | not_found | {error, any()}).
+find_by_limit_with_rnd(ClusterId, Rows) ->
+    case find_by_state(ClusterId, ?STATE_RUNNING) of
+        {ok, List} ->
+            Len = length(List),
+            Rows_1 = case (Rows >= Len) of
+                         true  -> Len;
+                         false -> Rows
+                     end,
+            find_by_limit_with_rnd_1(List, Rows_1, []);
+        Other ->
+            Other
+    end.
+
+%% @private
+find_by_limit_with_rnd_1(_, 0, Acc) ->
+    {ok, Acc};
+find_by_limit_with_rnd_1(List, Rows, Acc) ->
+    Index = erlang:phash2(leo_date:clock(), length(List)) + 1,
+    Elem  = lists:nth(Index, List),
+    case lists:member(Elem, Acc) of
+        true ->
+            find_by_limit_with_rnd_1(List, Rows, Acc);
+        false ->
+            find_by_limit_with_rnd_1(List, Rows - 1, [Elem|Acc])
     end.
 
 

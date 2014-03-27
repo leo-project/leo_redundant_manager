@@ -30,33 +30,40 @@
 %%--------------------------------------------------------------------
 -ifdef(EUNIT).
 
--define(MEMBER1, #?CLUSTER_MEMBER{node = 'manager_0@10.0.0.1',
+-define(MEMBER1, #?CLUSTER_MEMBER{node = 'node_0@10.0.0.1',
                                   cluster_id = "cluster_11",
-                                  alias = 'manager_13075',
+                                  alias = 'node_13075',
                                   ip = "10.0.0.1",
                                   state = 'running'
                                  }).
--define(MEMBER2, #?CLUSTER_MEMBER{node = 'manager_0@10.0.0.2',
+-define(MEMBER2, #?CLUSTER_MEMBER{node = 'node_1@10.0.0.2',
                                   cluster_id = "cluster_11",
-                                  alias = 'manager_13076',
+                                  alias = 'node_13076',
                                   ip = "10.0.0.2",
                                   state = 'running'
                                  }).
--define(MEMBER3, #?CLUSTER_MEMBER{node = 'manager_0@10.0.0.3',
+-define(MEMBER3, #?CLUSTER_MEMBER{node = 'node_2@10.0.0.3',
                                   cluster_id = "cluster_11",
-                                  alias = 'manager_13077',
+                                  alias = 'node_13077',
                                   ip = "10.0.0.3",
                                   state = 'suspend'
                                  }).
--define(MEMBER4, #?CLUSTER_MEMBER{node = 'manager_0@10.0.0.4',
+-define(MEMBER4, #?CLUSTER_MEMBER{node = 'node_3@10.0.0.2',
+                                  cluster_id = "cluster_11",
+                                  alias = 'node_13076',
+                                  ip = "10.0.0.2",
+                                  state = 'running'
+                                 }).
+
+-define(MEMBER5, #?CLUSTER_MEMBER{node = 'node_4@10.0.0.4',
                                   cluster_id = "cluster_12",
-                                  alias = 'manager_13077',
+                                  alias = 'node_13077',
                                   ip = "10.0.0.4",
                                   state = 'running'
                                  }).
--define(MEMBER5, #?CLUSTER_MEMBER{node = 'manager_0@10.0.0.5',
+-define(MEMBER6, #?CLUSTER_MEMBER{node = 'node_5@10.0.0.5',
                                   cluster_id = "cluster_12",
-                                  alias = 'manager_13077',
+                                  alias = 'node_13077',
                                   ip = "10.0.0.5",
                                   state = 'restarted'
                                  }).
@@ -86,38 +93,44 @@ suite_(_) ->
     Res4 = leo_mdcr_tbl_cluster_member:update(?MEMBER3),
     Res5 = leo_mdcr_tbl_cluster_member:update(?MEMBER4),
     Res6 = leo_mdcr_tbl_cluster_member:update(?MEMBER5),
+    Res7 = leo_mdcr_tbl_cluster_member:update(?MEMBER6),
 
     ?assertEqual(ok, Res2),
     ?assertEqual(ok, Res3),
     ?assertEqual(ok, Res4),
     ?assertEqual(ok, Res5),
     ?assertEqual(ok, Res6),
+    ?assertEqual(ok, Res7),
 
-    ?assertEqual(5, leo_mdcr_tbl_cluster_member:size()),
+    Res8 = leo_mdcr_tbl_cluster_member:get("cluster_12"),
+    ?assertEqual({ok, [?MEMBER5,?MEMBER6]}, Res8),
 
-    Res7 = leo_mdcr_tbl_cluster_member:get("cluster_12"),
-    ?assertEqual({ok, [?MEMBER4,?MEMBER5]}, Res7),
+    ?assertEqual(6, leo_mdcr_tbl_cluster_member:size()),
+    {ok, Res9} = leo_mdcr_tbl_cluster_member:all(),
+    ?assertEqual(6, length(Res9)),
 
-    {ok, Res8} = leo_mdcr_tbl_cluster_member:all(),
-    ?assertEqual(5, length(Res8)),
+    Res10 = leo_mdcr_tbl_cluster_member:delete("cluster_12"),
+    ?assertEqual(ok, Res10),
 
-    Res9 = leo_mdcr_tbl_cluster_member:delete("cluster_12"),
-    ?assertEqual(ok, Res9),
+    Res11 = leo_mdcr_tbl_cluster_member:get("cluster_12"),
+    ?assertEqual(not_found, Res11),
 
-    Res10 = leo_mdcr_tbl_cluster_member:get("cluster_12"),
-    ?assertEqual(not_found, Res10),
+    {ok, Res12} = leo_mdcr_tbl_cluster_member:all(),
+    ?assertEqual(4, length(Res12)),
 
-    {ok, Res11} = leo_mdcr_tbl_cluster_member:all(),
-    ?assertEqual(3, length(Res11)),
+    {ok, Res13} = leo_mdcr_tbl_cluster_member:find_by_limit("cluster_11", 2),
+    ?assertEqual(2, length(Res13)),
 
-    {ok, Res12} = leo_mdcr_tbl_cluster_member:find_by_limit("cluster_11", 2),
-    ?assertEqual(2, length(Res12)),
-
-    {ok, Res15} = leo_mdcr_tbl_cluster_member:find_by_cluster_id("cluster_11"),
+    {ok, Res14} = leo_mdcr_tbl_cluster_member:find_by_limit_with_rnd("cluster_11", 2),
+    ?assertEqual(2, length(Res14)),
+    {ok, Res15} = leo_mdcr_tbl_cluster_member:find_by_limit_with_rnd("cluster_11", 4),
     ?assertEqual(3, length(Res15)),
 
-    {ok, Res16} = leo_mdcr_tbl_cluster_member:checksum("cluster_11"),
-    ?assertEqual(true, is_integer(Res16)),
+    {ok, Res16} = leo_mdcr_tbl_cluster_member:find_by_cluster_id("cluster_11"),
+    ?assertEqual(4, length(Res16)),
+
+    {ok, Res17} = leo_mdcr_tbl_cluster_member:checksum("cluster_11"),
+    ?assertEqual(true, is_integer(Res17)),
 
     application:stop(mnesia),
     ok.
