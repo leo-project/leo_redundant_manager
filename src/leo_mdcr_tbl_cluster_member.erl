@@ -32,7 +32,7 @@
          find_by_state/2, find_by_node/1,
          find_by_limit/2, find_by_cluster_id/1,
          update/1, delete/1, delete_by_node/1,
-         checksum/0, checksum/1,
+         checksum/0, checksum/1, size/0,
          synchronize/1,
          transform/0
         ]).
@@ -272,6 +272,14 @@ checksum(ClusterId) ->
         Error ->
             Error
     end.
+
+
+%% @doc Retrieve the records
+%%
+-spec(size() ->
+             pos_integer()).
+size() ->
+    mnesia:table_info(?TBL_CLUSTER_MEMBER, size).
 
 
 %% @doc Synchronize records

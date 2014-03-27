@@ -93,6 +93,8 @@ suite_(_) ->
     ?assertEqual(ok, Res5),
     ?assertEqual(ok, Res6),
 
+    ?assertEqual(5, leo_mdcr_tbl_cluster_member:size()),
+
     Res7 = leo_mdcr_tbl_cluster_member:get("cluster_12"),
     ?assertEqual({ok, [?MEMBER4,?MEMBER5]}, Res7),
 

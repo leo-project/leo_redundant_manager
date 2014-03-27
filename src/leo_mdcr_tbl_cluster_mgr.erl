@@ -30,7 +30,7 @@
 -export([create_table/2,
          all/0, get/1, update/1,
          delete/1, delete_by_node/1,
-         checksum/0,
+         checksum/0, size/0,
          synchronize/1
         ]).
 
@@ -173,6 +173,14 @@ checksum() ->
         Error ->
             Error
     end.
+
+
+%% @doc Retrieve the records
+%%
+-spec(size() ->
+             pos_integer()).
+size() ->
+    mnesia:table_info(?TBL_CLUSTER_MGR, size).
 
 
 %% @doc Synchronize records

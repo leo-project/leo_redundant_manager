@@ -72,6 +72,8 @@ suite_(_) ->
     ?assertEqual(ok, Res3),
     ?assertEqual(ok, Res4),
 
+    ?assertEqual(3, leo_mdcr_tbl_cluster_stat:size()),
+
     Res5 = leo_mdcr_tbl_cluster_stat:get("cluster_12"),
     ?assertEqual({ok, ?STAT_2}, Res5),
 

@@ -30,7 +30,7 @@
 -export([create_table/2,
          all/0, get/1, find_by_limit/1,
          update/1, delete/1,
-         checksum/0,
+         checksum/0, size/0,
          synchronize/1,
          transform/0
         ]).
@@ -201,6 +201,14 @@ checksum() ->
         Error ->
             Error
     end.
+
+
+%% @doc Retrieve the records
+%%
+-spec(size() ->
+             pos_integer()).
+size() ->
+    mnesia:table_info(?TBL_CLUSTER_INFO, size).
 
 
 %% @doc Synchronize records
