@@ -137,6 +137,7 @@
 -define(PROP_RING_HASH,     'ring_hash').
 -define(PROP_CUR_RING_TBL,  'cur_ring_table').
 -define(PROP_PREV_RING_TBL, 'prev_ring_table').
+-define(PROP_FIND_NEW_CLUSTER, 'find_new_cluster_mf').
 
 %% Version
 %%
@@ -504,4 +505,13 @@
                 Ret;
             undefined ->
                 {ok, [leo_manager_api, notify]}
+        end).
+
+%% @doc Retrieve method and method of notify-fun
+-define(env_find_new_cluster(),
+        case application:get_env(?APP, ?PROP_FIND_NEW_CLUSTER) of
+            {ok, [_Mod,_Method]} = Ret ->
+                Ret;
+            undefined = Ret ->
+                Ret
         end).

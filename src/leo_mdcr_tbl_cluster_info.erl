@@ -231,7 +231,21 @@ synchronize(Vals) ->
 %% @private
 synchronize_1([]) ->
     ok;
-synchronize_1([V|Rest]) ->
+synchronize_1([#?CLUSTER_INFO{cluster_id = ClusterId} = V|Rest]) ->
+    %% if a new record is found, then call set function
+    %% for the synchronization of objects to a remote-cluster
+    case ?MODULE:get(ClusterId) of
+        not_found ->
+            case ?env_find_new_cluster() of
+                {ok, [Mod, Method]} ->
+                    erlang:apply(Mod, Method, [ClusterId]);
+                _ ->
+                    void
+            end;
+        _ ->
+            void
+    end,
+    %% Modify a record
     case update(V) of
         ok ->
             synchronize_1(Rest);
