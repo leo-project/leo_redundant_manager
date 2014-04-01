@@ -19,7 +19,8 @@
 %% under the License.
 %%
 %%======================================================================
--module(leo_mdcr_new_cluster_behaviour).
+-module(leo_mdcr_sync_cluster_behaviour).
+
 -author('Yosuke Hara').
 
 
