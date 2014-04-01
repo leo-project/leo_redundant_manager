@@ -137,7 +137,7 @@
 -define(PROP_RING_HASH,     'ring_hash').
 -define(PROP_CUR_RING_TBL,  'cur_ring_table').
 -define(PROP_PREV_RING_TBL, 'prev_ring_table').
--define(PROP_SYNC_NEW_CLUSTER, 'sync_new_cluster_mf').
+-define(PROP_SYNC_NEW_CLUSTER_MOD, 'sync_new_cluster_mod').
 
 %% Version
 %%
@@ -507,11 +507,11 @@
                 {ok, [leo_manager_api, notify]}
         end).
 
-%% @doc Retrieve method and method of notify-fun
--define(env_sync_new_cluster(),
-        case application:get_env(?APP, ?PROP_SYNC_NEW_CLUSTER) of
-            {ok, [_Mod,_Method]} = Ret ->
-                Ret;
+%% @doc Retrieve module-name of synchronization of objects with a remote-cluster
+-define(env_sync_new_cluster_mod(),
+        case application:get_env(?APP, ?PROP_SYNC_NEW_CLUSTER_MOD) of
+            {ok, _Mod} ->
+                _Mod;
             undefined = Ret ->
                 Ret
         end).

@@ -236,11 +236,11 @@ synchronize_1([#?CLUSTER_INFO{cluster_id = ClusterId} = V|Rest]) ->
     %% for the synchronization of objects to a remote-cluster
     case ?MODULE:get(ClusterId) of
         not_found ->
-            case ?env_sync_new_cluster() of
-                {ok, [Mod, Method]} ->
-                    erlang:apply(Mod, Method, [ClusterId]);
-                _ ->
-                    void
+            case ?env_sync_new_cluster_mod() of
+                undefined ->
+                    void;
+                Mod ->
+                    erlang:apply(Mod, handle_call, [ClusterId])
             end;
         _ ->
             void
