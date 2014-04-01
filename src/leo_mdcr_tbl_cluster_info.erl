@@ -236,15 +236,23 @@ synchronize_1([#?CLUSTER_INFO{cluster_id = ClusterId} = V|Rest]) ->
     %% for the synchronization of objects to a remote-cluster
     case ?MODULE:get(ClusterId) of
         not_found ->
-            case ?env_sync_new_cluster_mod() of
-                undefined ->
+            case leo_cluster_tbl_conf:get() of
+                {ok, #?SYSTEM_CONF{cluster_id = ClusterId}} ->
                     void;
-                Mod ->
-                    erlang:apply(Mod, handle_call, [ClusterId])
+                {ok, _} ->
+                    case ?env_sync_new_cluster_mod() of
+                        undefined ->
+                            void;
+                        Mod ->
+                            erlang:apply(Mod, handle_call, [ClusterId])
+                    end;
+                _ ->
+                    void
             end;
         _ ->
             void
     end,
+
     %% Modify a record
     case update(V) of
         ok ->
