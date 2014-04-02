@@ -1,6 +1,16 @@
 CHANGELOG
 =========
 
+
+1.8.0 (Apr 2, 2014)
+--------------------
+
+* New features
+    * Implemented functions of multi-dc-replication
+* Improved
+    * Renamed modules to be suitable
+
+
 1.4.1 (Feb 18, 2014)
 --------------------
 
