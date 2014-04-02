@@ -43,7 +43,7 @@ create_table(Mode, Nodes) ->
            [{Mode, Nodes},
             {type, set},
             {record_name, ?CLUSTER_STAT},
-            {attributes, record_info(fields, cluster_stat)},
+            {attributes, record_info(fields, ?CLUSTER_STAT)},
             {user_properties,
              [{cluster_id, atom,        primary},
               {state,      atom,        false  },
@@ -61,7 +61,7 @@ create_table(Mode, Nodes) ->
 %% @doc Retrieve system configuration by cluster-id
 %%
 -spec(all() ->
-             {ok, [#system_conf{}]} | not_found | {error, any()}).
+             {ok, [#?CLUSTER_STAT{}]} | not_found | {error, any()}).
 all() ->
     Tbl = ?TBL_CLUSTER_STAT,
     case catch mnesia:table_info(Tbl, all) of
@@ -79,8 +79,8 @@ all() ->
 
 %% @doc Retrieve system configuration by cluster-id
 %%
--spec(get(string()) ->
-             {ok, #system_conf{}} | not_found | {error, any()}).
+-spec(get(atom()) ->
+             {ok, #?CLUSTER_STAT{}} | not_found | {error, any()}).
 get(ClusterId) ->
     Tbl = ?TBL_CLUSTER_STAT,
     case catch mnesia:table_info(Tbl, all) of
@@ -104,7 +104,7 @@ get(ClusterId) ->
 %% @doc Retrieve system configuration by State
 %%
 -spec(find_by_state(atom()) ->
-             {ok, #system_conf{}} | not_found | {error, any()}).
+             {ok, #?CLUSTER_STAT{}} | not_found | {error, any()}).
 find_by_state(State) ->
     Tbl = ?TBL_CLUSTER_STAT,
     case catch mnesia:table_info(Tbl, all) of
@@ -128,8 +128,8 @@ find_by_state(State) ->
 
 %% @doc Retrieve system configuration by cluster-id
 %%
--spec(find_by_cluster_id(string()) ->
-             {ok, #system_conf{}} | not_found | {error, any()}).
+-spec(find_by_cluster_id(atom()) ->
+             {ok, #?CLUSTER_STAT{}} | not_found | {error, any()}).
 find_by_cluster_id(ClusterId) ->
     Tbl = ?TBL_CLUSTER_STAT,
     case catch mnesia:table_info(Tbl, all) of
@@ -153,7 +153,7 @@ find_by_cluster_id(ClusterId) ->
 
 %% @doc Modify system-configuration
 %%
--spec(update(#system_conf{}) ->
+-spec(update(#?CLUSTER_STAT{}) ->
              ok | {error, any()}).
 update(ClusterStat) ->
     Tbl = ?TBL_CLUSTER_STAT,
@@ -168,7 +168,7 @@ update(ClusterStat) ->
 
 %% @doc Remove a cluster-status
 %%
--spec(delete(string()) ->
+-spec(delete(atom()) ->
              ok | {error, any()}).
 delete(ClusterId) ->
     Tbl = ?TBL_CLUSTER_STAT,
@@ -197,7 +197,7 @@ checksum() ->
             Error
     end.
 
--spec(checksum(string()) ->
+-spec(checksum(atom()) ->
              {ok, pos_integer()} | {error, any()}).
 checksum(ClusterId) ->
     case find_by_cluster_id(ClusterId) of

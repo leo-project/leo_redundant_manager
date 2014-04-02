@@ -49,7 +49,7 @@ create_table(Mode, Nodes) ->
             {record_name, ?CLUSTER_MEMBER},
             {attributes, record_info(fields, cluster_member)},
             {user_properties,
-             [{node,          string,  primary},
+             [{node,          atom,    primary},
               {cluster_id,    atom,    false},
               {alias,         varchar, false},
               {ip,            varchar, false},

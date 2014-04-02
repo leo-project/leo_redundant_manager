@@ -86,7 +86,7 @@ all() ->
 
 %% @doc Retrieve a configuration of remote-clusters by cluster-id
 %%
--spec(get(string()) ->
+-spec(get(atom()) ->
              {ok, #?CLUSTER_INFO{}} | not_found | {error, any()}).
 get(ClusterId) ->
     Tbl = ?TBL_CLUSTER_INFO,
@@ -172,7 +172,7 @@ update(ClusterInfo) ->
 
 %% @doc Remove a configuration of a cluster
 %%
--spec(delete(string()) ->
+-spec(delete(atom()) ->
              ok | {error, any()}).
 delete(ClusterId) ->
     Tbl = ?TBL_CLUSTER_INFO,

@@ -59,7 +59,7 @@ create_table(Mode, Nodes) ->
 %% @doc Retrieve system configuration by cluster-id
 %%
 -spec(all() ->
-             {ok, [#system_conf{}]} | not_found | {error, any()}).
+             {ok, [#cluster_manager{}]} | not_found | {error, any()}).
 all() ->
     Tbl = ?TBL_CLUSTER_MGR,
 
@@ -78,8 +78,8 @@ all() ->
 
 %% @doc Retrieve system configuration by cluster-id
 %%
--spec(get(string()) ->
-             {ok, #system_conf{}} | not_found | {error, any()}).
+-spec(get(atom()) ->
+             {ok, #cluster_manager{}} | not_found | {error, any()}).
 get(ClusterId) ->
     Tbl = ?TBL_CLUSTER_MGR,
     case catch mnesia:table_info(Tbl, all) of
@@ -97,7 +97,7 @@ get(ClusterId) ->
 
 %% @doc Modify system-configuration
 %%
--spec(update(#system_conf{}) ->
+-spec(update(#cluster_manager{}) ->
              ok | {error, any()}).
 update(ClusterMgr) ->
     Tbl = ?TBL_CLUSTER_MGR,
@@ -112,7 +112,7 @@ update(ClusterMgr) ->
 
 %% @doc Remove system-configuration
 %%
--spec(delete(string()) ->
+-spec(delete(atom()) ->
              ok | {error, any()}).
 delete(ClusterId) ->
     Tbl = ?TBL_CLUSTER_MGR,
