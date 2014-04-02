@@ -28,34 +28,43 @@
 -author('Yosuke Hara').
 
 -include("leo_redundant_manager.hrl").
+-include_lib("leo_rpc/include/leo_rpc.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+%% Ring-related
 -export([create/0, create/1, create/2, create/3,
          set_options/1, get_options/0,
-         attach/1, attach/2, attach/3, attach/4,
-         reserve/3, reserve/5, detach/1, detach/2,
+         attach/1, attach/2, attach/3, attach/4, attach/5,
+         reserve/3, reserve/5, reserve/6,
+         detach/1, detach/2,
          suspend/1, suspend/2,
          checksum/1, synchronize/2, synchronize/3,
          get_ring/0, get_ring/1, dump/1
         ]).
-
+%% Redundancy-related
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
          get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2, get_redundancies_by_addr_id/3,
          range_of_vnodes/1, rebalance/0,
          get_alias/2, get_alias/3
         ]).
-
--export([has_member/1, has_charge_of_node/1,
+%% Member-related
+-export([has_member/1, has_charge_of_node/2,
          get_members/0, get_members/1, get_member_by_node/1, get_members_count/0,
          get_members_by_status/1, get_members_by_status/2,
          update_member/1, update_members/1, update_member_by_node/2, update_member_by_node/3,
          delete_member_by_node/1, is_alive/0, table_info/1,
          force_sync_workers/0,
-         get_cluster_status/0
+         get_cluster_status/0,
+         get_cluster_tbl_checksums/0
         ]).
-
 -export([get_server_id/0, get_server_id/1]).
 
+%% Multi-DC-replciation-related
+-export([get_remote_clusters/0, get_remote_clusters/1,
+         get_remote_members/1, get_remote_members/2
+        ]).
+
+%% Request type
 -type(method() :: put | get | delete | head).
 
 %%--------------------------------------------------------------------
@@ -68,7 +77,7 @@
 create() ->
     case create(?VER_CUR) of
         {ok, Members, HashValues} ->
-            Ret = case leo_redundant_manager_tbl_member:table_size(?MEMBER_TBL_PREV) of
+            Ret = case leo_cluster_tbl_member:table_size(?MEMBER_TBL_PREV) of
                       0 ->
                           create_1();
                       _ ->
@@ -96,7 +105,7 @@ create(Ver) when Ver == ?VER_CUR;
                  Ver == ?VER_PREV ->
     case leo_redundant_manager:create(Ver) of
         ok ->
-            case leo_redundant_manager_tbl_member:find_all(?member_table(Ver)) of
+            case leo_cluster_tbl_member:find_all(?member_table(Ver)) of
                 {ok, Members} ->
                     {ok, HashRing} = checksum(?CHECKSUM_RING),
                     ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, erlang:element(1, HashRing)),
@@ -128,10 +137,10 @@ create(Ver, [], Options) ->
 create(Ver, [#member{node = Node} = Member|T], Options) when Ver == ?VER_CUR;
                                                              Ver == ?VER_PREV ->
     %% Add a member as "attached node" into member-table
-    case leo_redundant_manager_tbl_member:lookup(Node) of
+    case leo_cluster_tbl_member:lookup(Node) of
         not_found ->
             Prop = {Node, Member#member{state = ?STATE_ATTACHED}},
-            leo_redundant_manager_tbl_member:insert(Prop);
+            leo_cluster_tbl_member:insert(Prop);
         _ ->
             void
     end,
@@ -142,12 +151,12 @@ create(_,_,_) ->
 
 %% @private
 create_1() ->
-    case leo_redundant_manager_tbl_member:overwrite(
+    case leo_cluster_tbl_member:overwrite(
            ?MEMBER_TBL_CUR, ?MEMBER_TBL_PREV) of
         ok ->
             PrevRingTbl = table_info(?VER_PREV),
             CurRingTbl  = table_info(?VER_CUR),
-            case leo_redundant_manager_tbl_ring:overwrite(
+            case leo_cluster_tbl_ring:overwrite(
                    CurRingTbl, PrevRingTbl) of
                 ok ->
                     ok;
@@ -194,8 +203,12 @@ attach(Node, NumOfAwarenessL2, Clock) ->
 -spec(attach(atom(), string(), pos_integer(), pos_integer()) ->
              ok | {error, any()}).
 attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
+    attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
+-spec(attach(atom(), string(), pos_integer(), pos_integer(), pos_integer()) ->
+             ok | {error, any()}).
+attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) ->
     case leo_redundant_manager:attach(
-           Node, NumOfAwarenessL2, Clock, NumOfVNodes) of
+           Node, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) of
         ok ->
             ok;
         Error ->
@@ -213,8 +226,13 @@ reserve(Node, CurState, Clock) ->
 -spec(reserve(atom(), atom(), string(), pos_integer(), pos_integer()) ->
              ok | {error, any()}).
 reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes) ->
+    reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
+
+-spec(reserve(atom(), atom(), string(), pos_integer(), pos_integer(), pos_integer()) ->
+             ok | {error, any()}).
+reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) ->
     case leo_redundant_manager:reserve(
-           Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes) of
+           Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) of
         ok ->
             ok;
         Error ->
@@ -349,9 +367,9 @@ synchronize_1(?SYNC_TARGET_MEMBER, Ver, SyncData) ->
             ok;
         NewMembers ->
             Table = ?member_table(Ver),
-            case leo_redundant_manager_tbl_member:find_all(Table) of
+            case leo_cluster_tbl_member:find_all(Table) of
                 {ok, OldMembers} ->
-                    case leo_redundant_manager_tbl_member:replace(
+                    case leo_cluster_tbl_member:replace(
                            Table, OldMembers, NewMembers) of
                         ok ->
                             ok;
@@ -361,7 +379,7 @@ synchronize_1(?SYNC_TARGET_MEMBER, Ver, SyncData) ->
                 not_found ->
                     lists:foreach(
                       fun(#member{node = Node} = Member) ->
-                              leo_redundant_manager_tbl_member:insert(Table, {Node, Member})
+                              leo_cluster_tbl_member:insert(Table, {Node, Member})
                       end, NewMembers),
                     ok;
                 Error ->
@@ -372,7 +390,7 @@ synchronize_1(?SYNC_TARGET_MEMBER, Ver, SyncData) ->
 %% @private
 synchronize_1(Target, Ver) when Target == ?SYNC_TARGET_RING_CUR;
                                 Target == ?SYNC_TARGET_RING_PREV ->
-    case leo_redundant_manager_tbl_ring:delete_all(table_info(Ver)) of
+    case leo_cluster_tbl_ring:delete_all(table_info(Ver)) of
         ok ->
             case create(Ver) of
                 {ok,_,_} ->
@@ -398,11 +416,11 @@ get_ring() ->
              {ok, list()}).
 get_ring(?SYNC_TARGET_RING_CUR) ->
     TblInfo = table_info(?VER_CUR),
-    Ring = leo_redundant_manager_tbl_ring:tab2list(TblInfo),
+    Ring = leo_cluster_tbl_ring:tab2list(TblInfo),
     {ok, Ring};
 get_ring(?SYNC_TARGET_RING_PREV) ->
     TblInfo = table_info(?VER_PREV),
-    Ring = leo_redundant_manager_tbl_ring:tab2list(TblInfo),
+    Ring = leo_cluster_tbl_ring:tab2list(TblInfo),
     {ok, Ring}.
 
 
@@ -460,6 +478,11 @@ get_redundancies_by_addr_id(ServerRef, Method, AddrId) ->
         {ok, Options} ->
             get_redundancies_by_addr_id_1(ServerRef, ring_table(Method), AddrId, Options);
         _ ->
+            error_logger:warning_msg("~p,~p,~p,~p~n",
+                                     [{module, ?MODULE_STRING},
+                                      {function, "get_redundancies_by_addr_id/3"},
+                                      {line, ?LINE},
+                                      {body, "Could not retrieve redundancies"}]),
             {error, not_found}
     end.
 
@@ -486,8 +509,21 @@ get_redundancies_by_addr_id_1(ServerRef, TblInfo, AddrId, Options) ->
                                            w = W,
                                            d = D,
                                            ring_hash = CurRingHash}};
-        Error ->
-            Error
+        not_found = Cause ->
+            error_logger:warning_msg("~p,~p,~p,~p~n",
+                                     [{module, ?MODULE_STRING},
+                                      {function, "get_redundancies_by_addr_id_1/4"},
+                                      {line, ?LINE},
+                                      {body, "Could not retrieve redundancies"}]),
+            {error, Cause};
+        {error, Cause} ->
+            error_logger:warning_msg("~p,~p,~p,~p~n",
+                                     [{module, ?MODULE_STRING},
+                                      {function, "get_redundancies_by_addr_id_1/4"},
+                                      {line, ?LINE},
+                                      {body, Cause}]),
+
+            {error, Cause}
     end.
 
 
@@ -505,7 +541,7 @@ range_of_vnodes(ToVNodeId) ->
 -spec(rebalance() ->
              {ok, list()} | {error, any()}).
 rebalance() ->
-    case leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_CUR) of
+    case leo_cluster_tbl_member:find_all(?MEMBER_TBL_CUR) of
         {ok, MembersCur} ->
             %% Before exec rebalance
             case before_rebalance(MembersCur) of
@@ -544,7 +580,7 @@ before_rebalance(MembersCur) ->
         {ok, {MembersCur_1, TakeOverList}} ->
             %% Remove all previous members,
             %% Then insert new members from current members
-            case leo_redundant_manager_tbl_member:delete_all(?MEMBER_TBL_PREV) of
+            case leo_cluster_tbl_member:delete_all(?MEMBER_TBL_PREV) of
                 ok ->
                     case before_rebalance_1(MembersCur_1) of
                         {ok, MembersPrev} ->
@@ -562,7 +598,7 @@ before_rebalance(MembersCur) ->
 
 %% @private
 takeover_status([], TakeOverList) ->
-    case leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_CUR) of
+    case leo_cluster_tbl_member:find_all(?MEMBER_TBL_CUR) of
         {ok, MembersCur} ->
             {ok, {MembersCur, TakeOverList}};
         Error ->
@@ -582,12 +618,12 @@ takeover_status([#member{state = ?STATE_ATTACHED,
 
             ok = leo_redundant_manager_chash:remove(RingTblCur, Member),
             ok = leo_redundant_manager_chash:add(RingTblCur, Member_1),
-            ok = leo_redundant_manager_tbl_member:insert(?MEMBER_TBL_CUR, {Node, Member_1}),
+            ok = leo_cluster_tbl_member:insert(?MEMBER_TBL_CUR, {Node, Member_1}),
 
             case SrcMember of
                 [] -> void;
                 #member{node = SrcNode} ->
-                    ok = leo_redundant_manager_tbl_member:insert(
+                    ok = leo_cluster_tbl_member:insert(
                            ?MEMBER_TBL_CUR, {SrcNode, SrcMember#member{alias = []}})
             end,
             takeover_status(Rest, [{Member, Member_1, SrcMember}|TakeOverList]);
@@ -611,7 +647,7 @@ before_rebalance_1([]) ->
                                       {body, Reason}])
     end,
 
-    case leo_redundant_manager_tbl_member:find_all(?MEMBER_TBL_PREV) of
+    case leo_cluster_tbl_member:find_all(?MEMBER_TBL_PREV) of
         {ok, MembersPrev} ->
             {ok, MembersPrev};
         Error ->
@@ -622,8 +658,8 @@ before_rebalance_1([#member{state = ?STATE_ATTACHED}|Rest]) ->
 before_rebalance_1([#member{state = ?STATE_RESERVED}|Rest]) ->
     before_rebalance_1(Rest);
 before_rebalance_1([#member{node = Node} = Member|Rest]) ->
-    case leo_redundant_manager_tbl_member:insert(?MEMBER_TBL_PREV,
-                                                 {Node, Member#member{state = ?STATE_RUNNING}}) of
+    case leo_cluster_tbl_member:insert(?MEMBER_TBL_PREV,
+                                       {Node, Member#member{state = ?STATE_RUNNING}}) of
         ok ->
             before_rebalance_1(Rest);
         Error ->
@@ -649,8 +685,8 @@ after_rebalance([]) ->
                    fun(#member{node  = Node,
                                alias = Alias} = Member) ->
                            %% remove detached node from members
-                           leo_redundant_manager_tbl_member:delete(?MEMBER_TBL_CUR,  Node),
-                           leo_redundant_manager_tbl_member:delete(?MEMBER_TBL_PREV, Node),
+                           leo_cluster_tbl_member:delete(?MEMBER_TBL_CUR,  Node),
+                           leo_cluster_tbl_member:delete(?MEMBER_TBL_PREV, Node),
                            %% remove detached node from ring
                            case Alias of
                                [] -> void;
@@ -688,12 +724,12 @@ after_rebalance([{#member{node = Node} = Member_1, Member_2, SrcMember}|Rest]) -
 
         ok = leo_redundant_manager_chash:remove(RingTblPrev, Member_1),
         ok = leo_redundant_manager_chash:add(RingTblPrev, Member_2),
-        ok = leo_redundant_manager_tbl_member:insert(MembersTblPrev, {Node, Member_2}),
+        ok = leo_cluster_tbl_member:insert(MembersTblPrev, {Node, Member_2}),
 
         case SrcMember of
             [] -> void;
             #member{node = SrcNode} ->
-                ok = leo_redundant_manager_tbl_member:insert(
+                ok = leo_cluster_tbl_member:insert(
                        MembersTblPrev,{SrcNode, SrcMember#member{alias = []}})
         end
     catch
@@ -715,7 +751,7 @@ get_alias(Node, GrpL2) ->
     get_alias(?MEMBER_TBL_CUR, Node, GrpL2).
 
 get_alias(Table, Node, GrpL2) ->
-    case leo_redundant_manager_tbl_member:find_by_status(
+    case leo_cluster_tbl_member:find_by_status(
            Table, ?STATE_DETACHED) of
         not_found ->
             get_alias_1([], Table, Node, GrpL2);
@@ -743,7 +779,7 @@ get_alias_1([#member{alias = Alias,
                      node  = Node_1,
                      grp_level_2 = GrpL2_1}|Rest], Table, Node, GrpL2) when Node  /= Node_1 andalso
                                                                             GrpL2 == GrpL2_1 ->
-    case leo_redundant_manager_tbl_member:find_by_alias(Alias) of
+    case leo_cluster_tbl_member:find_by_alias(Alias) of
         {ok, [Member|_]} ->
             {ok, {Member, Member#member.alias}};
         _ ->
@@ -768,17 +804,27 @@ has_member(Node) ->
 
 %% @doc Has charge of node?
 %%
--spec(has_charge_of_node(string()) ->
+-spec(has_charge_of_node(binary(), pos_integer()) ->
              boolean()).
-has_charge_of_node(Key) ->
+has_charge_of_node(Key, 0) ->
+    case leo_cluster_tbl_conf:get() of
+        {ok, #?SYSTEM_CONF{n = NumOfReplica}} ->
+            has_charge_of_node(Key, NumOfReplica);
+        _ ->
+            false
+    end;
+has_charge_of_node(Key, NumOfReplica) ->
     case get_redundancies_by_key(put, Key) of
         {ok, #redundancies{nodes = Nodes}} ->
-            lists:foldl(fun(#redundant_node{node = N,
-                                            can_read_repair = CanReadRepair}, false) ->
-                                (N == erlang:node() andalso CanReadRepair == true);
-                           (_, true ) ->
-                                true
-                        end, false, Nodes);
+            Nodes_1 = lists:sublist(Nodes, NumOfReplica),
+            lists:foldl(
+              fun(#redundant_node{node = N,
+                                  can_read_repair = CanReadRepair}, false) ->
+                      (N == erlang:node() andalso
+                       CanReadRepair == true);
+                 (_, true ) ->
+                      true
+              end, false, Nodes_1);
         _ ->
             false
     end.
@@ -811,7 +857,7 @@ get_member_by_node(Node) ->
 -spec(get_members_count() ->
              integer() | {error, any()}).
 get_members_count() ->
-    leo_redundant_manager_tbl_member:table_size().
+    leo_cluster_tbl_member:table_size().
 
 
 %% @doc get members by status
@@ -926,16 +972,16 @@ force_sync_workers_1(Index) ->
 
 %% Retrieve local cluster's status
 -spec(get_cluster_status() ->
-             {ok, #cluster_stat{}} | not_found).
+             {ok, #?CLUSTER_STAT{}} | not_found).
 get_cluster_status() ->
-    {ok, #?SYSTEM_CONF{cluster_id = ClusterId}} = leo_redundant_manager_tbl_conf:get(),
+    {ok, #?SYSTEM_CONF{cluster_id = ClusterId}} = leo_cluster_tbl_conf:get(),
     case get_members() of
         {ok, Members} ->
             Status = judge_cluster_status(Members),
             {ok, {Checksum,_}} = checksum(?CHECKSUM_MEMBER),
-            {ok, #cluster_stat{cluster_id = ClusterId,
-                               status = Status,
-                               checksum = Checksum}};
+            {ok, #?CLUSTER_STAT{cluster_id = ClusterId,
+                                state      = Status,
+                                checksum = Checksum}};
         _ ->
             not_found
     end.
@@ -962,6 +1008,24 @@ judge_cluster_status(Members) ->
     end.
 
 
+%% @doc Retrieve checksums of cluster-related tables
+%%
+-spec(get_cluster_tbl_checksums() ->
+             list(tuple())).
+get_cluster_tbl_checksums() ->
+    Chksum_1 = leo_cluster_tbl_conf:checksum(),
+    Chksum_2 = leo_mdcr_tbl_cluster_info:checksum(),
+    Chksum_3 = leo_mdcr_tbl_cluster_mgr:checksum(),
+    Chksum_4 = leo_mdcr_tbl_cluster_member:checksum(),
+    Chksum_5 = leo_mdcr_tbl_cluster_stat:checksum(),
+    {ok, [{?CHKSUM_CLUSTER_CONF,    Chksum_1},
+          {?CHKSUM_CLUSTER_INFO,    Chksum_2},
+          {?CHKSUM_CLUSTER_MGR,     Chksum_3},
+          {?CHKSUM_CLUSTER_MEMBER,  Chksum_4},
+          {?CHKSUM_CLUSTER_STAT,    Chksum_5}
+         ]}.
+
+
 %% @doc Retrieve a srever id
 %%
 -spec(get_server_id() ->
@@ -975,6 +1039,41 @@ get_server_id(AddrId) ->
     Index = erlang:phash2(AddrId, Procs),
     list_to_atom(lists:append([?WORKER_POOL_NAME_PREFIX,
                                integer_to_list(Index)])).
+
+
+%%--------------------------------------------------------------------
+%% API-4  FUNCTIONS
+%%--------------------------------------------------------------------
+%% @doc Retrieve conf of remote clusters
+%%
+-spec(get_remote_clusters() ->
+             {ok, list(#?CLUSTER_INFO{})} | {error, any()}).
+get_remote_clusters() ->
+    case leo_cluster_tbl_conf:get() of
+        {ok, #?SYSTEM_CONF{max_mdc_targets = MaxTargetClusters}} ->
+            get_remote_clusters(MaxTargetClusters);
+        _ ->
+            not_found
+    end.
+
+-spec(get_remote_clusters(pos_integer()) ->
+             {ok, list(#?CLUSTER_INFO{})} | {error, any()}).
+get_remote_clusters(NumOfDestClusters) ->
+    leo_mdcr_tbl_cluster_info:find_by_limit(NumOfDestClusters).
+
+
+%% @doc Retrieve remote cluster members
+%%
+-spec(get_remote_members(atom()) ->
+             {ok, #?CLUSTER_MEMBER{}} | {error, any()}).
+get_remote_members(ClusterId) ->
+    get_remote_members(ClusterId, ?DEF_NUM_OF_REMOTE_MEMBERS).
+
+-spec(get_remote_members(atom(), pos_integer()) ->
+             {ok, #?CLUSTER_MEMBER{}} | {error, any()}).
+get_remote_members(ClusterId, NumOfMembers) ->
+    leo_mdcr_tbl_cluster_member:find_by_limit(ClusterId, NumOfMembers).
+
 
 %%--------------------------------------------------------------------
 %% INNTERNAL FUNCTIONS

@@ -24,7 +24,6 @@
 %% @end
 %%======================================================================
 -module(leo_redundant_manager_sup).
-
 -author('Yosuke Hara').
 
 -behaviour(supervisor).
@@ -86,15 +85,10 @@ start_link(ServerType, Managers, MQStoragePath, Conf, MembershipCallback) ->
                     ok = leo_redundant_manager_api:set_options(Conf)
             end,
 
-            %% Launch membership for local-cluster
-            case supervisor:start_child(leo_redundant_manager_sup,
-                                        {leo_membership_cluster_local,
-                                         {leo_membership_cluster_local,
-                                          start_link,
-                                          [ServerType_1, Managers, MembershipCallback]},
-                                         permanent, 2000, worker,
-                                         [leo_membership_cluster_local]}) of
-                {ok, _Pid} ->
+            %% Launch membership for local-cluster,
+            %% then lunch mdc-tables sync
+            case start_link_3(ServerType, Managers, MembershipCallback) of
+                ok ->
                     ok = leo_membership_mq_client:start(ServerType_1, MQStoragePath),
                     ok = leo_membership_cluster_local:start_heartbeat(),
                     {ok, RefSup};
@@ -137,6 +131,32 @@ start_link_2({ok, _} = Ret, ServerType) ->
     Reply;
 start_link_2(Error,_ServerType) ->
     Error.
+
+%% @private
+start_link_3(ServerType, Managers, MembershipCallback) ->
+    case supervisor:start_child(leo_redundant_manager_sup,
+                                {leo_membership_cluster_local,
+                                 {leo_membership_cluster_local,
+                                  start_link,
+                                  [ServerType, Managers, MembershipCallback]},
+                                 permanent, 2000, worker,
+                                 [leo_membership_cluster_local]}) of
+        {ok,_} ->
+            case supervisor:start_child(leo_redundant_manager_sup,
+                                        {leo_mdcr_tbl_sync,
+                                         {leo_mdcr_tbl_sync,
+                                          start_link,
+                                          [ServerType, Managers]},
+                                         permanent, 2000, worker,
+                                         [leo_mdcr_tbl_sync]}) of
+                {ok,_} ->
+                    ok;
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end.
 
 
 %% @spec () -> ok |
@@ -211,7 +231,6 @@ init([ServerType]) ->
 -spec(after_proc({ok, pid()} | {error, any()}) ->
              {ok, pid()} | {error, any()}).
 after_proc({ok, RefSup}) ->
-    %% MQ
     MQPid = case whereis(leo_mq_sup) of
                 undefined ->
                     ChildSpec = {leo_mq_sup,
@@ -240,8 +259,8 @@ server_type(Type)   -> Type.
 %% @private
 -ifdef(TEST).
 init_tables(_)  ->
-    catch leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_CUR),
-    catch leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_PREV),
+    catch leo_cluster_tbl_member:create_table(?MEMBER_TBL_CUR),
+    catch leo_cluster_tbl_member:create_table(?MEMBER_TBL_PREV),
     catch ets:new(?RING_TBL_CUR, [named_table, ordered_set, public, {read_concurrency, true}]),
     catch ets:new(?RING_TBL_PREV,[named_table, ordered_set, public, {read_concurrency, true}]),
     ok.
@@ -250,8 +269,8 @@ init_tables(manager) -> ok;
 init_tables(master)  -> ok;
 init_tables(slave)   -> ok;
 init_tables(_Other)  ->
-    catch leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_CUR),
-    catch leo_redundant_manager_tbl_member:create_table(?MEMBER_TBL_PREV),
+    catch leo_cluster_tbl_member:create_table(?MEMBER_TBL_CUR),
+    catch leo_cluster_tbl_member:create_table(?MEMBER_TBL_PREV),
     catch ets:new(?RING_TBL_CUR, [named_table, ordered_set, public, {read_concurrency, true}]),
     catch ets:new(?RING_TBL_PREV,[named_table, ordered_set, public, {read_concurrency, true}]),
     ok.

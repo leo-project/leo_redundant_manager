@@ -35,7 +35,9 @@
 %% API
 -export([start_link/0,
          stop/0]).
--export([heartbeat/0]).
+-export([heartbeat/0,
+         force_sync/2
+        ]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -77,6 +79,9 @@ stop() ->
 heartbeat() ->
     gen_server:cast(?MODULE, heartbeat).
 
+force_sync(ClusterId, RemoteManagers) ->
+    gen_server:call(?MODULE, {force_sync, ClusterId, RemoteManagers}).
+
 
 %%--------------------------------------------------------------------
 %% GEN_SERVER CALLBACKS
@@ -93,7 +98,14 @@ init([Interval]) ->
 
 
 handle_call(stop,_From,State) ->
-    {stop, normal, ok, State}.
+    {stop, normal, ok, State};
+
+handle_call({force_sync, ClusterId, RemoteManagers},_From, State) ->
+    Mgrs = [#cluster_manager{node = N,
+                             cluster_id = ClusterId}
+            || N <- RemoteManagers],
+    ok = exec(Mgrs),
+    {reply, ok, State}.
 
 
 %% Function: handle_cast(Msg, State) -> {noreply, State}          |
@@ -143,22 +155,11 @@ maybe_heartbeat(#state{interval  = Interval,
         true ->
             void;
         false ->
-            case leo_redundant_manager_tbl_cluster_mgr:all() of
-                {ok, Managers} ->
-                    ok = exec(Managers, []);
-                not_found ->
-                    void;
-                {error, Cause} ->
-                    error_logger:error_msg("~p,~p,~p,~p~n",
-                                           [{module, ?MODULE_STRING},
-                                            {function, "maybe_heartbeat/1"},
-                                            {line, ?LINE}, {body, Cause}])
-            end
+            sync()
     end,
 
     defer_heartbeat(Interval),
     State#state{timestamp = leo_date:now() * 1000}.
-
 
 
 %% @doc Heartbeat
@@ -169,53 +170,71 @@ defer_heartbeat(Time) ->
     catch timer:apply_after(Time, ?MODULE, heartbeat, []).
 
 
+%% @doc Synchronize remote-cluster's status/configurations
+%% @private
+sync() ->
+    case leo_mdcr_tbl_cluster_mgr:all() of
+        {ok, Managers} ->
+            ok = exec(Managers);
+        not_found ->
+            void;
+        {error, Cause} ->
+            error_logger:error_msg("~p,~p,~p,~p~n",
+                                   [{module, ?MODULE_STRING},
+                                    {function, "maybe_heartbeat/1"},
+                                    {line, ?LINE}, {body, Cause}])
+    end,
+    ok.
+
+
 %% @doc Retrieve status and members from a remote-cluster
 %%      and then compare 'hash' whether equal or not
 %% @private
--spec(exec(list(), atom()) ->
+-spec(exec(list(#cluster_manager{})) ->
              ok | {error, any()}).
-exec([], _) ->
+exec([]) ->
     ok;
-exec([#cluster_manager{cluster_id = ClusterId}|Rest], ClusterId) ->
-    exec(Rest, ClusterId);
 exec([#cluster_manager{node = Node,
-                       cluster_id = ClusterId}|Rest], PrevClusterId) ->
-    %% Retrieve the status of remote-cluster
-    Ret = case catch leo_rpc:call(Node, leo_redundant_manager_api, get_cluster_status, []) of
-              {ok, #cluster_stat{status  = Status_1,
-                                 checksum = Checksum_1} = ClusterStat} ->
-                  %% Compare its status in the local with the retrieved data
-                  case leo_redundant_manager_tbl_cluster_stat:get(ClusterId) of
-                      {ok, #cluster_stat{status   = Status_2,
-                                         checksum = Checksum_2}}
-                        when Status_1   == Status_2,
-                             Checksum_1 == Checksum_2 ->
-                          ok;
-                      {ok, LocalClusterStat} ->
-                          exec_1(Node, ClusterStat, LocalClusterStat);
-                      not_found ->
-                          exec_1(Node, ClusterStat, undefined);
-                      _ ->
-                          ok
-                  end;
-              _ ->
-                  ok
-          end,
-
-    case Ret of
-        ok ->
-            exec(Rest, ClusterId);
-        {error,_Cause} ->
-            exec(Rest, PrevClusterId)
+                       cluster_id = ClusterId}|Rest]) ->
+    %% Retrieve own cluster-id
+    case leo_cluster_tbl_conf:get() of
+        {ok,  #?SYSTEM_CONF{cluster_id = ClusterId}} ->
+            ok;
+        {ok,  #?SYSTEM_CONF{}} ->
+            %% Retrieve the status of remote-cluster,
+            %% then compare its status in the local with the retrieved data
+            case catch leo_rpc:call(Node, leo_redundant_manager_api,
+                                    get_cluster_status, []) of
+                {ok, #?CLUSTER_STAT{state    = Status_1,
+                                    checksum = Checksum_1} = ClusterStat} ->
+                    case leo_mdcr_tbl_cluster_stat:get(ClusterId) of
+                        {ok, #?CLUSTER_STAT{state    = Status_2,
+                                            checksum = Checksum_2}}
+                          when Status_1   == Status_2,
+                               Checksum_1 == Checksum_2 ->
+                            ok;
+                        {ok, LocalClusterStat} ->
+                            exec_1(Node, ClusterStat, LocalClusterStat);
+                        not_found ->
+                            exec_1(Node, ClusterStat, undefined);
+                        _ ->
+                            ok
+                    end;
+                _ ->
+                    ok
+            end,
+            exec(Rest);
+        Error ->
+            Error
     end.
 
 
 %% @private
 exec_1(Node, ClusterStat, undefined) ->
-    exec_1(Node, ClusterStat, #cluster_stat{});
-exec_1(Node, #cluster_stat{checksum   = Checksum_1,
-                           cluster_id = ClusterId} = ClusterStat,
-       #cluster_stat{checksum = Checksum_2}) ->
+    exec_1(Node, ClusterStat, #?CLUSTER_STAT{});
+exec_1(Node, #?CLUSTER_STAT{checksum   = Checksum_1,
+                            cluster_id = ClusterId} = ClusterStat,
+       #?CLUSTER_STAT{checksum = Checksum_2}) ->
     %% Retrieve new members and then store them
     case (Checksum_1 /= Checksum_2) of
         true ->
@@ -223,9 +242,9 @@ exec_1(Node, #cluster_stat{checksum   = Checksum_1,
             case exec_2(Node, ClusterId) of
                 {ok, Checksum} ->
                     %% Update status
-                    ok = leo_redundant_manager_tbl_cluster_stat:update(
-                           ClusterStat#cluster_stat{checksum = Checksum,
-                                                    updated_at = leo_date:now()});
+                    ok = leo_mdcr_tbl_cluster_stat:update(
+                           ClusterStat#?CLUSTER_STAT{checksum = Checksum,
+                                                     updated_at = leo_date:now()});
                 {error, Cause} ->
                     {error, Cause}
             end;
@@ -235,7 +254,8 @@ exec_1(Node, #cluster_stat{checksum   = Checksum_1,
 
 %% @private
 exec_2(Node, ClusterId) ->
-    case catch leo_rpc:call(Node, leo_redundant_manager_api, get_members, []) of
+    case catch leo_rpc:call(Node, leo_redundant_manager_api,
+                            get_members, []) of
         {ok, Members} ->
             Checksum = erlang:crc32(term_to_binary(lists:sort(Members))),
             case exec_3(Members, ClusterId) of
@@ -244,9 +264,11 @@ exec_2(Node, ClusterId) ->
                 {error, Cause} ->
                     {error, Cause}
             end;
-        {'EXIT', Cause} ->
-            {error, Cause};
-        {error, Cause} ->
+        {_, Cause} ->
+            error_logger:error_msg("~p,~p,~p,~p~n",
+                                   [{module, ?MODULE_STRING},
+                                    {function, "exec_2/2"},
+                                    {line, ?LINE}, {body, Cause}]),
             {error, Cause}
     end.
 
@@ -261,16 +283,16 @@ exec_3([#member{node = Node,
                 clock = Clock,
                 state = State,
                 num_of_vnodes = NumOfVNodes}|Rest], ClusterId) ->
-    case leo_redundant_manager_tbl_cluster_member:update(
-           #cluster_member{node = Node,
-                           cluster_id = ClusterId,
-                           alias = Alias,
-                           ip = IP,
-                           port  = Port,
-                           inet  = Inet,
-                           clock = Clock,
-                           num_of_vnodes = NumOfVNodes,
-                           status = State}) of
+    case leo_mdcr_tbl_cluster_member:update(
+           #?CLUSTER_MEMBER{node = Node,
+                            cluster_id = ClusterId,
+                            alias = Alias,
+                            ip    = IP,
+                            port  = Port,
+                            inet  = Inet,
+                            clock = Clock,
+                            num_of_vnodes = NumOfVNodes,
+                            state = State}) of
         ok ->
             exec_3(Rest, ClusterId);
         {error, Cause} ->

@@ -90,9 +90,9 @@ migrate_ring([{VNodeId, Node, _}|Rest], RingTbl) ->
                     ?RING_TBL_CUR  -> ?MEMBER_TBL_CUR;
                     ?RING_TBL_PREV -> ?MEMBER_TBL_PREV
                 end,
-    case leo_redundant_manager_tbl_member:find_by_name(MemberTbl, Node) of
+    case leo_cluster_tbl_member:find_by_name(MemberTbl, Node) of
         {ok, [#member{clock = Clock}|_]} ->
-            ok = leo_redundant_manager_tbl_ring:insert(
+            ok = leo_cluster_tbl_ring:insert(
                    {mnesia, RingTbl}, {VNodeId, Node, Clock}),
             migrate_ring(Rest, RingTbl);
         not_found ->

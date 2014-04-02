@@ -1,4 +1,3 @@
-%% -*- mode: erlang;erlang-indent-level: 4;indent-tabs-mode: nil -*-
 %%======================================================================
 %%
 %% Leo Redundant Manager
@@ -20,21 +19,16 @@
 %% under the License.
 %%
 %%======================================================================
-{require_otp_vsn, "R15B03|R16B*"}.
+-module(leo_mdcr_manage_behaviour).
+-author('Yosuke Hara').
 
-{deps, [
-        {leo_mq,  ".*", {git, "https://github.com/leo-project/leo_mq.git",  {tag, "1.0.2"}}},
-        {leo_rpc, ".*", {git, "https://github.com/leo-project/leo_rpc.git", {tag, "0.8.2"}}},
-        {meck,    ".*", {git, "https://github.com/eproxus/meck.git",        {tag, "0.7.2"}}}
-       ]}.
+-include("leo_redundant_manager.hrl").
 
-{erl_opts, [{d, 'NOTEST'},
-            warn_obsolete_guard,
-            warn_unused_import,
-            warnings_as_errors,
-            warn_shadow_vars,
-            warn_export_vars,
-            warn_export_all]}.
-{xref_checks, [undefined_function_calls]}.
-{cover_enabled, true}.
-{clean_files, []}.
+%% handle transfer replication-info
+-callback(handle_send(#mdc_replication_info{}) ->
+                 ok | {error, any()}).
+
+
+%% handle transfer fail-info
+-callback(handle_fail(Metadata::any(), Cause::any()) ->
+                 ok | {error, any()}).

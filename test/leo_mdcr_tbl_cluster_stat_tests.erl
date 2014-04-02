@@ -19,7 +19,7 @@
 %% under the License.
 %%
 %%======================================================================
--module(leo_redundant_manager_tbl_cluster_stat_tests).
+-module(leo_mdcr_tbl_cluster_stat_tests).
 -author('Yosuke Hara').
 
 -include("leo_redundant_manager.hrl").
@@ -30,18 +30,18 @@
 %%--------------------------------------------------------------------
 -ifdef(EUNIT).
 
--define(STAT_1, #cluster_stat{cluster_id = "cluster_11",
-                              status = ?STATE_RUNNING,
+-define(STAT_1,#?CLUSTER_STAT{cluster_id = "cluster_11",
+                              state = ?STATE_RUNNING,
                               checksum = 12345,
                               updated_at = 139018453328000
                              }).
--define(STAT_2, #cluster_stat{cluster_id = "cluster_12",
-                              status = ?STATE_SUSPEND,
+-define(STAT_2,#?CLUSTER_STAT{cluster_id = "cluster_12",
+                              state = ?STATE_SUSPEND,
                               checksum = 23456,
                               updated_at = 139018453328000
                              }).
--define(STAT_3, #cluster_stat{cluster_id = "cluster_15",
-                              status = ?STATE_STOP,
+-define(STAT_3,#?CLUSTER_STAT{cluster_id = "cluster_15",
+                              state = ?STATE_STOP,
                               checksum = 34567,
                               updated_at = 139018453328000
                              }).
@@ -60,32 +60,42 @@ teardown(_) ->
 
 suite_(_) ->
     application:start(mnesia),
-    {atomic,ok} = leo_redundant_manager_tbl_cluster_stat:create_table(ram_copies, [node()]),
+    ok = leo_mdcr_tbl_cluster_stat:create_table(ram_copies, [node()]),
 
-    Res1 = leo_redundant_manager_tbl_cluster_stat:all(),
+    Res1 = leo_mdcr_tbl_cluster_stat:all(),
     ?assertEqual(not_found, Res1),
 
-    Res2 = leo_redundant_manager_tbl_cluster_stat:update(?STAT_1),
-    Res3 = leo_redundant_manager_tbl_cluster_stat:update(?STAT_2),
-    Res4 = leo_redundant_manager_tbl_cluster_stat:update(?STAT_3),
+    Res2 = leo_mdcr_tbl_cluster_stat:update(?STAT_1),
+    Res3 = leo_mdcr_tbl_cluster_stat:update(?STAT_2),
+    Res4 = leo_mdcr_tbl_cluster_stat:update(?STAT_3),
     ?assertEqual(ok, Res2),
     ?assertEqual(ok, Res3),
     ?assertEqual(ok, Res4),
 
-    Res5 = leo_redundant_manager_tbl_cluster_stat:get("cluster_12"),
+    ?assertEqual(3, leo_mdcr_tbl_cluster_stat:size()),
+
+    Res5 = leo_mdcr_tbl_cluster_stat:get("cluster_12"),
     ?assertEqual({ok, ?STAT_2}, Res5),
 
-    {ok, Res6} = leo_redundant_manager_tbl_cluster_stat:all(),
+    {ok, [?STAT_1]} = leo_mdcr_tbl_cluster_stat:find_by_state(?STATE_RUNNING),
+
+    {ok, Res6} = leo_mdcr_tbl_cluster_stat:all(),
     ?assertEqual(3, length(Res6)),
 
-    Res7 = leo_redundant_manager_tbl_cluster_stat:delete("cluster_12"),
+    Res7 = leo_mdcr_tbl_cluster_stat:delete("cluster_12"),
     ?assertEqual(ok, Res7),
 
-    Res8 = leo_redundant_manager_tbl_cluster_stat:get("cluster_12"),
+    Res8 = leo_mdcr_tbl_cluster_stat:get("cluster_12"),
     ?assertEqual(not_found, Res8),
 
-    {ok, Res9} = leo_redundant_manager_tbl_cluster_stat:all(),
+    {ok, Res9} = leo_mdcr_tbl_cluster_stat:all(),
     ?assertEqual(2, length(Res9)),
+
+    {ok, Res10} = leo_mdcr_tbl_cluster_stat:find_by_cluster_id("cluster_11"),
+    ?assertEqual(1, length(Res10)),
+
+    {ok, Res11} = leo_mdcr_tbl_cluster_stat:checksum("cluster_11"),
+    ?assertEqual(true, is_integer(Res11)),
 
     application:stop(mnesia),
     ok.

@@ -1,0 +1,137 @@
+%%======================================================================
+%%
+%% Leo Redundant Manager
+%%
+%% Copyright (c) 2012-2014 Rakuten, Inc.
+%%
+%% This file is provided to you under the Apache License,
+%% Version 2.0 (the "License"); you may not use this file
+%% except in compliance with the License.  You may obtain
+%% a copy of the License at
+%%
+%%   http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing,
+%% software distributed under the License is distributed on an
+%% "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+%% KIND, either express or implied.  See the License for the
+%% specific language governing permissions and limitations
+%% under the License.
+%%
+%%======================================================================
+-module(leo_mdcr_tbl_sync_tests).
+-author('Yosuke Hara').
+
+-include("leo_redundant_manager.hrl").
+-include_lib("eunit/include/eunit.hrl").
+
+
+%%--------------------------------------------------------------------
+%% TEST FUNCTIONS
+%%--------------------------------------------------------------------
+-ifdef(EUNIT).
+tbl_sync_test_() ->
+    {foreach, fun setup/0, fun teardown/1,
+     [{with, [T]} || T <- [fun suite_1_/1,
+                           fun suite_2_/1
+                          ]]}.
+
+setup() ->
+    [] = os:cmd("epmd -daemon"),
+    {ok, Hostname} = inet:gethostname(),
+    Me = list_to_atom("sync_test_me@" ++ Hostname),
+    net_kernel:start([Me, shortnames]),
+
+    {ok, Mgr}   = slave:start_link(list_to_atom(Hostname), 'sync_test_manager'),
+    {ok, Node1} = slave:start_link(list_to_atom(Hostname), 'sync_test_node_0'),
+    {ok, Node2} = slave:start_link(list_to_atom(Hostname), 'sync_test_node_1'),
+    {Mgr, Node1, Node2}.
+
+teardown({Mgr, Node1, Node2}) ->
+    net_kernel:stop(),
+    slave:stop(Mgr),
+    slave:stop(Node1),
+    slave:stop(Node2),
+    timer:sleep(1000),
+    ok.
+
+%% @doc publish
+%%
+suite_1_({Mgr,_Node1, Node2}) ->
+    true = rpc:call(Node2, code, add_path, ["../deps/meck/ebin"]),
+    ok = rpc:call(Node2, meck, new,    [leo_redundant_manager_api, [no_link, non_strict]]),
+    ok = rpc:call(Node2, meck, expect, [leo_redundant_manager_api, get_remote_clusters,
+                                        fun() ->
+                                                {ok, [{?CHKSUM_CLUSTER_INFO,   1},
+                                                      {?CHKSUM_CLUSTER_MGR,    2},
+                                                      {?CHKSUM_CLUSTER_MEMBER, 3},
+                                                      {?CHKSUM_CLUSTER_STAT,   4}
+                                                     ]}
+                                        end]),
+
+    ok = meck:new(leo_redundant_manager_api, [non_strict]),
+    ok = meck:expect(leo_redundant_manager_api, get_remote_clusters,
+                     fun() ->
+                             {ok, [{?CHKSUM_CLUSTER_INFO,   1},
+                                   {?CHKSUM_CLUSTER_MGR,    2},
+                                   {?CHKSUM_CLUSTER_MEMBER, 3},
+                                   {?CHKSUM_CLUSTER_STAT,   4}
+                                  ]}
+                     end),
+
+    leo_mdcr_tbl_sync:start_link('storage', [Mgr]),
+    timer:sleep(3000),
+
+    H1 = meck:history(leo_redundant_manager_api),
+    H2 = rpc:call(Node2, meck, history, [leo_redundant_manager_api]),
+    ?assertEqual(true, H1 /= []),
+    ?assertEqual(true, H2 /= []),
+    meck:unload(),
+    ok.
+
+
+suite_2_({Mgr,_Node1, Node2}) ->
+    true = rpc:call(Mgr, code, add_path, ["../deps/meck/ebin"]),
+    ok = rpc:call(Mgr, meck, new,    [leo_manager_api, [no_link, non_strict]]),
+    ok = rpc:call(Mgr, meck, expect, [leo_manager_api, synchronize,
+                                        fun(_,_,_) ->
+                                                ok
+                                        end]),
+
+    true = rpc:call(Node2, code, add_path, ["../deps/meck/ebin"]),
+    ok = rpc:call(Node2, meck, new,    [leo_redundant_manager_api, [no_link, non_strict]]),
+    ok = rpc:call(Node2, meck, expect, [leo_redundant_manager_api, get_remote_clusters,
+                                        fun() ->
+                                                {ok, [{?CHKSUM_CLUSTER_INFO,   1},
+                                                      {?CHKSUM_CLUSTER_MGR,    2},
+                                                      {?CHKSUM_CLUSTER_MEMBER, 4},
+                                                      {?CHKSUM_CLUSTER_STAT,   5}
+                                                     ]}
+                                        end]),
+
+    ok = meck:new(leo_redundant_manager_api, [non_strict]),
+    ok = meck:expect(leo_redundant_manager_api, get_remote_clusters,
+                     fun() ->
+                             {ok, [{?CHKSUM_CLUSTER_INFO,   1},
+                                   {?CHKSUM_CLUSTER_MGR,    2},
+                                   {?CHKSUM_CLUSTER_MEMBER, 3},
+                                   {?CHKSUM_CLUSTER_STAT,   4}
+                                  ]}
+                     end),
+
+    leo_mdcr_tbl_sync:start_link('storage', [Mgr]),
+    timer:sleep(3000),
+
+    H1 = meck:history(leo_redundant_manager_api),
+    H2 = rpc:call(Node2, meck, history, [leo_redundant_manager_api]),
+    H3 = rpc:call(Mgr,   meck, history, [leo_manager_api]),
+    ?assertEqual(true, H1 /= []),
+    ?assertEqual(true, H2 /= []),
+    ?assertEqual(true, H3 /= []),
+
+    meck:unload(),
+    ok.
+
+
+
+-endif.

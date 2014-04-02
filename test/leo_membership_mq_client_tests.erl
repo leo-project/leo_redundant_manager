@@ -77,6 +77,8 @@ teardown({Mgr0, Node0, Path}) ->
     slave:stop(Node0),
 
     os:cmd("rm -rf " ++ Path),
+
+    timer:sleep(timer:seconds(1)),
     ok.
 
 %% @doc publish
@@ -88,7 +90,7 @@ pubsub_manager_0_({Mgr0, _Node0, Path}) ->
     ok = leo_membership_mq_client:publish(manager, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(2000),
 
-    History0 = meck:history(leo_redundant_manager_tbl_member),
+    History0 = meck:history(leo_cluster_tbl_member),
     ?assertEqual(true, erlang:length(History0) > 0),
     ok.
 
@@ -99,7 +101,7 @@ pubsub_manager_1_({Mgr0, _, Path}) ->
     ok = leo_membership_mq_client:publish(manager, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(250),
 
-    History0 = meck:history(leo_redundant_manager_tbl_member),
+    History0 = meck:history(leo_cluster_tbl_member),
     ?assertEqual(true, erlang:length(History0) > 0),
     ok.
 
@@ -116,7 +118,7 @@ pubsub_storage_({Mgr0, _, Path}) ->
     ok = leo_membership_mq_client:publish(storage, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(1000),
 
-    History0 = meck:history(leo_redundant_manager_tbl_member),
+    History0 = meck:history(leo_cluster_tbl_member),
     ?assertEqual(true, erlang:length(History0) > 0),
 
     History1 = meck:history(leo_manager_api),
@@ -136,7 +138,7 @@ pubsub_gateway_0_({Mgr0, _, Path}) ->
     ok = leo_membership_mq_client:publish(gateway, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(1000),
 
-    History0 = meck:history(leo_redundant_manager_tbl_member),
+    History0 = meck:history(leo_cluster_tbl_member),
     ?assertEqual(true, erlang:length(History0) > 0),
 
     History1 = meck:history(leo_manager_api),
@@ -156,7 +158,7 @@ pubsub_gateway_1_({Mgr0, _, Path}) ->
     ok = leo_membership_mq_client:publish(gateway, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(1000),
 
-    History0 = meck:history(leo_redundant_manager_tbl_member),
+    History0 = meck:history(leo_cluster_tbl_member),
     ?assertEqual(true, erlang:length(History0) > 0),
 
     History1 = meck:history(leo_manager_api),
@@ -165,29 +167,29 @@ pubsub_gateway_1_({Mgr0, _, Path}) ->
 
 
 prepare() ->
-    meck:new(leo_redundant_manager_tbl_member),
-    meck:expect(leo_redundant_manager_tbl_member, lookup,
+    meck:new(leo_cluster_tbl_member),
+    meck:expect(leo_cluster_tbl_member, lookup,
                 fun(Node) ->
                         {ok, #member{node  = Node,
                                      state = ?STATE_STOP}}
                 end),
-    meck:expect(leo_redundant_manager_tbl_member, find_all,
+    meck:expect(leo_cluster_tbl_member, find_all,
                 fun() ->
                         {ok, [#member{node  = ?NODEDOWN_NODE,
                                       state = ?STATE_STOP}]}
                 end),
-    meck:expect(leo_redundant_manager_tbl_member, create_members,
+    meck:expect(leo_cluster_tbl_member, create_members,
                 fun(_) ->
                         ok
                 end),
 
 
-    meck:new(leo_redundant_manager_tbl_ring),
-    meck:expect(leo_redundant_manager_tbl_ring, create_table_current,
+    meck:new(leo_cluster_tbl_ring),
+    meck:expect(leo_cluster_tbl_ring, create_table_current,
                 fun(_,_) ->
                         ok
                 end),
-    meck:expect(leo_redundant_manager_tbl_ring, create_table_prev,
+    meck:expect(leo_cluster_tbl_ring, create_table_prev,
                 fun(_,_) ->
                         ok
                 end),

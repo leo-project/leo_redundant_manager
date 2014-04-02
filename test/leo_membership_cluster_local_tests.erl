@@ -70,8 +70,8 @@ setup() ->
     leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
 
     application:start(mnesia),
-    leo_redundant_manager_tbl_member:create_table(ram_copies, [node()], ?MEMBER_TBL_CUR),
-    %% leo_redundant_manager_tbl_member:create_table(mnesia, ram_copies),
+    leo_cluster_tbl_member:create_table(ram_copies, [node()], ?MEMBER_TBL_CUR),
+    %% leo_cluster_tbl_member:create_table(mnesia, ram_copies),
     {Hostname, Mgr0, Mgr1, Node0, Node1, Node2}.
 
 teardown({_, Mgr0, Mgr1, Node0, Node1, Node2}) ->

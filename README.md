@@ -8,6 +8,5 @@ Overview
 
 * "leo_redundant_manager" monitors Gateway-node(s) and Storage-node(s) for keeping availability and consistency.
 * "leo_redundant_manager" manages and provide routing-table(RING).
-* "leo_redundant_manager" uses the "rebar" build system. Makefile so that simply running "make" at the top level should work.
-  * [rebar](https://github.com/basho/rebar)
+* "leo_redundant_manager" uses [rebar](https://github.com/rebar/rebar) build system. Makefile so that simply running "make" at the top level should work.
 * "leo_redundant_manager" requires Erlang R15B03-1 or later.

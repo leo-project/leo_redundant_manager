@@ -183,12 +183,12 @@ handle_call({consume, Id, MessageBin}) ->
 notify_error_to_manager(Id, RemoteNode, Error) when Id == ?MQ_INSTANCE_ID_GATEWAY;
                                                     Id == ?MQ_INSTANCE_ID_STORAGE ->
     {ok, Managers}   = application:get_env(?APP, ?PROP_MANAGERS),
-    {ok, [Mod, Fun]} = application:get_env(?APP, ?PROP_NOTIFY_MF),
+    {ok, [Mod, Method]} = ?env_notify_mod_and_method(),
 
-    lists:foldl(fun(_,    true ) ->
+    lists:foldl(fun(_, true ) ->
                         void;
                    (Dest, false) ->
-                        case rpc:call(Dest, Mod, Fun,
+                        case rpc:call(Dest, Mod, Method,
                                       [error, RemoteNode, erlang:node(), Error], ?DEF_TIMEOUT) of
                             {ok, _}     -> true;
                             {_, _Cause} -> false;
@@ -197,9 +197,8 @@ notify_error_to_manager(Id, RemoteNode, Error) when Id == ?MQ_INSTANCE_ID_GATEWA
                 end, false, Managers),
     ok;
 notify_error_to_manager(?MQ_INSTANCE_ID_MANAGER, RemoteNode, Error) ->
-    {ok, [Mod, Fun]} = application:get_env(?APP, ?PROP_NOTIFY_MF),
-    catch erlang:apply(Mod, Fun, [error, RemoteNode, node(), Error]);
+    {ok, [Mod, Method]} = ?env_notify_mod_and_method(),
+    catch erlang:apply(Mod, Method, [error, RemoteNode, node(), Error]);
 
 notify_error_to_manager(_,_,_) ->
     {error, badarg}.
-
