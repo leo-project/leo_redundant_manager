@@ -164,12 +164,15 @@ start_link_3(ServerType, Managers, MembershipCallback) ->
 %% @doc stop process.
 %% @end
 stop() ->
-    case whereis(?MODULE) of
+    case whereis(leo_mq_sup) of
         Pid when is_pid(Pid) == true ->
-            exit(Pid, shutdown),
+            List = supervisor:which_children(Pid),
+            ok = close_db(List),
             ok;
-        _ -> not_started
+        _ ->
+            not_started
     end.
+
 
 %% ---------------------------------------------------------------------
 %% Callbacks
@@ -275,3 +278,20 @@ init_tables(_Other)  ->
     catch ets:new(?RING_TBL_PREV,[named_table, ordered_set, public, {read_concurrency, true}]),
     ok.
 -endif.
+
+
+%% @doc Stop a mq's db
+%% @private
+close_db([]) ->
+    ok;
+close_db([{Id,_Pid, worker, ['leo_mq_server' = Mod|_]}|T]) ->
+    case (string:str(atom_to_list(Id),
+                     "membership") > 0) of
+        true ->
+            ok = Mod:close(Id);
+        false ->
+            void
+    end,
+    close_db(T);
+close_db([_|T]) ->
+    close_db(T).

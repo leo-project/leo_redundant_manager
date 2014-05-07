@@ -75,12 +75,10 @@ setup() ->
     {Hostname, Mgr0, Mgr1, Node0, Node1, Node2}.
 
 teardown({_, Mgr0, Mgr1, Node0, Node1, Node2}) ->
-    application:stop(mnesia),
-    application:stop(leo_mq),
-    application:stop(leo_backend_db),
-
+    %% application:stop(leo_mq),
+    %% application:stop(leo_backend_db),
     catch leo_redundant_manager:stop(),
-    application:stop(leo_redundant_manager),
+    application:stop(mnesia),
     meck:unload(),
 
     net_kernel:stop(),

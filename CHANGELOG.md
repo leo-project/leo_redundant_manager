@@ -1,6 +1,12 @@
 CHANGELOG
 =========
 
+1.8.1 (May 7, 2014)
+--------------------
+
+* Improved
+    * Modified temrmination of the application
+
 
 1.8.0 (Apr 2, 2014)
 --------------------
