@@ -325,7 +325,8 @@ inspect_result({error, ?ERR_TYPE_NODE_DOWN}, [ServerType,_,Node,_]) ->
 
 inspect_result(Error, _) ->
     error_logger:warning_msg("~p,~p,~p,~p~n",
-                             [{module, ?MODULE_STRING}, {function, "inspect_result/2"},
+                             [{module, ?MODULE_STRING},
+                              {function, "inspect_result/2"},
                               {line, ?LINE}, {body, Error}]).
 
 
