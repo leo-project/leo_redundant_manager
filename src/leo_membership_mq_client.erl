@@ -35,7 +35,7 @@
 
 
 -export([start/2, publish/3]).
--export([init/0, handle_call/1]).
+-export([init/0, handle_call/1, handle_call/3]).
 
 -define(MQ_INSTANCE_ID_MANAGER, 'membership_manager').
 -define(MQ_INSTANCE_ID_GATEWAY, 'membership_gateway').
@@ -176,6 +176,8 @@ handle_call({consume, Id, MessageBin}) ->
             {error, Cause}
     end.
 
+handle_call(_,_,_) ->
+    ok.
 
 %%--------------------------------------------------------------------
 %% INNTERNAL FUNCTIONS

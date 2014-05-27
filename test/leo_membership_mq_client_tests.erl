@@ -108,7 +108,7 @@ pubsub_manager_1_({Mgr0, _, Path}) ->
 pubsub_storage_({Mgr0, _, Path}) ->
     prepare(),
 
-    ok = rpc:call(Mgr0, meck, new,    [leo_manager_api, [no_link]]),
+    ok = rpc:call(Mgr0, meck, new,    [leo_manager_api, [no_link, non_strict]]),
     ok = rpc:call(Mgr0, meck, expect, [leo_manager_api, notify,
                                        fun(_Type, _Node1, _Node2, _Error) ->
                                                ok
@@ -128,7 +128,7 @@ pubsub_storage_({Mgr0, _, Path}) ->
 pubsub_gateway_0_({Mgr0, _, Path}) ->
     prepare(),
 
-    ok = rpc:call(Mgr0, meck, new,    [leo_manager_api, [no_link]]),
+    ok = rpc:call(Mgr0, meck, new,    [leo_manager_api, [no_link, non_strict]]),
     ok = rpc:call(Mgr0, meck, expect, [leo_manager_api, notify,
                                        fun(_Type, _Node1, _Node2, _Error) ->
                                                ok
@@ -148,7 +148,7 @@ pubsub_gateway_0_({Mgr0, _, Path}) ->
 pubsub_gateway_1_({Mgr0, _, Path}) ->
     prepare(),
 
-    ok = rpc:call(Mgr0, meck, new,    [leo_manager_api, [no_link]]),
+    ok = rpc:call(Mgr0, meck, new,    [leo_manager_api, [no_link, non_strict]]),
     ok = rpc:call(Mgr0, meck, expect, [leo_manager_api, notify,
                                        fun(_Type, _Node1, _Node2, _Error) ->
                                                ok
@@ -167,7 +167,7 @@ pubsub_gateway_1_({Mgr0, _, Path}) ->
 
 
 prepare() ->
-    meck:new(leo_cluster_tbl_member),
+    meck:new(leo_cluster_tbl_member, [non_strict]),
     meck:expect(leo_cluster_tbl_member, lookup,
                 fun(Node) ->
                         {ok, #member{node  = Node,
@@ -184,7 +184,7 @@ prepare() ->
                 end),
 
 
-    meck:new(leo_cluster_tbl_ring),
+    meck:new(leo_cluster_tbl_ring, [non_strict]),
     meck:expect(leo_cluster_tbl_ring, create_table_current,
                 fun(_,_) ->
                         ok
@@ -194,7 +194,7 @@ prepare() ->
                         ok
                 end),
 
-    meck:new(leo_manager_api),
+    meck:new(leo_manager_api, [non_strict]),
     meck:expect(leo_manager_api, notify, fun(_Type, _Node1, _Notify2, _Error) ->
                                                  ok
                                          end),
