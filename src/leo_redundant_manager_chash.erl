@@ -44,8 +44,8 @@
 %%====================================================================
 %% @doc Add a node.
 %%
--spec(add(atom(), #member{}) ->
-             ok).
+-spec(add({atom(),atom()}, #member{}) ->
+             ok | {error, any()}).
 add(Table, Member) ->
     {ok, List} = add_1(0, Member, []),
     leo_cluster_tbl_ring:bulk_insert(Table, List).
@@ -75,8 +75,8 @@ add_from_list_1([Member|Rest], Acc) ->
 
 %% @doc Remove a node.
 %%
--spec(remove(atom, #member{}) ->
-             ok).
+-spec(remove({atom(),atom()}, #member{}) ->
+             ok | {error, any()}).
 remove(Table, Member) ->
     {ok, List} = remove_1(0, Member, []),
     leo_cluster_tbl_ring:bulk_delete(Table, List).
@@ -104,6 +104,8 @@ remove_from_list_1([Member|Rest], Acc) ->
 
 %% @doc Retrieve redundancies by vnode-id.
 %%
+-spec(redundancies(atom(), {_,atom()}, integer()) ->
+             {ok, #redundancies{}} | not_found).
 redundancies(ServerRef, {_,Table}, VNodeId) ->
     leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId).
 
@@ -111,7 +113,7 @@ redundancies(ServerRef, {_,Table}, VNodeId) ->
 %% @doc Execute rebalance
 %% @private
 -spec(rebalance(#rebalance{}) ->
-             {ok, list()} | {error, any()}).
+             {ok, []}).
 rebalance(RebalanceInfo) ->
     #rebalance{tbl_cur  = TblInfoCur,
                tbl_prev = TblInfoPrev} = RebalanceInfo,
@@ -146,11 +148,12 @@ rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
     %% Judge whether it match which case
     CurLastVNodeId  = leo_cluster_tbl_ring:last({mnesia, ?RING_TBL_CUR}),
     PrevLastVNodeId = leo_cluster_tbl_ring:last({mnesia, ?RING_TBL_PREV}),
+    TblInfo = leo_redundant_manager_api:table_info(?VER_PREV),
 
     {ok, #redundancies{vnode_id_to = PrevVNodeIdTo,
                        nodes = PrevNodes}} =
         leo_redundant_manager_worker:redundancies(
-          ServerRef, ?ring_table(?SYNC_TARGET_RING_PREV), AddrId, MembersPrev),
+          ServerRef, TblInfo, AddrId, MembersPrev),
 
     {VNodeIdTo, CurNodes} =
         case (PrevLastVNodeId > CurLastVNodeId andalso
@@ -212,8 +215,8 @@ rebalance_1_1(VNodeIdTo, SrcNode, [DestNode|Rest], Acc) ->
 
 %% @doc Retrieve ring-checksum
 %%
--spec(checksum(ring_table_info()) ->
-             integer()).
+-spec(checksum({atom(), atom()}) ->
+             {ok, integer()}).
 checksum(Table) ->
     case catch leo_cluster_tbl_ring:tab2list(Table) of
         {'EXIT', _Cause} ->
@@ -240,7 +243,7 @@ vnode_id(_, _) ->
 
 %% @doc Dump table to a file.
 %%
--spec(export(atom(), string()) ->
+-spec(export({atom(),atom()}, string()) ->
              ok | {error, any()}).
 export(Table, FileName) ->
     case leo_cluster_tbl_ring:size(Table) of
@@ -252,11 +255,10 @@ export(Table, FileName) ->
     end.
 
 
-%%====================================================================
-%% Internal functions
-%%====================================================================
 %% @doc Retrieve range of vnodes.
-%% @private
+%%
+-spec(range_of_vnodes({_,atom()}, integer()) ->
+             {ok, [tuple()]}).
 range_of_vnodes({_,Table}, VNodeId) ->
     ServerRef = leo_redundant_manager_api:get_server_id(),
     range_of_vnodes_1(ServerRef, Table, VNodeId).
@@ -282,6 +284,9 @@ range_of_vnodes_1(ServerRef, Table, VNodeId) ->
     end.
 
 
+%%====================================================================
+%% Internal functions
+%%====================================================================
 %% @doc Retrieve active nodes.
 %% @private
 active_node(_Members, []) ->

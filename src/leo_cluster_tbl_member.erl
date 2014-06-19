@@ -56,8 +56,6 @@
                       end).
 -endif.
 
--type(mnesia_copies() :: disc_copies | ram_copies).
-
 
 %% @doc create member table.
 %%
@@ -66,7 +64,7 @@ create_table(Table) ->
     catch ets:new(Table, [named_table, set, public, {read_concurrency, true}]),
     ok.
 
--spec(create_table(mnesia_copies(), list(), member_table()) -> ok).
+-spec(create_table(mnesia_copies(), [atom()], member_table()) -> ok).
 create_table(Mode, Nodes, Table) ->
     case mnesia:create_table(
            Table,
@@ -101,12 +99,12 @@ create_table(Mode, Nodes, Table) ->
 lookup(Node) ->
     lookup(?MEMBER_TBL_CUR, Node).
 
--spec(lookup(atom(), member_table()) ->
+-spec(lookup(atom(), atom()) ->
              {ok, #member{}} | not_found | {error, any()}).
 lookup(Table, Node) ->
     lookup(?table_type(), Table, Node).
 
--spec(lookup(?DB_ETS|?DB_MNESIA, atom(), member_table()) ->
+-spec(lookup(?DB_ETS|?DB_MNESIA, atom(), atom()) ->
              {ok, #member{}} | not_found | {error, any()}).
 lookup(?DB_MNESIA, Table, Node) ->
     case catch mnesia:ets(fun ets:lookup/2, [Table, Node]) of
@@ -114,6 +112,8 @@ lookup(?DB_MNESIA, Table, Node) ->
             {ok, H};
         [] ->
             not_found;
+        undefined ->
+            {error, 'invalid_table_name'};
         {'EXIT', Cause} ->
             {error, Cause}
     end;
@@ -123,6 +123,8 @@ lookup(?DB_ETS, Table, Node) ->
             {ok, H};
         [] ->
             not_found;
+        undefined ->
+            {error, 'invalid_table_name'};
         {'EXIT', Cause} ->
             {error, Cause}
     end;
@@ -560,21 +562,31 @@ overwrite_1_1(?DB_ETS = DB, Table, [Member|Rest]) ->
 %% @doc Retrieve total of records.
 %%
 -spec(table_size() ->
-             pos_integer()).
+             integer() | {error, any()}).
 table_size() ->
     table_size(?MEMBER_TBL_CUR).
 
--spec(table_size(member_table()) ->
-             pos_integer()).
+-spec(table_size(atom()) ->
+             integer() | {error, any()}).
 table_size(Table) ->
     table_size(?table_type(), Table).
 
--spec(table_size(?DB_ETS|?DB_MNESIA, member_table()) ->
-             pos_integer()).
+-spec(table_size(?DB_ETS|?DB_MNESIA, atom()) ->
+             integer() | {error, any()}).
 table_size(?DB_MNESIA, Table) ->
-    mnesia:ets(fun ets:info/2, [Table, size]);
+    case mnesia:ets(fun ets:info/2, [Table, size]) of
+        undefined ->
+            {error, invalid_db};
+        Val ->
+            Val
+    end;
 table_size(?DB_ETS, Table) ->
-    ets:info(Table, size);
+    case ets:info(Table, size) of
+        undefined ->
+            {error, invalid_db};
+        Val ->
+            Val
+    end;
 table_size(_,_) ->
     {error, invalid_db}.
 
@@ -614,13 +626,13 @@ tab2list(_,_) ->
 
 %% Go to first record
 -spec(first(atom()) ->
-             tuple() | list() | {error, any()}).
+             atom() | {error, any()}).
 first(Table) ->
     first(?table_type(), Table).
 
 %% @private
 -spec(first(?DB_MNESIA|?DB_ETS, atom()) ->
-             tuple() | list() | {error, any()}).
+             atom() | {error, any()}).
 first(?DB_MNESIA, Table) ->
     mnesia:ets(fun ets:first/1, [Table]);
 first(?DB_ETS, Table) ->
@@ -628,14 +640,14 @@ first(?DB_ETS, Table) ->
 
 
 %% Go to next record
--spec(next(atom(), binary()) ->
-             tuple() | list() | {error, any()}).
+-spec(next(atom(), atom()) ->
+             atom() | {error, any()}).
 next(Table, MemberName) ->
     next(?table_type(), Table, MemberName).
 
 %% @private
--spec(next(?DB_MNESIA|?DB_ETS, atom(), binary()) ->
-             tuple() | list() | {error, any()}).
+-spec(next(?DB_MNESIA|?DB_ETS, atom(), atom()) ->
+             atom() | {error, any()}).
 next(?DB_MNESIA, Table, MemberName) ->
     mnesia:ets(fun ets:next/2, [Table, MemberName]);
 next(?DB_ETS, Table, MemberName) ->
@@ -660,6 +672,8 @@ transform(MnesiaNodes) ->
 
 
 %% @private
+-spec(transform_1(integer()|_, [atom()], atom(), [atom()]) ->
+             ok | {error, any()}).
 transform_1(0,_,_,_) ->
     ok;
 transform_1(_, MnesiaNodes, OldTbl, NewTbls) ->
@@ -684,9 +698,13 @@ transform_1(_, MnesiaNodes, OldTbl, NewTbls) ->
     end.
 
 %% @private
+-spec(transform_2(atom(), [atom()]) ->
+             ok | {error, any()}).
 transform_2(OldTbl, NewTbls) ->
-    case (leo_cluster_tbl_member:table_size(OldTbl) > 0) of
-        true ->
+    case leo_cluster_tbl_member:table_size(OldTbl) of
+        {error, Cause} ->
+            {error, Cause};
+        Size when Size > 0 ->
             Node = leo_cluster_tbl_member:first(OldTbl),
             case transform_3(OldTbl, NewTbls, Node) of
                 ok ->
@@ -694,11 +712,13 @@ transform_2(OldTbl, NewTbls) ->
                 Error ->
                     Error
             end;
-        false ->
+        _Size ->
             ok
     end.
 
 %% @private
+-spec(transform_3(atom(), [atom()], atom()) ->
+             ok | {error, any()}).
 transform_3(OldTbl, NewTbls, Node) ->
     case leo_cluster_tbl_member:lookup(OldTbl, Node) of
         {ok, Member} ->
@@ -714,6 +734,8 @@ transform_3(OldTbl, NewTbls, Node) ->
     end.
 
 %% @private
+-spec(transform_3_1([atom()], #member{}) ->
+             ok | {error, any()}).
 transform_3_1([],_) ->
     ok;
 transform_3_1([Tbl|Rest], #member{node = Node} = Member) ->
@@ -725,7 +747,9 @@ transform_3_1([Tbl|Rest], #member{node = Node} = Member) ->
     end.
 
 %% @private
-transform_4('$end_of_table',_OldTblInfo,_NewTblInfo) ->
+-spec(transform_4(atom(), atom(), [atom()]) ->
+             ok | {error, any()}).
+transform_4('$end_of_table',_OldTbl,_NewTbls) ->
     ok;
 transform_4(Node, OldTbl, NewTbls) ->
     transform_3(OldTbl, NewTbls, Node).

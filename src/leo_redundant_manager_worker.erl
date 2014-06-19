@@ -62,20 +62,20 @@
           id :: atom(),
           cur  = #ring_info{} :: #ring_info{},
           prev = #ring_info{} :: #ring_info{},
-          num_of_replicas = 0       :: pos_integer(),
-          num_of_rack_awareness = 0 :: pos_integer(),
-          min_interval = ?DEF_SYNC_MIN_INTERVAL :: pos_integer(),
-          max_interval = ?DEF_SYNC_MAX_INTERVAL :: pos_integer(),
-          timestamp = 0 :: pos_integer()
+          num_of_replicas = 0       :: non_neg_integer(),
+          num_of_rack_awareness = 0 :: non_neg_integer(),
+          min_interval = ?DEF_SYNC_MIN_INTERVAL :: non_neg_integer(),
+          max_interval = ?DEF_SYNC_MAX_INTERVAL :: non_neg_integer(),
+          timestamp = 0 :: non_neg_integer()
          }).
 
 -record(ring_conf, {
-          id = 0 :: pos_integer(),
-          ring_size    = 0  :: pos_integer(),
-          group_size   = 0  :: pos_integer(),
-          group_id     = 0  :: pos_integer(),
-          addr_id      = 0  :: pos_integer(),
-          from_addr_id = 0  :: pos_integer(),
+          id = 0 :: non_neg_integer(),
+          ring_size    = 0  :: non_neg_integer(),
+          group_size   = 0  :: non_neg_integer(),
+          group_id     = 0  :: non_neg_integer(),
+          addr_id      = 0  :: non_neg_integer(),
+          from_addr_id = 0  :: non_neg_integer(),
           index_list   = [] :: list(),
           table_list   = [] :: list(),
           checksum     = -1 :: integer()
@@ -102,7 +102,7 @@ stop(Id) ->
     gen_server:call(Id, stop, ?DEF_TIMEOUT).
 
 
--spec(lookup(atom(), atom(), pos_integer()) ->
+-spec(lookup(atom(), atom(), integer()) ->
              {ok, #redundancies{}} | not_found).
 lookup(ServerRef, Table, AddrId) ->
     gen_server:call(ServerRef, {lookup, Table, AddrId}, ?DEF_TIMEOUT).
@@ -118,11 +118,11 @@ last(ServerRef, Table) ->
     gen_server:call(ServerRef, {last, Table}, ?DEF_TIMEOUT).
 
 -spec(force_sync(atom(), atom()) ->
-             {ok, #redundancies{}} | not_found).
+             ok | {error, invalid_table}).
 force_sync(ServerRef, Table) ->
     gen_server:call(ServerRef, {force_sync, Table}, ?DEF_TIMEOUT_LONG).
 
--spec(redundancies(atom(), atom(), number(), list(#member{})) ->
+-spec(redundancies(atom(), {atom(),atom()}, integer(), [#member{}]) ->
              {ok, #redundancies{}} | not_found).
 redundancies(ServerRef, Table, AddrId, Members) ->
     gen_server:call(ServerRef, {redundancies, Table, AddrId, Members}, ?DEF_TIMEOUT).
@@ -238,7 +238,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% @doc Retrieve current time
 %% @private
 -spec(timestamp() ->
-             pos_integer()).
+             integer()).
 timestamp() ->
     leo_math:floor(leo_date:clock() / 1000).
 
@@ -292,7 +292,7 @@ maybe_sync(#state{cur  = #ring_info{checksum = CurHash},
 
 %% @doc Fix prev-ring or current-ring inconsistency
 %% @private
--spec(maybe_sync_1(#state{}, {pos_integer(), pos_integer()}, {pos_integer(), pos_integer()}) ->
+-spec(maybe_sync_1(#state{}, {integer(), integer()}, {integer(), integer()}) ->
              #state{}).
 maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
     case leo_cluster_tbl_member:find_all(?MEMBER_TBL_CUR) of
@@ -328,11 +328,14 @@ maybe_sync_1_1(#sync_info{org_checksum = OrgChecksum,
 maybe_sync_1_1(SyncInfo, State) ->
     TargetRing = SyncInfo#sync_info.target,
     case gen_routing_table(SyncInfo, State) of
-        {ok, RingInfo} when TargetRing == ?SYNC_TARGET_RING_CUR ->
-            State#state{cur  = RingInfo};
-        {ok, RingInfo} when TargetRing == ?SYNC_TARGET_RING_PREV ->
-            State#state{prev = RingInfo};
-        _Error ->
+        {ok, RingInfo} ->
+            case TargetRing of
+                 ?SYNC_TARGET_RING_CUR ->
+                    State#state{cur = RingInfo};
+                ?SYNC_TARGET_RING_PREV ->
+                    State#state{prev = RingInfo}
+            end;
+        _ ->
             State
     end.
 
@@ -341,9 +344,9 @@ maybe_sync_1_1(SyncInfo, State) ->
 %% @private
 -spec(gen_routing_table(#sync_info{}, #state{}) ->
              {ok, #ring_info{}} | {error, atom()}).
-gen_routing_table(#sync_info{target = TargetRing},_) when TargetRing /= ?SYNC_TARGET_RING_CUR,
-                                                          TargetRing /= ?SYNC_TARGET_RING_PREV ->
-    {error, invalid_target_ring};
+%% gen_routing_table(#sync_info{target = TargetRing},_) when TargetRing /= ?SYNC_TARGET_RING_CUR,
+%%                                                           TargetRing /= ?SYNC_TARGET_RING_PREV ->
+%%     {error, invalid_target_ring};
 gen_routing_table(#sync_info{target = Target} = SyncInfo, State) ->
     %% Retrieve ring from local's master [etc|mnesia]
     {ok, Ring_1} = leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR),
@@ -395,16 +398,19 @@ gen_routing_table_1([{AddrId,_Node,_Clock}|Rest], SyncInfo, RingConf, State) ->
     MembersCur       = (State#state.cur)#ring_info.members,
     NumOfReplicas    = State#state.num_of_replicas,
     NumOfAwarenessL2 = State#state.num_of_rack_awareness,
+    TblInfo = leo_redundant_manager_api:table_info(?VER_CUR),
 
-    case redundancies(?ring_table(?SYNC_TARGET_RING_CUR),
-                      AddrId, NumOfReplicas, NumOfAwarenessL2, MembersCur) of
+    case redundancies(TblInfo, AddrId,
+                      NumOfReplicas, NumOfAwarenessL2, MembersCur) of
         {ok, #redundancies{nodes = CurNodes} = Redundancies} ->
             Redundancies_1 =
                 case TargetRing of
                     ?SYNC_TARGET_RING_PREV ->
                         MembersPrev = (State#state.prev)#ring_info.members,
-                        case redundancies(?ring_table(?SYNC_TARGET_RING_PREV),
-                                          AddrId, NumOfReplicas, NumOfAwarenessL2, MembersPrev) of
+                        TblInfoPrev = leo_redundant_manager_api:table_info(?VER_PREV),
+
+                        case redundancies(TblInfoPrev, AddrId,
+                                          NumOfReplicas, NumOfAwarenessL2, MembersPrev) of
                             {ok, #redundancies{nodes = PrevNodes}} ->
                                 CurNodes_1  = [_N1 || #redundant_node{node = _N1} <- CurNodes ],
                                 PrevNodes_1 = [_N2 || #redundant_node{node = _N2} <- PrevNodes],
@@ -489,7 +495,7 @@ gen_routing_table_2(#redundancies{nodes = Nodes}, #ring_conf{id = Id,
 
 %% @doc get redundancies by key.
 %% @private
--spec(redundancies(ring_table_info(), any(), pos_integer(), pos_integer(), list()) ->
+-spec(redundancies(ring_table_info(), any(), integer(), integer(), []) ->
              {ok, any()} | {error, any()}).
 redundancies(_,_,NumOfReplicas,_,_) when NumOfReplicas < ?DEF_MIN_REPLICAS;
                                          NumOfReplicas > ?DEF_MAX_REPLICAS ->
@@ -601,8 +607,8 @@ redundancies_3(Table, NumOfReplicas, L2, Members, VNodeId, Node_1, R) ->
 
 %% @doc Retrieve virtual-node by vnode-id
 %% @private
--spec(get_node_by_vnodeid({ets|mnesia, ?RING_TBL_CUR|?RING_TBL_PREV}, pos_integer()) ->
-             {ok, pos_integer()} | {error, no_entry}).
+-spec(get_node_by_vnodeid({atom(), atom()}, integer()) ->
+             {ok, integer()} | {error, any()}).
 get_node_by_vnodeid(Table, VNodeId) ->
     case leo_cluster_tbl_ring:next(Table, VNodeId) of
         '$end_of_table' ->
@@ -639,7 +645,7 @@ get_redundancies([#member{node = Node_0}|T], Node_1, SetL2) when Node_0 /= Node_
 
 %% @doc Reply redundancies
 %% @private
--spec(reply_redundancies(not_found | {ok, #redundancies{}}, pos_integer(), #state{}) ->
+-spec(reply_redundancies(not_found | {ok, #redundancies{}}, integer(), #state{}) ->
              not_found | {ok, #redundancies{}}).
 reply_redundancies(not_found,_,_) ->
     not_found;
@@ -719,7 +725,7 @@ last_fun(RingGroupList) ->
 
 %% @doc Retrieve redundancies by vnode-id
 %% @private
--spec(lookup_fun(list(#ring_group{}), pos_integer(), pos_integer(), pos_integer(), #state{}) ->
+-spec(lookup_fun(list(#ring_group{}), integer(), integer(), integer(), #state{}) ->
              not_found | {ok, #redundancies{}}).
 lookup_fun([],_,_,_,_) ->
     not_found;
@@ -736,7 +742,7 @@ lookup_fun(RingGroupList,_,_, AddrId, State) ->
 
 %% @doc Find redundanciess by vnodeid
 %% @private
--spec(find_redundancies_by_addr_id(list(#ring_group{}), pos_integer()) ->
+-spec(find_redundancies_by_addr_id(list(#ring_group{}), integer()) ->
              not_found | {ok, #redundancies{}}).
 find_redundancies_by_addr_id([],_AddrId) ->
     not_found;

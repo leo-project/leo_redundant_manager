@@ -38,6 +38,8 @@
 
 %% @doc Create a table of configuration of clusters
 %%
+-spec(create_table(mnesia_copies(), [atom()]) ->
+             ok | {error, any()}).
 create_table(Mode, Nodes) ->
     case mnesia:create_table(
            ?TBL_CLUSTER_INFO,
@@ -206,7 +208,7 @@ checksum() ->
 %% @doc Retrieve the records
 %%
 -spec(size() ->
-             pos_integer()).
+             integer()).
 size() ->
     mnesia:table_info(?TBL_CLUSTER_INFO, size).
 

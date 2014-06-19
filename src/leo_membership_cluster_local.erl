@@ -48,14 +48,14 @@
 	       terminate/2,
          code_change/3]).
 
--record(state, {type             :: ?SERVER_GATEWAY | ?SERVER_STORAGE | ?SERVER_MANAGER,
-                interval         :: integer(),
-                timestamp        :: integer(),
-                enable   = false :: boolean(),
-                managers = []    :: list(),
-                partner_manager  :: list(),
-                proc_auditor     :: atom(),
-                callback         :: function()
+-record(state, {type              :: atom(),
+                interval  = 0     :: non_neg_integer(),
+                timestamp = 0     :: non_neg_integer(),
+                running   = false :: boolean(),
+                managers = []     :: [atom()],
+                partner_manager   :: atom(),
+                proc_auditor      :: atom(),
+                callback          :: undefined|function()
                }).
 
 -ifdef(TEST).
@@ -79,9 +79,14 @@
 %%--------------------------------------------------------------------
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
+-spec(start_link(atom(), [atom()]) ->
+             {ok, pid()} | {error, any()}).
 start_link(ServerType, Managers) ->
-    start_link(ServerType, Managers, undefined).
+    Fun =  fun()-> ok end,
+    start_link(ServerType, Managers, Fun).
 
+-spec(start_link(atom(), [atom()], fun()) ->
+             {ok, pid()} | {error, any()}).
 start_link(ServerType, Managers, Callback) ->
     ok = application:set_env(?APP, ?PROP_MANAGERS, Managers),
     gen_server:start_link({local, ?MODULE}, ?MODULE,
@@ -113,6 +118,7 @@ set_proc_auditor(ProcAuditor) ->
 update_manager_nodes(Managers) ->
     gen_server:cast(?MODULE, {update_manager_nodes, Managers}).
 
+
 %%--------------------------------------------------------------------
 %% GEN_SERVER CALLBACKS
 %%--------------------------------------------------------------------
@@ -126,6 +132,7 @@ init([?SERVER_MANAGER = ServerType, [Partner|_] = Managers, Callback, Interval])
     {ok, #state{type      = ServerType,
                 interval  = Interval,
                 timestamp = 0,
+                running    = true,
                 partner_manager = Partner,
                 managers  = Managers,
                 callback  = Callback
@@ -133,10 +140,14 @@ init([?SERVER_MANAGER = ServerType, [Partner|_] = Managers, Callback, Interval])
 
 init([ServerType, Managers,_Callback, Interval]) ->
     defer_heartbeat(Interval),
+    Callback = fun()-> ok end,
     {ok, #state{type      = ServerType,
                 interval  = Interval,
+                running    = true,
                 timestamp = 0,
-                managers  = Managers}}.
+                managers  = Managers,
+                callback  = Callback
+               }}.
 
 
 handle_call(stop,_From,State) ->
@@ -147,8 +158,10 @@ handle_call(stop,_From,State) ->
 %%                                      {noreply, State, Timeout} |
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
+handle_cast({start_heartbeat}, #state{running = false} = State) ->
+    {noreply, State};
 handle_cast({start_heartbeat}, State) ->
-    case catch maybe_heartbeat(State#state{enable=true}) of
+    case catch maybe_heartbeat(State#state{running = false}) of
         {'EXIT', _Reason} ->
             {noreply, State};
         NewState ->
@@ -163,7 +176,7 @@ handle_cast({update_manager_nodes, Managers}, State) ->
     {noreply, State#state{managers  = Managers}};
 
 handle_cast({stop_heartbeat}, State) ->
-    State#state{enable=false}.
+    State#state{running = false}.
 
 
 %% Function: handle_info(Info, State) -> {noreply, State}          |
@@ -193,18 +206,13 @@ code_change(_OldVsn, State, _Extra) ->
 %% @private
 -spec(maybe_heartbeat(#state{}) ->
              #state{}).
-maybe_heartbeat(#state{enable = false} = State) ->
-    State;
 maybe_heartbeat(#state{type         = ServerType,
                        interval     = Interval,
                        timestamp    = Timestamp,
-                       enable       = true,
                        managers     = Managers,
                        proc_auditor = ProcAuditor,
-                       callback     = Callback
-                      } = State) ->
+                       callback     = Callback} = State) ->
     ThisTime = leo_date:now() * 1000,
-
     case ((ThisTime - Timestamp) < Interval) of
         true ->
             void;
@@ -221,10 +229,11 @@ maybe_heartbeat(#state{type         = ServerType,
                             catch exec(ServerType, Managers, Callback);
                         _ ->
                             void
-                    end
+                    end;
+                _ ->
+                    void
             end
     end,
-
     defer_heartbeat(Interval),
     State#state{timestamp = leo_date:now() * 1000}.
 
@@ -255,16 +264,16 @@ exec(?SERVER_MANAGER = ServerType, Managers, Callback) ->
 %% @doc Execute for gateway and storage nodes.
 %% @private
 exec(ServerType, Managers, Callback) ->
-    Redundancies = ?rnd_nodes_from_ring(),
-    Nodes = [{Node, State} ||
-                #redundant_node{node = Node,
+    Redundancies  = ?rnd_nodes_from_ring(),
+    NodesAndState = [{Node, State} ||
+                        #redundant_node{node = Node,
                                 available = State} <- Redundancies],
-    exec_1(ServerType, Managers, Nodes, Callback).
+    exec_1(ServerType, Managers, NodesAndState, Callback).
 
 
 %% @doc Execute for manager-nodes.
 %% @private
--spec(exec_1(?SERVER_MANAGER | ?SERVER_STORAGE | ?SERVER_GATEWAY, list(), list(), function()) ->
+-spec(exec_1(atom(), [atom()], [{atom(), #state{}}], function()) ->
              ok | {error, any()}).
 exec_1(_,_,[],_) ->
     ok;
@@ -301,9 +310,6 @@ exec_1(ServerType, Managers, [{Node, State}|T], Callback) ->
             Ret = compare_with_remote_chksum(Node),
             _ = inspect_result(Ret, [ServerType, Managers, Node, State])
     end,
-    exec_1(ServerType, Managers, T, Callback);
-
-exec_1(ServerType, Managers, [_|T], Callback) ->
     exec_1(ServerType, Managers, T, Callback).
 
 
@@ -404,7 +410,9 @@ compare_with_remote_chksum_1(Node, HashType, LocalChksum) ->
 
 %% @doc Notify an incorrect-info to manager-node
 %% @private
--spec(notify_error_to_manager(list(), ?CHECKSUM_RING | ?CHECKSUM_MEMBER, list({atom(),pos_integer()})) ->
+-spec(notify_error_to_manager([atom()],
+                              ?CHECKSUM_RING | ?CHECKSUM_MEMBER,
+                              [tuple()]) ->
              ok).
 notify_error_to_manager(Managers, HashType, NodesWithChksum) ->
     lists:foldl(
@@ -414,17 +422,19 @@ notify_error_to_manager(Managers, HashType, NodesWithChksum) ->
                           true  -> Node0;
                           false -> list_to_atom(Node0)
                       end,
-              case rpc:call(Node1, Mod, Method, [HashType, NodesWithChksum], ?DEF_TIMEOUT) of
+              case rpc:call(Node1, Mod, Method,
+                            [HashType, NodesWithChksum], ?DEF_TIMEOUT) of
                   ok ->
-                      true;
+                      ok;
                   Error ->
                       error_logger:warning_msg("~p,~p,~p,~p~n",
                                                [{module, ?MODULE_STRING},
                                                 {function, "notify_error_to_manager/3"},
                                                 {line, ?LINE}, {body, {Node1, Error}}]),
-                      false
+                      Error
               end;
          (_, true) ->
-              true
-      end, false, Managers).
+              ok
+      end, false, Managers),
+    ok.
 

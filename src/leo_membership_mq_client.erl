@@ -45,7 +45,7 @@
 -type(type_of_server() :: manager | gateway | storage).
 
 -record(message, {node             :: atom(),
-                  error            :: string(),
+                  error            :: any(),
                   times = 0        :: integer(),
                   published_at = 0 :: integer()}).
 
@@ -96,8 +96,8 @@ start1(InstanceId, RootPath0) ->
 
 %% @doc publish a message into the queue.
 %%
--spec(publish(atom(), atom(), string()) ->
-             ok).
+-spec(publish(atom(), atom(), any()) ->
+             ok | {error, any()}).
 publish(TypeOfServer, Node, Error) ->
     publish(TypeOfServer, Node, Error, 1).
 
@@ -129,7 +129,7 @@ publish(_,_) ->
 %% @doc Initializer
 %%
 -spec(init() ->
-             ok | {error, any()}).
+             ok).
 init() ->
     ok.
 
@@ -137,7 +137,7 @@ init() ->
 %% @doc Publish callback function
 %%
 -spec(handle_call({publish | consume, any(), any()}) ->
-             ok | {error, any()}).
+             ok).
 handle_call({publish, _Id, _Reply}) ->
     ok;
 
@@ -172,8 +172,8 @@ handle_call({consume, Id, MessageBin}) ->
                             end
                     end
             end;
-        {error, Cause} ->
-            {error, Cause}
+        _ ->
+            ok
     end.
 
 handle_call(_,_,_) ->

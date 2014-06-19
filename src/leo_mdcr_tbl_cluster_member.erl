@@ -41,6 +41,8 @@
 
 %% @doc Create a table of system-configutation
 %%
+-spec(create_table(mnesia_copies(), [atom()]) ->
+             ok | {error, any()}).
 create_table(Mode, Nodes) ->
     case mnesia:create_table(
            ?TBL_CLUSTER_MEMBER,
@@ -89,8 +91,8 @@ all() ->
 
 %% @doc Retrieve members by cluster-id
 %%
--spec(get(string()) ->
-             {ok, #?CLUSTER_MEMBER{}} | not_found | {error, any()}).
+-spec(get(atom()) ->
+             {ok, [#?CLUSTER_MEMBER{}]} | not_found | {error, any()}).
 get(ClusterId) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
     case catch mnesia:table_info(Tbl, all) of
@@ -132,7 +134,7 @@ find_by_state(ClusterId, State) ->
 %% @doc Retrieve a member by a node
 %%
 -spec(find_by_node(atom())->
-             {ok, list(#?CLUSTER_MEMBER{})} | not_found | {error, any()}).
+             {ok, #?CLUSTER_MEMBER{}} | not_found | {error, any()}).
 find_by_node(Node) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
     case catch mnesia:table_info(Tbl, all) of
@@ -204,7 +206,7 @@ find_by_limit_with_rnd_1(List, Rows, Acc) ->
 
 %% @doc Retrieve members by cluster-id
 %%
--spec(find_by_cluster_id(string()) ->
+-spec(find_by_cluster_id(atom()) ->
              {ok, list(#?CLUSTER_MEMBER{})} | not_found | {error, any()}).
 find_by_cluster_id(ClusterId) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
@@ -240,24 +242,26 @@ update(Member) ->
 
 %% @doc Remove members by cluster-id
 %%
--spec(delete(string()) ->
+-spec(delete(atom()) ->
              ok | {error, any()}).
 delete(ClusterId) ->
-    Tbl = ?TBL_CLUSTER_MEMBER,
     case ?MODULE:get(ClusterId) of
         {ok, Members} ->
-            delete_1(Members, Tbl);
+            delete_1(Members, ?TBL_CLUSTER_MEMBER);
         Error ->
             Error
     end.
 
+%% @private
+-spec(delete_1([#?CLUSTER_MEMBER{}], atom()) ->
+             ok).
 delete_1([],_Tbl) ->
     ok;
 delete_1([Value|Rest], Tbl) ->
     Fun = fun() ->
                   mnesia:delete_object(Tbl, Value, write)
           end,
-    leo_mnesia:delete(Fun),
+    _ = leo_mnesia:delete(Fun),
     delete_1(Rest, Tbl).
 
 
@@ -293,7 +297,7 @@ checksum() ->
             Error
     end.
 
--spec(checksum(string()) ->
+-spec(checksum(atom()) ->
              {ok, pos_integer()} | {error, any()}).
 checksum(ClusterId) ->
     case find_by_cluster_id(ClusterId) of
@@ -316,7 +320,7 @@ size() ->
 
 %% @doc Synchronize records
 %%
--spec(synchronize(list()) ->
+-spec(synchronize([#?CLUSTER_MEMBER{}]) ->
              ok | {error, any()}).
 synchronize(Vals) ->
     case synchronize_1(Vals) of
@@ -332,6 +336,8 @@ synchronize(Vals) ->
     end.
 
 %% @private
+-spec(synchronize_1([#?CLUSTER_MEMBER{}]) ->
+             ok | {error, any()}).
 synchronize_1([]) ->
     ok;
 synchronize_1([V|Rest]) ->
@@ -343,6 +349,8 @@ synchronize_1([V|Rest]) ->
     end.
 
 %% @private
+-spec(synchronize_2([#?CLUSTER_MEMBER{}], [#?CLUSTER_MEMBER{}]) ->
+             ok).
 synchronize_2([],_) ->
     ok;
 synchronize_2([#?CLUSTER_MEMBER{node = Node}|Rest], Vals) ->
@@ -350,8 +358,10 @@ synchronize_2([#?CLUSTER_MEMBER{node = Node}|Rest], Vals) ->
     synchronize_2(Rest, Vals).
 
 %% @private
+-spec(synchronize_2_1([#?CLUSTER_MEMBER{}], atom()) ->
+             ok).
 synchronize_2_1([], Node)->
-    ok = delete(Node),
+    _ = delete(Node),
     ok;
 synchronize_2_1([#?CLUSTER_MEMBER{node = Node}|_], Node)->
     ok;

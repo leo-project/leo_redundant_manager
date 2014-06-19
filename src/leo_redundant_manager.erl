@@ -73,7 +73,7 @@ stop() ->
 %% @doc Create Rings.
 %%
 -spec(create(?VER_CUR|?VER_PREV) ->
-             {ok, list()}).
+             ok | {error, any()}).
 create(Ver) ->
     gen_server:call(?MODULE, {create, Ver}, ?DEF_TIMEOUT_LONG).
 
@@ -108,7 +108,7 @@ get_members(Ver) ->
 %% @doc Retrieve a member by node.
 %%
 -spec(get_member_by_node(atom()) ->
-             {ok, #member{}}).
+             {ok, #member{}} | {error, any()}).
 get_member_by_node(Node) ->
     gen_server:call(?MODULE, {get_member_by_node, Node}, ?DEF_TIMEOUT).
 
@@ -116,7 +116,7 @@ get_member_by_node(Node) ->
 %% @doc Retrieve members by status.
 %%
 -spec(get_members_by_status(?VER_CUR|?VER_PREV, atom()) ->
-             {ok, list(#member{})} | not_found).
+             {ok, list(#member{})} | {error, any()}).
 get_members_by_status(Ver, Status) ->
     gen_server:call(?MODULE, {get_members_by_status, Ver, Status}, ?DEF_TIMEOUT).
 
@@ -176,30 +176,30 @@ dump(Type) ->
 %%
 -spec(attach(atom(), string(), integer(), integer()) ->
              ok | {error, any()}).
-attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
-    attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
+attach(Node, AwarenessL2, Clock, NumOfVNodes) ->
+    attach(Node, AwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
 
-attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) ->
+attach(Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
     attach(leo_redundant_manager_api:table_info(?VER_CUR),
-           Node, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort).
+           Node, AwarenessL2, Clock, NumOfVNodes, RPCPort).
 
-attach(TableInfo, Node, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) ->
+attach(TableInfo, Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
     gen_server:call(?MODULE, {attach, TableInfo, Node,
-                              NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort}, ?DEF_TIMEOUT).
+                              AwarenessL2, Clock, NumOfVNodes, RPCPort}, ?DEF_TIMEOUT).
 
 
 %% @doc Change node status to 'reserve'.
 %%
 -spec(reserve(atom(), atom(), string(), integer(), integer()) ->
              ok | {error, any()}).
-reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes) ->
-    reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
+reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes) ->
+    reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
 
 -spec(reserve(atom(), atom(), string(), integer(), integer(), integer()) ->
              ok | {error, any()}).
-reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) ->
+reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
     gen_server:call(?MODULE, {reserve, Node, CurState,
-                              NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort}, ?DEF_TIMEOUT).
+                              AwarenessL2, Clock, NumOfVNodes, RPCPort}, ?DEF_TIMEOUT).
 
 %% @doc Change node status to 'detach'.
 %%
@@ -391,7 +391,7 @@ handle_call({attach, TblInfo, Node, GroupL2,
     {reply, Reply, State};
 
 
-handle_call({reserve, Node, CurState, NumOfAwarenessL2,
+handle_call({reserve, Node, CurState, AwarenessL2,
              Clock, NumOfVNodes, RPCPort}, _From, State) ->
     Reply = case leo_cluster_tbl_member:lookup(Node) of
                 {ok, Member} ->
@@ -412,7 +412,7 @@ handle_call({reserve, Node, CurState, NumOfAwarenessL2,
                                      clock = Clock,
                                      state = CurState,
                                      num_of_vnodes = NumOfVNodes,
-                                     grp_level_2   = NumOfAwarenessL2,
+                                     grp_level_2   = AwarenessL2,
                                      port = RPCPort
                                     }});
                 {error, Cause} ->

@@ -194,21 +194,21 @@ attach(Node) ->
     attach(Node, [], leo_date:clock()).
 -spec(attach(atom(), string()) ->
              ok | {error, any()}).
-attach(Node, NumOfAwarenessL2) ->
-    attach(Node, NumOfAwarenessL2, leo_date:clock()).
--spec(attach(atom(), string(), pos_integer()) ->
+attach(Node, AwarenessL2) ->
+    attach(Node, AwarenessL2, leo_date:clock()).
+-spec(attach(atom(), string(), integer()) ->
              ok | {error, any()}).
-attach(Node, NumOfAwarenessL2, Clock) ->
-    attach(Node, NumOfAwarenessL2, Clock, ?DEF_NUMBER_OF_VNODES).
--spec(attach(atom(), string(), pos_integer(), pos_integer()) ->
+attach(Node, AwarenessL2, Clock) ->
+    attach(Node, AwarenessL2, Clock, ?DEF_NUMBER_OF_VNODES).
+-spec(attach(atom(), string(), integer(), integer()) ->
              ok | {error, any()}).
-attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes) ->
-    attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
--spec(attach(atom(), string(), pos_integer(), pos_integer(), pos_integer()) ->
+attach(Node, AwarenessL2, Clock, NumOfVNodes) ->
+    attach(Node, AwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
+-spec(attach(atom(), string(), integer(), integer(), integer()) ->
              ok | {error, any()}).
-attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) ->
+attach(Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
     case leo_redundant_manager:attach(
-           Node, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) of
+           Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) of
         ok ->
             ok;
         Error ->
@@ -218,21 +218,21 @@ attach(Node, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) ->
 
 %% @doc reserve a node during in operation
 %%
--spec(reserve(atom(), atom(), pos_integer()) ->
+-spec(reserve(atom(), atom(), integer()) ->
              ok | {error, any()}).
 reserve(Node, CurState, Clock) ->
-    reserve(Node, CurState, [], Clock, 0).
+    reserve(Node, CurState, "", Clock, 0).
 
--spec(reserve(atom(), atom(), string(), pos_integer(), pos_integer()) ->
+-spec(reserve(atom(), atom(), string(), integer(), integer()) ->
              ok | {error, any()}).
-reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes) ->
-    reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
+reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes) ->
+    reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
 
--spec(reserve(atom(), atom(), string(), pos_integer(), pos_integer(), pos_integer()) ->
+-spec(reserve(atom(), atom(), string(), integer(), integer(), integer()) ->
              ok | {error, any()}).
-reserve(Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) ->
+reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
     case leo_redundant_manager:reserve(
-           Node, CurState, NumOfAwarenessL2, Clock, NumOfVNodes, RPCPort) of
+           Node, CurState, AwarenessL2, Clock, NumOfVNodes, RPCPort) of
         ok ->
             ok;
         Error ->
@@ -272,8 +272,8 @@ suspend(Node, Clock) ->
 
 %% @doc get routing_table's checksum.
 %%
--spec(checksum(?CHECKSUM_RING |?CHECKSUM_MEMBER) ->
-             {ok, binary()} | {ok, atom()}).
+-spec(checksum(?CHECKSUM_RING |?CHECKSUM_MEMBER | _) ->
+             {ok, integer()} | {ok, {integer(), integer()}} | {error, any()}).
 checksum(?CHECKSUM_MEMBER = Type) ->
     leo_redundant_manager:checksum(Type);
 checksum(?CHECKSUM_RING) ->
@@ -283,14 +283,13 @@ checksum(?CHECKSUM_RING) ->
     {ok, RingHashCur } = leo_redundant_manager_chash:checksum(TblInfoCur),
     {ok, RingHashPrev} = leo_redundant_manager_chash:checksum(TblInfoPrev),
     {ok, {RingHashCur, RingHashPrev}};
-
 checksum(_) ->
     {error, invalid_type}.
 
 
 %% @doc synchronize member-list and routing-table.
 %%
--spec(synchronize(sync_target(), list(tuple()), list(tuple())) ->
+-spec(synchronize(sync_target(), [tuple()], [tuple()]) ->
              {ok, list(tuple())} | {error, any()}).
 synchronize(?SYNC_TARGET_BOTH, SyncData, Options) ->
     %% set configurations
@@ -322,8 +321,8 @@ synchronize(?SYNC_TARGET_BOTH, SyncData, Options) ->
             Error
     end.
 
--spec(synchronize(sync_target(), list(tuple())) ->
-             {ok, list(tuple())} | {error, any()}).
+-spec(synchronize(sync_target(), [tuple()]) ->
+             {ok, integer()} | {ok, list(tuple())} | {error, any()}).
 synchronize(?SYNC_TARGET_BOTH, SyncData) ->
     synchronize(?SYNC_TARGET_BOTH, SyncData, []);
 
@@ -369,13 +368,8 @@ synchronize_1(?SYNC_TARGET_MEMBER, Ver, SyncData) ->
             Table = ?member_table(Ver),
             case leo_cluster_tbl_member:find_all(Table) of
                 {ok, OldMembers} ->
-                    case leo_cluster_tbl_member:replace(
-                           Table, OldMembers, NewMembers) of
-                        ok ->
-                            ok;
-                        Error ->
-                            Error
-                    end;
+                    ok = leo_cluster_tbl_member:replace(
+                           Table, OldMembers, NewMembers);
                 not_found ->
                     lists:foreach(
                       fun(#member{node = Node} = Member) ->
@@ -390,14 +384,10 @@ synchronize_1(?SYNC_TARGET_MEMBER, Ver, SyncData) ->
 %% @private
 synchronize_1(Target, Ver) when Target == ?SYNC_TARGET_RING_CUR;
                                 Target == ?SYNC_TARGET_RING_PREV ->
-    case leo_cluster_tbl_ring:delete_all(table_info(Ver)) of
-        ok ->
-            case create(Ver) of
-                {ok,_,_} ->
-                    ok;
-                Error ->
-                    Error
-            end;
+    ok = leo_cluster_tbl_ring:delete_all(table_info(Ver)),
+    case create(Ver) of
+        {ok,_,_} ->
+            ok;
         Error ->
             Error
     end;
@@ -510,22 +500,14 @@ get_redundancies_by_addr_id_1(ServerRef, TblInfo, AddrId, Options) ->
                                            d = D,
                                            ring_hash = CurRingHash}};
         not_found = Cause ->
-            {error, Cause};
-        {error, Cause} ->
-            error_logger:warning_msg("~p,~p,~p,~p~n",
-                                     [{module, ?MODULE_STRING},
-                                      {function, "get_redundancies_by_addr_id_1/4"},
-                                      {line, ?LINE},
-                                      {body, Cause}]),
-
             {error, Cause}
     end.
 
 
 %% @doc Retrieve range of vnodes.
 %%
--spec(range_of_vnodes(atom()) ->
-             {ok, list()} | {error, any()}).
+-spec(range_of_vnodes(integer()) ->
+             {ok, [tuple()]}).
 range_of_vnodes(ToVNodeId) ->
     TblInfo = table_info(?VER_CUR),
     leo_redundant_manager_chash:range_of_vnodes(TblInfo, ToVNodeId).
@@ -542,18 +524,13 @@ rebalance() ->
             case before_rebalance(MembersCur) of
                 {ok, {MembersCur_1, MembersPrev, TakeOverList}} ->
                     %% Exec rebalance
-                    case leo_redundant_manager_chash:rebalance(
-                           #rebalance{tbl_cur  = table_info(?VER_CUR),
-                                      tbl_prev = table_info(?VER_PREV),
-                                      members_cur  = MembersCur_1,
-                                      members_prev = MembersPrev}) of
-                        {ok, Ret} ->
-                            %% After exec rebalance
-                            ok = after_rebalance(TakeOverList),
-                            {ok, Ret};
-                        Error ->
-                            Error
-                    end;
+                    {ok, Ret} = leo_redundant_manager_chash:rebalance(
+                                  #rebalance{tbl_cur  = table_info(?VER_CUR),
+                                             tbl_prev = table_info(?VER_PREV),
+                                             members_cur  = MembersCur_1,
+                                             members_prev = MembersPrev}),
+                    ok = after_rebalance(TakeOverList),
+                    {ok, Ret};
                 Error ->
                     Error
             end;
@@ -668,6 +645,8 @@ before_rebalance_1([#member{node = Node} = Member|Rest]) ->
 %%      3. Synchronize previous-ring
 %%      4. Export members and ring
 %% @private
+-spec(after_rebalance([#member{}]) ->
+             ok).
 after_rebalance([]) ->
     %% if previous-ring and current-ring has "detached-node(s)",
     %% then remove them, as same as memebers
@@ -690,8 +669,6 @@ after_rebalance([]) ->
                                    leo_redundant_manager_chash:remove(TblPrev, Member)
                            end
                    end, DetachedNodes);
-        {error, not_found} ->
-            ok;
         {error, Cause} ->
             error_logger:warning_msg("~p,~p,~p,~p~n",
                                      [{module, ?MODULE_STRING},
@@ -799,7 +776,7 @@ has_member(Node) ->
 
 %% @doc Has charge of node?
 %%
--spec(has_charge_of_node(binary(), pos_integer()) ->
+-spec(has_charge_of_node(binary(), integer()) ->
              boolean()).
 has_charge_of_node(Key, 0) ->
     case leo_cluster_tbl_conf:get() of
@@ -955,8 +932,6 @@ force_sync_workers() ->
     force_sync_workers_1(?RING_WORKER_POOL_SIZE - 1).
 
 %% @private
-force_sync_workers_1(-1) ->
-    ok;
 force_sync_workers_1(Index) ->
     ServerRef = list_to_atom(lists:append([?WORKER_POOL_NAME_PREFIX,
                                            integer_to_list(Index)])),
@@ -1006,7 +981,7 @@ judge_cluster_status(Members) ->
 %% @doc Retrieve checksums of cluster-related tables
 %%
 -spec(get_cluster_tbl_checksums() ->
-             list(tuple())).
+             {ok, [tuple()]}).
 get_cluster_tbl_checksums() ->
     Chksum_1 = leo_cluster_tbl_conf:checksum(),
     Chksum_2 = leo_mdcr_tbl_cluster_info:checksum(),
@@ -1027,7 +1002,7 @@ get_cluster_tbl_checksums() ->
              atom()).
 get_server_id() ->
     get_server_id(leo_date:clock()).
--spec(get_server_id(pos_integer()) ->
+-spec(get_server_id(integer()) ->
              atom()).
 get_server_id(AddrId) ->
     Procs = ?RING_WORKER_POOL_SIZE,
@@ -1051,7 +1026,7 @@ get_remote_clusters() ->
             not_found
     end.
 
--spec(get_remote_clusters(pos_integer()) ->
+-spec(get_remote_clusters(integer()) ->
              {ok, list(#?CLUSTER_INFO{})} | {error, any()}).
 get_remote_clusters(NumOfDestClusters) ->
     leo_mdcr_tbl_cluster_info:find_by_limit(NumOfDestClusters).
@@ -1064,7 +1039,7 @@ get_remote_clusters(NumOfDestClusters) ->
 get_remote_members(ClusterId) ->
     get_remote_members(ClusterId, ?DEF_NUM_OF_REMOTE_MEMBERS).
 
--spec(get_remote_members(atom(), pos_integer()) ->
+-spec(get_remote_members(atom(), integer()) ->
              {ok, #?CLUSTER_MEMBER{}} | {error, any()}).
 get_remote_members(ClusterId, NumOfMembers) ->
     leo_mdcr_tbl_cluster_member:find_by_limit(ClusterId, NumOfMembers).
