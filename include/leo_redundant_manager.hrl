@@ -217,66 +217,66 @@
 %%--------------------------------------------------------------------
 %% Configure of Redundancies and Consistency Level
 -record(system_conf, {
-          version = 0         :: integer(),
-          n       = 1         :: integer(),
-          r       = 1         :: integer(),
-          w       = 1         :: integer(),
-          d       = 1         :: integer(),
-          bit_of_ring = 128   :: integer(),
-          level_1 = 0         :: integer(),
-          level_2 = 0         :: integer()
+          version = 0         :: non_neg_integer(),
+          n       = 1         :: non_neg_integer(),
+          r       = 1         :: non_neg_integer(),
+          w       = 1         :: non_neg_integer(),
+          d       = 1         :: non_neg_integer(),
+          bit_of_ring = 128   :: non_neg_integer(),
+          level_1 = 0         :: non_neg_integer(),
+          level_2 = 0         :: non_neg_integer()
          }).
 -record(system_conf_1, {
-          version = 0         :: integer(),
+          version = 0         :: non_neg_integer(),
           cluster_id          :: atom()|string(),
           dc_id               :: atom()|string(),
-          n       = 1         :: integer(),
-          r       = 1         :: integer(),
-          w       = 1         :: integer(),
-          d       = 1         :: integer(),
-          bit_of_ring = 128   :: integer(),
-          num_of_dc_replicas   = 0 :: integer(),
-          num_of_rack_replicas = 0 :: integer()
+          n       = 1         :: non_neg_integer(),
+          r       = 1         :: non_neg_integer(),
+          w       = 1         :: non_neg_integer(),
+          d       = 1         :: non_neg_integer(),
+          bit_of_ring = 128   :: non_neg_integer(),
+          num_of_dc_replicas   = 0 :: non_neg_integer(),
+          num_of_rack_replicas = 0 :: non_neg_integer()
          }).
 -record(system_conf_2, {
-          version = 0         :: integer(),      %% version
-          cluster_id          :: atom(),         %% cluster-id
-          dc_id               :: atom(),         %% dc-id
-          n       = 1         :: integer(),      %% # of replicas
-          r       = 1         :: integer(),      %% # of replicas needed for a successful READ operation
-          w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
-          d       = 1         :: integer(),      %% # of replicas needed for a successful DELETE operation
-          bit_of_ring = 128   :: integer(),      %% # of bits for the hash-ring (fixed 128bit)
-          num_of_dc_replicas   = 0 :: integer(), %% # of destination of nodes a cluster for MDC-replication
-          num_of_rack_replicas = 0 :: integer(), %% # of Rack-awareness replicas
-          max_mdc_targets = ?DEF_MAX_MDC_TARGETS :: integer() %% max multi-dc replication targets for MDC-replication
+          version = 0         :: non_neg_integer(), %% version
+          cluster_id          :: atom(),            %% cluster-id
+          dc_id               :: atom(),            %% dc-id
+          n       = 1         :: non_neg_integer(), %% # of replicas
+          r       = 1         :: non_neg_integer(), %% # of replicas needed for a successful READ operation
+          w       = 1         :: non_neg_integer(), %% # of replicas needed for a successful WRITE operation
+          d       = 1         :: non_neg_integer(), %% # of replicas needed for a successful DELETE operation
+          bit_of_ring = 128   :: non_neg_integer(), %% # of bits for the hash-ring (fixed 128bit)
+          num_of_dc_replicas   = 0 :: non_neg_integer(), %% # of destination of nodes a cluster for MDC-replication
+          num_of_rack_replicas = 0 :: non_neg_integer(), %% # of Rack-awareness replicas
+          max_mdc_targets = ?DEF_MAX_MDC_TARGETS :: non_neg_integer() %% max multi-dc replication targets for MDC-replication
          }).
 -define(SYSTEM_CONF, 'system_conf_2').
 
 
 %% Configuration of a remote cluster
 -record(cluster_info, {
-          cluster_id          :: atom()|string(),%% cluster-id
-          dc_id               :: atom()|string(),%% dc-id
-          n       = 1         :: integer(),      %% # of replicas
-          r       = 1         :: integer(),      %% # of replicas needed for a successful READ operation
-          w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
-          d       = 1         :: integer(),      %% # of replicas needed for a successful DELETE operation
-          bit_of_ring = 128   :: integer(),      %% # of bits for the hash-ring (fixed 128bit)
-          num_of_dc_replicas   = 0 :: integer(), %% # of replicas a DC for MDC-replication
-          num_of_rack_replicas = 0 :: integer()  %% # of Rack-awareness replicas
+          cluster_id          :: atom()|string(),   %% cluster-id
+          dc_id               :: atom()|string(),   %% dc-id
+          n       = 1         :: non_neg_integer(), %% # of replicas
+          r       = 1         :: non_neg_integer(), %% # of replicas needed for a successful READ operation
+          w       = 1         :: non_neg_integer(), %% # of replicas needed for a successful WRITE operation
+          d       = 1         :: non_neg_integer(), %% # of replicas needed for a successful DELETE operation
+          bit_of_ring = 128   :: non_neg_integer(), %% # of bits for the hash-ring (fixed 128bit)
+          num_of_dc_replicas   = 0 :: non_neg_integer(), %% # of replicas a DC for MDC-replication
+          num_of_rack_replicas = 0 :: non_neg_integer()  %% # of Rack-awareness replicas
          }).
 -record(cluster_info_1, {
-          cluster_id          :: atom(),         %% cluster-id
-          dc_id               :: atom(),         %% dc-id
-          n       = 1         :: integer(),      %% # of replicas
-          r       = 1         :: integer(),      %% # of replicas needed for a successful READ operation
-          w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
-          d       = 1         :: integer(),      %% # of replicas needed for a successful DELETE operation
-          bit_of_ring = 128   :: integer(),      %% # of bits for the hash-ring (fixed 128bit)
-          num_of_dc_replicas   = 0 :: integer(), %% # of replicas a DC for MDC-replication
-          num_of_rack_replicas = 0 :: integer(), %% # of Rack-awareness replicas
-          max_mdc_targets = ?DEF_MAX_MDC_TARGETS :: integer() %% max multi-dc replication targets for MDC-replication
+          cluster_id          :: atom(), %% cluster-id
+          dc_id               :: atom(), %% dc-id
+          n       = 1         :: non_neg_integer(), %% # of replicas
+          r       = 1         :: non_neg_integer(), %% # of replicas needed for a successful READ operation
+          w       = 1         :: non_neg_integer(), %% # of replicas needed for a successful WRITE operation
+          d       = 1         :: non_neg_integer(), %% # of replicas needed for a successful DELETE operation
+          bit_of_ring = 128   :: non_neg_integer(), %% # of bits for the hash-ring (fixed 128bit)
+          num_of_dc_replicas   = 0 :: non_neg_integer(), %% # of replicas a DC for MDC-replication
+          num_of_rack_replicas = 0 :: non_neg_integer(), %% # of Rack-awareness replicas
+          max_mdc_targets = ?DEF_MAX_MDC_TARGETS :: non_neg_integer() %% max multi-dc replication targets for MDC-replication
          }).
 -define(CLUSTER_INFO, 'cluster_info_1').
 
@@ -357,17 +357,24 @@
 %% RECORDS-2 - for RING
 %%--------------------------------------------------------------------
 %%
+-record(redundant_node, {
+          node                   :: atom(),          %% node name
+          available       = true :: boolean(),       %% alive/dead
+          can_read_repair = true :: boolean(),       %% able to execute read-repair in case of 'Get Operation'
+          role                   :: consensus_role() %% consensus's role
+         }).
+
 -record(vnodeid_nodes, {
-          id = 0            :: non_neg_integer(), %% id
-          vnode_id_from = 0 :: non_neg_integer(), %% vnode-id's from
-          vnode_id_to = 0   :: non_neg_integer(), %% vnode-id's to
-          nodes             :: list()             %% list of nodes
+          id = 0            :: non_neg_integer(),  %% id
+          vnode_id_from = 0 :: non_neg_integer(),  %% vnode-id's from
+          vnode_id_to = 0   :: non_neg_integer(),  %% vnode-id's to
+          nodes             :: [#redundant_node{}] %% list of nodes
          }).
 
 -record(ring_group, {
-          index_from = 0     :: non_neg_integer(),     %% group-index's from
-          index_to = 0       :: non_neg_integer(),     %% group-index's to
-          vnodeid_nodes_list :: list(#vnodeid_nodes{}) %% list of vnodeid(s)
+          index_from = 0     :: non_neg_integer(), %% group-index's from
+          index_to = 0       :: non_neg_integer(), %% group-index's to
+          vnodeid_nodes_list :: [#vnodeid_nodes{}] %% list of vnodeid(s)
          }).
 
 -record(ring_info, {
@@ -379,19 +386,12 @@
          }).
 
 -record(node_state, {
-          node                 :: atom(),        %% actual node-name
-          state                :: atom(),        %% current-status
-          ring_hash_new = "-1" :: string(),      %% current ring-hash
-          ring_hash_old = "-1" :: string(),      %% prev ring-hash
+          node                 :: atom(),   %% actual node-name
+          state                :: atom(),   %% current-status
+          ring_hash_new = "-1" :: string(), %% current ring-hash
+          ring_hash_old = "-1" :: string(), %% prev ring-hash
           when_is   = 0        :: non_neg_integer(), %% joined at
           error     = 0        :: non_neg_integer()  %% # of errors
-         }).
-
--record(redundant_node, {
-          node                   :: atom(),          %% node name
-          available       = true :: boolean(),       %% alive/dead
-          can_read_repair = true :: boolean(),       %% able to execute read-repair in case of 'Get Operation'
-          role                   :: consensus_role() %% consensus's role
          }).
 
 -record(redundancies, {
@@ -409,7 +409,6 @@
           level_2 = 0           :: non_neg_integer(), %% # of rack-awareness's replicas
           ring_hash = -1        :: integer() %% ring-hash when writing an object
          }).
-
 
 -record(ring, {
           vnode_id = -1 :: integer(), %% vnode-id
@@ -437,8 +436,8 @@
 -record(mdc_replication_info, {
           cluster_id = []      :: string(), %% cluster-id
           num_of_replicas = 0  :: non_neg_integer(), %% num of replicas
-          cluster_members = [] :: list(),   %% cluster members
-          metadata             :: any()     %% metadata
+          cluster_members = [] :: [#member{}], %% cluster members
+          metadata             :: any()        %% metadata
          }).
 
 -ifdef(TEST).
