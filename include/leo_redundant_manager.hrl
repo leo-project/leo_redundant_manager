@@ -348,7 +348,7 @@
 
 %% Synchronization info
 -record(sync_info, {
-          target             :: atom(),
+          target             :: ?SYNC_TARGET_RING_CUR|?SYNC_TARGET_RING_PREV,
           org_checksum = 0   :: non_neg_integer(), %% original checksum
           cur_checksum = 0   :: non_neg_integer()  %% current chechsum
          }).
@@ -395,11 +395,11 @@
          }).
 
 -record(redundancies, {
-          id = -1               :: integer(), %% ring's address
-          vnode_id_from = -1    :: integer(), %% start of vnode_id
-          vnode_id_to = -1      :: integer(), %% end   of vnode_id (ex. vnode_id)
-          temp_nodes = []       :: list(),    %% tempolary objects of redundant-nodes
-          temp_level_2 = []     :: list(),    %% tempolary list of level-2's node
+          id = -1               :: integer(),  %% ring's address
+          vnode_id_from = -1    :: integer(),  %% start of vnode_id
+          vnode_id_to = -1      :: integer(),  %% end   of vnode_id (ex. vnode_id)
+          temp_nodes = []       :: [atom()],   %% tempolary objects of redundant-nodes
+          temp_level_2 = []     :: [string()], %% tempolary list of level-2's node
           nodes = []            :: list(#redundant_node{}), %% objects of redundant-nodes
           n = 0                 :: non_neg_integer(), %% # of replicas
           r = 0                 :: non_neg_integer(), %% # of successes of READ

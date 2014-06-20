@@ -626,13 +626,13 @@ tab2list(_,_) ->
 
 %% Go to first record
 -spec(first(atom()) ->
-             atom() | {error, any()}).
+             atom() | '$end_of_table').
 first(Table) ->
     first(?table_type(), Table).
 
 %% @private
 -spec(first(?DB_MNESIA|?DB_ETS, atom()) ->
-             atom() | {error, any()}).
+             atom() | '$end_of_table').
 first(?DB_MNESIA, Table) ->
     mnesia:ets(fun ets:first/1, [Table]);
 first(?DB_ETS, Table) ->
@@ -641,13 +641,13 @@ first(?DB_ETS, Table) ->
 
 %% Go to next record
 -spec(next(atom(), atom()) ->
-             atom() | {error, any()}).
+             atom() | '$end_of_table').
 next(Table, MemberName) ->
     next(?table_type(), Table, MemberName).
 
 %% @private
 -spec(next(?DB_MNESIA|?DB_ETS, atom(), atom()) ->
-             atom() | {error, any()}).
+             atom() | '$end_of_table').
 next(?DB_MNESIA, Table, MemberName) ->
     mnesia:ets(fun ets:next/2, [Table, MemberName]);
 next(?DB_ETS, Table, MemberName) ->

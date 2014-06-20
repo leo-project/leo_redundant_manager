@@ -102,13 +102,13 @@ create_table_for_test(Mode, Nodes, Table) ->
 %% Retrieve a record by key from the table
 %%
 -spec(lookup({?DB_MNESIA|?DB_ETS, atom()}, integer()) ->
-             [#?RING{}] | {error, any()}).
+             #?RING{} | not_found | {error, any()}).
 lookup({?DB_MNESIA, Table}, VNodeId) ->
     case catch mnesia:ets(fun ets:lookup/2, [Table, VNodeId]) of
         [Ring|_] ->
             Ring;
-        [] = Reply ->
-            Reply;
+        [] ->
+            not_found;
         {'EXIT', Cause} ->
             {error, Cause}
     end;
@@ -118,8 +118,8 @@ lookup({?DB_ETS, Table}, VNodeId) ->
             #?RING{vnode_id = VNodeId,
                    node     = Node,
                    clock    = Clock};
-        [] = Reply ->
-            Reply;
+        [] ->
+            not_found;
         {'EXIT', Cause} ->
             {error, Cause}
     end.
@@ -189,7 +189,7 @@ delete({?DB_MNESIA, Table} = TableInfo, VNodeId) ->
     case lookup(TableInfo, VNodeId) of
         {error, Cause} ->
             {error, Cause};
-        [] ->
+        not_found ->
             ok;
         Ring ->
             Fun = fun() ->
@@ -234,7 +234,7 @@ bulk_delete_1({_, Table} = TableInfo, [VNodeId|Rest]) ->
     case lookup(TableInfo, VNodeId) of
         {error, Cause} ->
             {error, Cause};
-        [] ->
+        not_found ->
             ok;
         Ring ->
             case mnesia:delete_object(Table, Ring, write) of
@@ -249,7 +249,7 @@ bulk_delete_1({_, Table} = TableInfo, [VNodeId|Rest]) ->
 %% @doc Retrieve a first record from the table
 %%
 -spec(first({?DB_MNESIA|?DB_ETS, atom()}) ->
-             atom()).
+             integer() | '$end_of_table').
 first({?DB_MNESIA, Table}) ->
     mnesia:ets(fun ets:first/1, [Table]);
 first({?DB_ETS, Table}) ->
@@ -259,7 +259,7 @@ first({?DB_ETS, Table}) ->
 %% @doc Retrieve a last record from the table
 %%
 -spec(last({?DB_MNESIA|?DB_ETS, atom()}) ->
-             atom()).
+             integer() | '$end_of_table').
 last({?DB_MNESIA, Table}) ->
     mnesia:ets(fun ets:last/1, [Table]);
 last({?DB_ETS, Table}) ->
@@ -269,7 +269,7 @@ last({?DB_ETS, Table}) ->
 %% @doc Retrieve a previous record from the table
 %%
 -spec(prev({?DB_MNESIA|?DB_ETS, atom()}, integer()) ->
-             atom()).
+             integer() | '$end_of_table').
 prev({?DB_MNESIA, Table}, VNodeId) ->
     mnesia:ets(fun ets:prev/2, [Table, VNodeId]);
 prev({?DB_ETS, Table}, VNodeId) ->
@@ -279,7 +279,7 @@ prev({?DB_ETS, Table}, VNodeId) ->
 %% @doc Retrieve a next record from the table
 %%
 -spec(next({?DB_MNESIA|?DB_ETS, atom()}, integer()) ->
-             atom()).
+             integer() | '$end_of_table').
 next({?DB_MNESIA, Table}, VNodeId) ->
     mnesia:ets(fun ets:next/2, [Table, VNodeId]);
 next({?DB_ETS, Table}, VNodeId) ->

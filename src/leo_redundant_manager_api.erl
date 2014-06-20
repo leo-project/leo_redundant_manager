@@ -398,7 +398,7 @@ synchronize_1(_,_) ->
 %% @doc Retrieve Ring
 %%
 -spec(get_ring() ->
-             {ok, list()} | {error, any()}).
+             {ok, list()}).
 get_ring() ->
     {ok, ets:tab2list(?RING_TBL_CUR)}.
 
