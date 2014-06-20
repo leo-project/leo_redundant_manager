@@ -240,8 +240,8 @@
          }).
 -record(system_conf_2, {
           version = 0         :: integer(),      %% version
-          cluster_id = []     :: atom(),         %% cluster-id
-          dc_id      = []     :: atom(),         %% dc-id
+          cluster_id          :: atom(),         %% cluster-id
+          dc_id               :: atom(),         %% dc-id
           n       = 1         :: integer(),      %% # of replicas
           r       = 1         :: integer(),      %% # of replicas needed for a successful READ operation
           w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
@@ -256,8 +256,8 @@
 
 %% Configuration of a remote cluster
 -record(cluster_info, {
-          cluster_id = []     :: string(),       %% cluster-id
-          dc_id      = []     :: string(),       %% dc-id
+          cluster_id          :: atom()|string(),%% cluster-id
+          dc_id               :: atom()|string(),%% dc-id
           n       = 1         :: integer(),      %% # of replicas
           r       = 1         :: integer(),      %% # of replicas needed for a successful READ operation
           w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
@@ -267,8 +267,8 @@
           num_of_rack_replicas = 0 :: integer()  %% # of Rack-awareness replicas
          }).
 -record(cluster_info_1, {
-          cluster_id          :: atom()|string(),%% cluster-id
-          dc_id               :: atom()|string(),%% dc-id
+          cluster_id          :: atom(),         %% cluster-id
+          dc_id               :: atom(),         %% dc-id
           n       = 1         :: integer(),      %% # of replicas
           r       = 1         :: integer(),      %% # of replicas needed for a successful READ operation
           w       = 1         :: integer(),      %% # of replicas needed for a successful WRITE operation
@@ -284,7 +284,7 @@
 %% For Multi-DC Replication
 -record(cluster_stat, {
           cluster_id      :: atom()|string(),   %% cluster-id
-          status = null   :: node_state(),      %% status:[running | stop]
+          status = null   :: node_state()|null, %% status:[running | stop]
           checksum = 0    :: non_neg_integer(), %% checksum of members
           updated_at = 0  :: non_neg_integer()  %% updated at
          }).
@@ -358,24 +358,24 @@
 %%--------------------------------------------------------------------
 %%
 -record(vnodeid_nodes, {
-          id = 0            :: non_neg_integer(),    %% id
-          vnode_id_from = 0 :: non_neg_integer(),    %% vnode-id's from
-          vnode_id_to = 0   :: non_neg_integer(),    %% vnode-id's to
-          nodes             :: list()            %% list of nodes
+          id = 0            :: non_neg_integer(), %% id
+          vnode_id_from = 0 :: non_neg_integer(), %% vnode-id's from
+          vnode_id_to = 0   :: non_neg_integer(), %% vnode-id's to
+          nodes             :: list()             %% list of nodes
          }).
 
 -record(ring_group, {
-          index_from = 0     :: non_neg_integer(),   %% group-index's from
-          index_to = 0       :: non_neg_integer(),   %% group-index's to
+          index_from = 0     :: non_neg_integer(),     %% group-index's from
+          index_to = 0       :: non_neg_integer(),     %% group-index's to
           vnodeid_nodes_list :: list(#vnodeid_nodes{}) %% list of vnodeid(s)
          }).
 
 -record(ring_info, {
-          checksum = -1      :: integer(),       %% Ring's checksum
-          first_vnode_id = 0 :: non_neg_integer(),   %% start vnode-id
-          last_vnode_id = 0  :: non_neg_integer(),   %% end vnode-id
-          ring_group_list    :: list(#ring_group{}), %% list of groups
-          members = []       :: list(#member{})  %% cluster-members
+          checksum = -1      :: integer(),         %% Ring's checksum
+          first_vnode_id = 0 :: non_neg_integer(), %% start vnode-id
+          last_vnode_id = 0  :: non_neg_integer(), %% end vnode-id
+          ring_group_list    :: [#ring_group{}],   %% list of groups
+          members = []       :: [#member{}]        %% cluster-members
          }).
 
 -record(node_state, {
@@ -388,9 +388,9 @@
          }).
 
 -record(redundant_node, {
-          node                   :: atom(),      %% node name
-          available       = true :: boolean(),   %% alive/dead
-          can_read_repair = true :: boolean(),   %% able to execute read-repair in case of 'Get Operation'
+          node                   :: atom(),          %% node name
+          available       = true :: boolean(),       %% alive/dead
+          can_read_repair = true :: boolean(),       %% able to execute read-repair in case of 'Get Operation'
           role                   :: consensus_role() %% consensus's role
          }).
 
@@ -417,8 +417,8 @@
          }).
 -record(ring_0_16_8, {
           vnode_id = -1 :: integer(), %% vnode-id
-          node          :: atom(),        %% node
-          clock = 0     :: non_neg_integer()  %% clock
+          node          :: atom(),    %% node
+          clock = 0     :: non_neg_integer() %% clock
          }).
 -define(RING, 'ring_0_16_8').
 
@@ -435,10 +435,10 @@
 %% RECORDS-3 - for Multi Cluster
 %%--------------------------------------------------------------------
 -record(mdc_replication_info, {
-          cluster_id = []      :: string(),          %% cluster-id
+          cluster_id = []      :: string(), %% cluster-id
           num_of_replicas = 0  :: non_neg_integer(), %% num of replicas
-          cluster_members = [] :: list(),        %% cluster members
-          metadata             :: any()          %% metadata
+          cluster_members = [] :: list(),   %% cluster members
+          metadata             :: any()     %% metadata
          }).
 
 -ifdef(TEST).

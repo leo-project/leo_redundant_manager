@@ -289,12 +289,6 @@ transform() ->
                      ?TBL_CLUSTER_INFO,  fun transform/1,
                      record_info(fields, ?CLUSTER_INFO),
                      ?CLUSTER_INFO),
-    case (?MODULE:size() > 0) of
-        true ->
-            transform_1();
-        false ->
-            void
-    end,
     ok.
 
 
@@ -311,8 +305,17 @@ transform(#cluster_info{cluster_id = ClusterId,
                         bit_of_ring = BitOfRing,
                         num_of_dc_replicas   = Level1,
                         num_of_rack_replicas = Level2}) ->
-    #?CLUSTER_INFO{cluster_id = ClusterId,
-                   dc_id = DCId,
+
+    ClusterId_1 = case is_atom(ClusterId) of
+                      true  -> ClusterId;
+                      false -> list_to_atom(ClusterId)
+                  end,
+    DCId_1 = case is_atom(DCId) of
+                 true  -> DCId;
+                 false -> list_to_atom(DCId)
+             end,
+    #?CLUSTER_INFO{cluster_id = ClusterId_1,
+                   dc_id = DCId_1,
                    n = N,
                    r = R,
                    w = W,
@@ -322,57 +325,3 @@ transform(#cluster_info{cluster_id = ClusterId,
                    num_of_rack_replicas = Level2,
                    max_mdc_targets = ?DEF_MAX_MDC_TARGETS
                   }.
-
-
-%% @private
-transform_1() ->
-    Table = ?TBL_CLUSTER_INFO,
-    case catch mnesia:ets(fun ets:first/1, [Table]) of
-        {'EXIT', Cause} ->
-            {error, Cause};
-        '$end_of_table' ->
-            ok;
-        Key ->
-            case transform_2(Key) of
-                ok ->
-                    transform_1(Key);
-                _Error ->
-                    ok
-            end
-    end.
-transform_1(PrevKey) ->
-    Table = ?TBL_CLUSTER_INFO,
-    case catch mnesia:ets(fun ets:next/2, [Table, PrevKey]) of
-        {'EXIT', Cause} ->
-            {error, Cause};
-        '$end_of_table' ->
-            ok;
-        Key ->
-            case transform_2(Key) of
-                ok ->
-                    transform_1(Key);
-                _Error ->
-                    ok
-            end
-    end.
-
-%% @private
-transform_2(Key) ->
-    case ?MODULE:get(Key) of
-        {ok, #?CLUSTER_INFO{cluster_id = ClusterId,
-                            dc_id = DCId} = ClusterInfo} ->
-            ClusterId_1 = case is_atom(ClusterId) of
-                              true  -> ClusterId;
-                              false -> list_to_atom(ClusterId)
-                          end,
-            DCId_1 = case is_atom(DCId) of
-                         true  -> DCId;
-                         false -> list_to_atom(DCId)
-                     end,
-            ?MODULE:delete(ClusterId),
-            ?MODULE:update(ClusterInfo#?CLUSTER_INFO{cluster_id = ClusterId_1,
-                                                     dc_id = DCId_1}),
-            ok;
-        _ ->
-            void
-    end.
