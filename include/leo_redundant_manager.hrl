@@ -120,11 +120,11 @@
 -define(STATE_RESTARTED, 'restarted').
 -define(STATE_RESERVED,  'reserved').
 
--type(node_state() :: ?STATE_ATTACHED |
-                      ?STATE_DETACHED |
-                      ?STATE_SUSPEND  |
-                      ?STATE_RUNNING  |
-                      ?STATE_STOP     |
+-type(node_state() :: ?STATE_ATTACHED  |
+                      ?STATE_DETACHED  |
+                      ?STATE_SUSPEND   |
+                      ?STATE_RUNNING   |
+                      ?STATE_STOP      |
                       ?STATE_RESTARTED |
                       ?STATE_RESERVED).
 
@@ -171,7 +171,9 @@
 -type(sync_target() :: ?SYNC_TARGET_BOTH |
                        ?SYNC_TARGET_RING_CUR  |
                        ?SYNC_TARGET_RING_PREV |
-                       ?SYNC_TARGET_MEMBER).
+                       ?SYNC_TARGET_MEMBER |
+                       undefined
+                       ).
 
 %% Consensus Roles
 -define(CNS_ROLE_LEADER,     'L').
@@ -181,7 +183,8 @@
 -type(consensus_role() :: ?CNS_ROLE_LEADER |
                           ?CNS_ROLE_FOLLOWER_1 |
                           ?CNS_ROLE_FOLLOWER_2 |
-                          ?CNS_ROLE_OBSERBER).
+                          ?CNS_ROLE_OBSERBER |
+                          undefined).
 
 %% Server Type
 -define(SERVER_MANAGER, 'manager').
@@ -358,9 +361,9 @@
 %%--------------------------------------------------------------------
 %%
 -record(redundant_node, {
-          node                   :: atom(),          %% node name
-          available       = true :: boolean(),       %% alive/dead
-          can_read_repair = true :: boolean(),       %% able to execute read-repair in case of 'Get Operation'
+          node                   :: atom(),    %% node name
+          available       = true :: boolean(), %% alive/dead
+          can_read_repair = true :: boolean(), %% able to execute read-repair in case of 'Get Operation'
           role                   :: consensus_role() %% consensus's role
          }).
 
