@@ -431,12 +431,12 @@ dump(Type) ->
 %%--------------------------------------------------------------------
 %% @doc Retrieve redundancies from the ring-table.
 %%
--spec(get_redundancies_by_key(string()) ->
+-spec(get_redundancies_by_key(binary()) ->
              {ok, #redundancies{}} | {error, any()}).
 get_redundancies_by_key(Key) ->
     get_redundancies_by_key(default, Key).
 
--spec(get_redundancies_by_key(method(), string()) ->
+-spec(get_redundancies_by_key(method(), binary()) ->
              {ok, #redundancies{}} | {error, any()}).
 get_redundancies_by_key(Method, Key) ->
     case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
