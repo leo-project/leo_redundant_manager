@@ -65,7 +65,7 @@
         ]).
 
 %% Request type
--type(method() :: put | get | delete | head).
+-type(method() :: put | get | delete | head | default).
 
 %%--------------------------------------------------------------------
 %% API-1  FUNCTIONS
@@ -432,12 +432,12 @@ dump(Type) ->
 %% @doc Retrieve redundancies from the ring-table.
 %%
 -spec(get_redundancies_by_key(string()) ->
-             {ok, list(), integer(), integer(), list()} | {error, any()}).
+             {ok, #redundancies{}} | {error, any()}).
 get_redundancies_by_key(Key) ->
     get_redundancies_by_key(default, Key).
 
 -spec(get_redundancies_by_key(method(), string()) ->
-             {ok, list(), integer(), integer(), list()} | {error, any()}).
+             {ok, #redundancies{}} | {error, any()}).
 get_redundancies_by_key(Method, Key) ->
     case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         {ok, Options} ->
@@ -452,17 +452,19 @@ get_redundancies_by_key(Method, Key) ->
 
 %% @doc Retrieve redundancies from the ring-table.
 %%
+-spec(get_redundancies_by_addr_id(integer()) ->
+             {ok, #redundancies{}} | {error, any()}).
 get_redundancies_by_addr_id(AddrId) ->
     get_redundancies_by_addr_id(default, AddrId).
 
 -spec(get_redundancies_by_addr_id(method(), integer()) ->
-             {ok, list(), integer(), integer(), list()} | {error, any()}).
+             {ok, #redundancies{}} | {error, any()}).
 get_redundancies_by_addr_id(Method, AddrId) ->
     ServerRef = get_server_id(AddrId),
     get_redundancies_by_addr_id(ServerRef, Method, AddrId).
 
 -spec(get_redundancies_by_addr_id(atom(), method(), integer()) ->
-             {ok, list(), integer(), integer(), list()} | {error, any()}).
+             {ok, #redundancies{}} | {error, any()}).
 get_redundancies_by_addr_id(ServerRef, Method, AddrId) ->
     case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         {ok, Options} ->
@@ -477,6 +479,8 @@ get_redundancies_by_addr_id(ServerRef, Method, AddrId) ->
     end.
 
 %% @private
+-spec(get_redundancies_by_addr_id_1(atom(), {_,atom()}, integer(), [_]) ->
+             {ok, #redundancies{}} | {error, any()}).
 get_redundancies_by_addr_id_1(ServerRef, TblInfo, AddrId, Options) ->
     N = leo_misc:get_value(?PROP_N, Options),
     R = leo_misc:get_value(?PROP_R, Options),
