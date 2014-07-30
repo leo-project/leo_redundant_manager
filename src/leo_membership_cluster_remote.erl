@@ -216,7 +216,7 @@ exec([#cluster_manager{node = Node,
                         {ok, LocalClusterStat} ->
                             exec_1(Node, ClusterStat, LocalClusterStat);
                         not_found ->
-                            exec_1(Node, ClusterStat, undefined);
+                            exec_1(Node, ClusterStat, #?CLUSTER_STAT{});
                         _ ->
                             ok
                     end;
@@ -230,8 +230,8 @@ exec([#cluster_manager{node = Node,
 
 
 %% @private
-exec_1(Node, ClusterStat, undefined) ->
-    exec_1(Node, ClusterStat, #?CLUSTER_STAT{});
+-spec(exec_1(atom(), #?CLUSTER_STAT{}, #?CLUSTER_STAT{}) ->
+             ok | {error, any()}).
 exec_1(Node, #?CLUSTER_STAT{checksum   = Checksum_1,
                             cluster_id = ClusterId} = ClusterStat,
        #?CLUSTER_STAT{checksum = Checksum_2}) ->
@@ -253,6 +253,8 @@ exec_1(Node, #?CLUSTER_STAT{checksum   = Checksum_1,
     end.
 
 %% @private
+-spec(exec_2(atom(), atom()) ->
+             {ok, integer()} | {error, any()}).
 exec_2(Node, ClusterId) ->
     case catch leo_rpc:call(Node, leo_redundant_manager_api,
                             get_members, []) of
@@ -273,6 +275,8 @@ exec_2(Node, ClusterId) ->
     end.
 
 %% @private
+-spec(exec_3([#member{}], atom()) ->
+             ok | {error, any()}).
 exec_3([], _) ->
     ok;
 exec_3([#member{node = Node,

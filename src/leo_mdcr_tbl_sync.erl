@@ -43,7 +43,7 @@
 
 -record(state, {
           server_type :: atom(),
-          managers = []    :: list(atom()),
+          managers = []    :: [atom()],
           interval = 30000 :: integer()
          }).
 
@@ -148,7 +148,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% @doc Synchronize mdcr-related tables
 %% @private
--spec(sync_tables(atom(), list(atom())) ->
+-spec(sync_tables(atom(), [atom()]) ->
              ok).
 sync_tables(gateway,_Managers) ->
     ok;

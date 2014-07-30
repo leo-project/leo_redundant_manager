@@ -36,6 +36,8 @@
 
 %% @doc Create a table of system-configutation
 %%
+-spec(create_table(mnesia_copies(), [atom()]) ->
+             ok | {error, any()}).
 create_table(Mode, Nodes) ->
     case mnesia:create_table(
            ?TBL_SYSTEM_CONF,
@@ -180,7 +182,7 @@ checksum() ->
 -spec(synchronize(list()) ->
              ok | {error, any()}).
 synchronize(Vals) ->
-    case synchronize_1(Vals) of 
+    case synchronize_1(Vals) of
         ok ->
             case all() of
                 {ok, CurVals} ->

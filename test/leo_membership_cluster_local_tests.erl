@@ -93,21 +93,21 @@ teardown({_, Mgr0, Mgr1, Node0, Node1, Node2}) ->
     ok.
 
 membership_manager_({Hostname, _, _, Node0, Node1, Node2}) ->
-    ok = rpc:call(Node0, meck, new,    [leo_redundant_manager_api, [no_link]]),
+    ok = rpc:call(Node0, meck, new,    [leo_redundant_manager_api, [no_link, non_strict]]),
     ok = rpc:call(Node0, meck, expect, [leo_redundant_manager_api, checksum,
                                         fun(ring) ->
                                                 {ok, ?TEST_RING_HASH};
                                            (member) ->
                                                 {ok, ?TEST_MEMBER_HASH}
                                         end]),
-    ok = rpc:call(Node1, meck, new,    [leo_redundant_manager_api, [no_link]]),
+    ok = rpc:call(Node1, meck, new,    [leo_redundant_manager_api, [no_link, non_strict]]),
     ok = rpc:call(Node1, meck, expect, [leo_redundant_manager_api, checksum,
                                         fun(ring) ->
                                                 {ok, ?TEST_RING_HASH};
                                            (member) ->
                                                 {ok, ?TEST_MEMBER_HASH}
                                         end]),
-    ok = rpc:call(Node2, meck, new,    [leo_redundant_manager_api, [no_link]]),
+    ok = rpc:call(Node2, meck, new,    [leo_redundant_manager_api, [no_link, non_strict]]),
     ok = rpc:call(Node2, meck, expect, [leo_redundant_manager_api, checksum,
                                         fun(ring) ->
                                                 {ok, []};
@@ -132,21 +132,21 @@ membership_manager_({Hostname, _, _, Node0, Node1, Node2}) ->
 
 
 membership_storage_({Hostname, Mgr0, Mgr1, Node0, Node1, Node2}) ->
-    ok = rpc:call(Node0, meck, new,    [leo_redundant_manager_api, [no_link]]),
+    ok = rpc:call(Node0, meck, new,    [leo_redundant_manager_api, [no_link, non_strict]]),
     ok = rpc:call(Node0, meck, expect, [leo_redundant_manager_api, checksum,
                                         fun(ring) ->
                                                 {ok, ?TEST_RING_HASH};
                                            (member) ->
                                                 {ok, ?TEST_MEMBER_HASH}
                                         end]),
-    ok = rpc:call(Node1, meck, new,    [leo_redundant_manager_api, [no_link]]),
+    ok = rpc:call(Node1, meck, new,    [leo_redundant_manager_api, [no_link, non_strict]]),
     ok = rpc:call(Node1, meck, expect, [leo_redundant_manager_api, checksum,
                                         fun(ring) ->
                                                 {ok, ?TEST_RING_HASH};
                                            (member) ->
                                                 {ok, ?TEST_MEMBER_HASH}
                                         end]),
-    ok = rpc:call(Node2, meck, new,    [leo_redundant_manager_api, [no_link]]),
+    ok = rpc:call(Node2, meck, new,    [leo_redundant_manager_api, [no_link, non_strict]]),
     ok = rpc:call(Node2, meck, expect, [leo_redundant_manager_api, checksum,
                                         fun(ring) ->
                                                 {ok, []};
@@ -154,12 +154,12 @@ membership_storage_({Hostname, Mgr0, Mgr1, Node0, Node1, Node2}) ->
                                                 {ok, -1}
                                         end]),
 
-    ok = rpc:call(Mgr0, meck, new,    [leo_manager_api, [no_link]]),
+    ok = rpc:call(Mgr0, meck, new,    [leo_manager_api, [no_link, non_strict]]),
     ok = rpc:call(Mgr0, meck, expect, [leo_manager_api, synchronize,
                                        fun(_Type, _Node) ->
                                                ok
                                        end]),
-    ok = rpc:call(Mgr1, meck, new,    [leo_manager_api, [no_link]]),
+    ok = rpc:call(Mgr1, meck, new,    [leo_manager_api, [no_link, non_strict]]),
     ok = rpc:call(Mgr1, meck, expect, [leo_manager_api, synchronize,
                                        fun(_Type, _Node) ->
                                                ok

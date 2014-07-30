@@ -37,6 +37,8 @@
 
 %% @doc Create a table of system-configutation
 %%
+-spec(create_table(mnesia_copies(), [atom()]) ->
+             ok | {error, any()}).
 create_table(Mode, Nodes) ->
     case mnesia:create_table(
            ?TBL_CLUSTER_MGR,
@@ -79,7 +81,7 @@ all() ->
 %% @doc Retrieve system configuration by cluster-id
 %%
 -spec(get(atom()) ->
-             {ok, #cluster_manager{}} | not_found | {error, any()}).
+             {ok, [#cluster_manager{}]} | not_found | {error, any()}).
 get(ClusterId) ->
     Tbl = ?TBL_CLUSTER_MGR,
     case catch mnesia:table_info(Tbl, all) of
@@ -163,7 +165,7 @@ delete_by_node(Node) ->
 %% @doc Retrieve a checksum
 %%
 -spec(checksum() ->
-             pos_integer()).
+             {ok, integer()}).
 checksum() ->
     case all() of
         {ok, Vals} ->
@@ -178,7 +180,7 @@ checksum() ->
 %% @doc Retrieve the records
 %%
 -spec(size() ->
-             pos_integer()).
+             integer()).
 size() ->
     mnesia:table_info(?TBL_CLUSTER_MGR, size).
 

@@ -37,6 +37,8 @@
 
 %% @doc Create a table of system-configutation
 %%
+-spec(create_table(mnesia_copies(), [atom()]) ->
+             ok | {error, any()}).
 create_table(Mode, Nodes) ->
     case mnesia:create_table(
            ?TBL_CLUSTER_STAT,

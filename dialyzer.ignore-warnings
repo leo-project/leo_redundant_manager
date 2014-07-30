@@ -1,0 +1,2 @@
+leo_redundant_manager_chash.erl:161: The pattern 'true' can never match the type 'false'
+leo_redundant_manager_chash.erl:191: The pattern 'true' can never match the type 'false'

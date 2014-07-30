@@ -170,11 +170,11 @@ inspect(TableType) ->
     ?assertEqual(Ret15, Ret17),
 
     %% migration test
-    ok = meck:new(leo_redundant_manager_api, [no_link]),
+    ok = meck:new(leo_redundant_manager_api, [no_link, non_strict]),
     ok = meck:expect(leo_redundant_manager_api, synchronize, fun(_,[]) ->
                                                                      ok
                                                              end),
-    ok = meck:new(mnesia, [no_link]),
+    ok = meck:new(mnesia, [no_link, non_strict]),
     ok = meck:expect(mnesia, table_info, fun(_,_) ->
                                                  ok
                                          end),
