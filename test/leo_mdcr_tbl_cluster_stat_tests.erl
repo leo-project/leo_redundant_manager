@@ -92,7 +92,8 @@ suite_(_) ->
     ?assertEqual(2, length(Res9)),
 
     {ok, Res10} = leo_mdcr_tbl_cluster_stat:find_by_cluster_id("cluster_11"),
-    ?assertEqual(1, length(Res10)),
+    ?debugVal(Res10),
+    ?assertEqual(?STAT_1, Res10),
 
     {ok, Res11} = leo_mdcr_tbl_cluster_stat:checksum("cluster_11"),
     ?assertEqual(true, is_integer(Res11)),
