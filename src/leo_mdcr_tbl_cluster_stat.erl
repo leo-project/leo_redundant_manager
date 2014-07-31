@@ -145,7 +145,7 @@ find_by_cluster_id(ClusterId) ->
                         qlc:e(Q2)
                 end,
             case leo_mnesia:read(F) of
-                {ok, Ret} ->
+                {ok, [Ret|_]} ->
                     {ok, Ret};
                 Other ->
                     Other

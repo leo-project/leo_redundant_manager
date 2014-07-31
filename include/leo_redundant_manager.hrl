@@ -439,7 +439,7 @@
 -record(mdc_replication_info, {
           cluster_id           :: atom(), %% cluster-id
           num_of_replicas = 0  :: non_neg_integer(), %% num of replicas
-          cluster_members = [] :: [#member{}], %% cluster members
+          cluster_members = [] :: [#?CLUSTER_MEMBER{}], %% cluster members
           metadata             :: any()        %% metadata
          }).
 
