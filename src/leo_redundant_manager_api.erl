@@ -183,7 +183,34 @@ set_options(Options) ->
 -spec(get_options() ->
              {ok, list()}).
 get_options() ->
-    leo_misc:get_env(?APP, ?PROP_OPTIONS).
+    case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
+        undefined ->
+            case leo_cluster_tbl_conf:get() of
+                {ok, #?SYSTEM_CONF{n = N,
+                                   r = R,
+                                   w = W,
+                                   d = D,
+                                   bit_of_ring = BitOfRing,
+                                   max_mdc_targets = MaxMDCTargets,
+                                   num_of_dc_replicas = NumOfDCReplicas,
+                                   num_of_rack_replicas = NumOfRackReplicas
+                                  }} ->
+                    Options = [{n, N},
+                               {r, R},
+                               {w, W},
+                               {d, D},
+                               {bit_of_ring, BitOfRing},
+                               {max_mdc_targets,      MaxMDCTargets},
+                               {num_of_dc_replicas,   NumOfDCReplicas},
+                               {num_of_rack_replicas, NumOfRackReplicas}],
+                    ok = set_options(Options),                    
+                    {ok, Options};
+                _ ->
+                    {ok, []}
+            end;
+        Ret ->
+            Ret
+    end.
 
 
 %% @doc attach a node.
