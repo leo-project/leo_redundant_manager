@@ -186,31 +186,24 @@ get_options() ->
     case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         undefined ->
             case leo_cluster_tbl_conf:get() of
-                {ok, #?SYSTEM_CONF{n = N,
-                                   r = R,
-                                   w = W,
-                                   d = D,
-                                   bit_of_ring = BitOfRing,
-                                   max_mdc_targets = MaxMDCTargets,
-                                   num_of_dc_replicas = NumOfDCReplicas,
-                                   num_of_rack_replicas = NumOfRackReplicas
-                                  }} ->
-                    Options = [{n, N},
-                               {r, R},
-                               {w, W},
-                               {d, D},
-                               {bit_of_ring, BitOfRing},
-                               {max_mdc_targets,      MaxMDCTargets},
-                               {num_of_dc_replicas,   NumOfDCReplicas},
-                               {num_of_rack_replicas, NumOfRackReplicas}],
-                    ok = set_options(Options),                    
+                {ok, #?SYSTEM_CONF{} = SystemConf} ->
+                    Options = record_to_tuplelist(SystemConf),
+                    ok = set_options(Options),
                     {ok, Options};
                 _ ->
-                    {ok, []}
+                    Options = record_to_tuplelist(#?SYSTEM_CONF{}),
+                    {ok, Options}
             end;
         Ret ->
             Ret
     end.
+
+
+%% @doc record to tuple-list for converting system-conf
+%% @private
+record_to_tuplelist(Value) ->
+    lists:zip(
+      record_info(fields, ?SYSTEM_CONF), tl(tuple_to_list(Value))).
 
 
 %% @doc attach a node.
