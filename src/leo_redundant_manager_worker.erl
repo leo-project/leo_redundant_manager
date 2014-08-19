@@ -732,8 +732,7 @@ last_fun(RingGroupList) ->
 %% @private
 -spec(lookup_fun(list(#ring_group{}), integer(), integer(), integer(), #state{}) ->
              not_found | {ok, #redundancies{}}).
-lookup_fun([],_,_,_,_) ->
-    ?debugVal(not_found),
+lookup_fun([],_,_,_AddrId,_) ->
     not_found;
 lookup_fun(RingGroupList, FirstVNodeId,_LastVNodeId, AddrId, State) when FirstVNodeId >= AddrId ->
     Ret = first_fun(RingGroupList),
