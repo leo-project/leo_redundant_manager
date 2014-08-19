@@ -66,7 +66,7 @@
 
 -else.
 -define(CURRENT_TIME,            leo_date:now()).
--define(DEF_MEMBERSHIP_INTERVAL, 20000).
+-define(DEF_MEMBERSHIP_INTERVAL,  5000).
 -define(DEF_MIN_INTERVAL,          100).
 -define(DEF_MAX_INTERVAL,          300).
 -define(DEF_TIMEOUT,             30000).
