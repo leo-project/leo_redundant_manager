@@ -486,17 +486,16 @@ get_redundancies_by_addr_id(Method, AddrId) ->
 -spec(get_redundancies_by_addr_id(atom(), method(), integer()) ->
              {ok, #redundancies{}} | {error, any()}).
 get_redundancies_by_addr_id(ServerRef, Method, AddrId) ->
-    case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
-        {ok, Options} ->
-            get_redundancies_by_addr_id_1(ServerRef, ring_table(Method), AddrId, Options);
-        _ ->
-            error_logger:warning_msg("~p,~p,~p,~p~n",
-                                     [{module, ?MODULE_STRING},
-                                      {function, "get_redundancies_by_addr_id/3"},
-                                      {line, ?LINE},
-                                      {body, "Could not retrieve redundancies"}]),
-            {error, not_found}
-    end.
+    Options_1 = case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
+                    {ok, Options} ->
+                        Options;
+                    _ ->
+                        {ok, Options} = get_options(),
+                        ok = set_options(Options),
+                        Options
+                end,
+    get_redundancies_by_addr_id_1(
+      ServerRef, ring_table(Method), AddrId, Options_1).
 
 %% @private
 -spec(get_redundancies_by_addr_id_1(atom(), {_,atom()}, integer(), [_]) ->
