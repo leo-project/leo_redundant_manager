@@ -45,7 +45,7 @@
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
          get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2, get_redundancies_by_addr_id/3,
          range_of_vnodes/1, rebalance/0,
-         get_alias/2, get_alias/3
+         get_alias/2, get_alias/3, get_alias/4
         ]).
 %% Member-related
 -export([has_member/1, has_charge_of_node/2,
@@ -755,6 +755,10 @@ get_alias(Table, Node, GrpL2) ->
         {error, Cause} ->
             {error, Cause}
     end.
+
+get_alias(init, Table, Node, GrpL2) ->
+    get_alias_1([], Table, Node, GrpL2).
+
 
 %% @private
 get_alias_1([],_,Node,_GrpL2) ->
