@@ -542,14 +542,11 @@ create_3(Ver, [], Acc) ->
     leo_redundant_manager_chash:add_from_list(TblInfo, Acc);
 create_3(Ver, [Member|Rest], Acc) ->
     TblInfo = leo_redundant_manager_api:table_info(Ver),
-    case set_alias(TblInfo, Member) of
-        {ok, Member_1} ->
-            case attach_2(TblInfo, Member_1) of
-                ok ->
-                    create_3(Ver, Rest, [Member_1|Acc]);
-                Error ->
-                    Error
-            end;
+
+    {ok, Member_1} = set_alias(TblInfo, Member),
+    case attach_2(TblInfo, Member_1) of
+        ok ->
+            create_3(Ver, Rest, [Member_1|Acc]);
         Error ->
             Error
     end.
@@ -567,15 +564,12 @@ set_alias(TblInfo, #member{node  = Node,
                  []
          end,
 
-    case leo_redundant_manager_api:get_alias(
-           init, ?ring_table_to_member_table(TblInfo),
-           Node, GrpL2) of
-        {ok, {_Member, Alias}} ->
-            {ok, Member#member{alias = Alias,
-                               ip    = IP}};
-        Error ->
-            Error
-    end;
+    {ok, {_Member, Alias}} =
+        leo_redundant_manager_api:get_alias(
+          init, ?ring_table_to_member_table(TblInfo),
+          Node, GrpL2),
+    {ok, Member#member{alias = Alias,
+                       ip    = IP}};
 set_alias(_,Member) ->
     {ok, Member}.
 
@@ -583,14 +577,10 @@ set_alias(_,Member) ->
 %% @doc Add a node into storage-cluster
 %% @private
 attach_1(TblInfo, Member) ->
-    case set_alias(TblInfo, Member) of
-        {ok, Member_1} ->
-            case attach_2(TblInfo, Member_1) of
-                ok ->
-                    leo_redundant_manager_chash:add(TblInfo, Member_1);
-                Error ->
-                    Error
-            end;
+    {ok, Member_1} = set_alias(TblInfo, Member),
+    case attach_2(TblInfo, Member_1) of
+        ok ->
+            leo_redundant_manager_chash:add(TblInfo, Member_1);
         Error ->
             Error
     end.
