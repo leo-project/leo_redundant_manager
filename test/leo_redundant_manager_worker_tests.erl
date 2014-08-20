@@ -30,10 +30,23 @@
 %%--------------------------------------------------------------------
 -ifdef(EUNIT).
 
-redundant_manager_test_() ->
-    {foreach, fun setup/0, fun teardown/1,
-     [{with, [T]} || T <- [fun suite_/1
-                          ]]}.
+
+suite_test_() ->
+    {setup,
+     fun () ->
+             setup()
+     end,
+     fun (Pid) ->
+             teardown(Pid)
+     end,
+     [{"test all functions",
+       {timeout, 300, fun suite/0}}
+     ]}.
+
+%% redundant_manager_test_() ->
+%%     {foreach, fun setup/0, fun teardown/1,
+%%      [{with, [T]} || T <- [fun suite_/1
+%%                           ]]}.
 
 setup() ->
     application:start(crypto),
@@ -71,7 +84,8 @@ teardown(Pid) ->
     application:stop(crypto),
     ok.
 
-suite_(_) ->
+suite() ->
+    ?debugVal("=== START - Get Redundancies ==="),
     ServerRef = leo_redundant_manager_api:get_server_id(),
     {ok, #redundancies{vnode_id_from = 0,
                        vnode_id_to   = VNodeIdTo1,
@@ -107,19 +121,15 @@ suite_(_) ->
     ?assertEqual(3, length(N6)),
     ?assertEqual(3, length(N7)),
 
-    Seq = lists:seq(1, 10000),
     St = leo_date:clock(),
-    lists:foreach(fun(_) ->
-                          AddrId = leo_redundant_manager_chash:vnode_id(128, crypto:rand_bytes(64)),
-                          {ok, #redundancies{nodes = N8}} =
-                              leo_redundant_manager_worker:lookup(
-                                ServerRef, 'leo_ring_cur', AddrId),
-                          ?assertEqual(3, length(N8))
-                  end, Seq),
+    ok = check_redundancies(100000, ServerRef),
     End = leo_date:clock(),
+
     ?debugVal((End - St) / 1000),
+    ?debugVal("=== END - Get Redundancies ==="),
     ok.
 
+%% @private
 collect_redundancies(_ServerRef,_Tbl,0,_To,Acc) ->
     length(Acc);
 collect_redundancies(ServerRef, Tbl,_From, To, Acc) ->
@@ -127,5 +137,17 @@ collect_redundancies(ServerRef, Tbl,_From, To, Acc) ->
     From = Ret#redundancies.vnode_id_from,
     To1  = Ret#redundancies.vnode_id_to + 1,
     collect_redundancies(ServerRef, Tbl, From, To1, [Ret|Acc]).
+
+
+%% @private
+check_redundancies(0,_) ->
+    ok;
+check_redundancies(Index, ServerRef) ->
+    AddrId = leo_redundant_manager_chash:vnode_id(128, crypto:rand_bytes(64)),
+    {ok, #redundancies{nodes = N8}} =
+        leo_redundant_manager_worker:lookup(
+          ServerRef, 'leo_ring_cur', AddrId),
+    ?assertEqual(3, length(N8)),
+    check_redundancies(Index - 1, ServerRef).
 
 -endif.

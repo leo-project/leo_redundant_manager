@@ -51,7 +51,6 @@
 -record(state, {type              :: atom(),
                 interval  = 0     :: non_neg_integer(),
                 timestamp = 0     :: non_neg_integer(),
-                running   = false :: boolean(),
                 managers = []     :: [atom()],
                 partner_manager   :: atom(),
                 proc_auditor      :: atom(),
@@ -67,7 +66,7 @@
 
 -else.
 -define(CURRENT_TIME,            leo_date:now()).
--define(DEF_MEMBERSHIP_INTERVAL, 20000).
+-define(DEF_MEMBERSHIP_INTERVAL,  5000).
 -define(DEF_MIN_INTERVAL,          100).
 -define(DEF_MAX_INTERVAL,          300).
 -define(DEF_TIMEOUT,             30000).
@@ -132,7 +131,6 @@ init([?SERVER_MANAGER = ServerType, [Partner|_] = Managers, Callback, Interval])
     {ok, #state{type      = ServerType,
                 interval  = Interval,
                 timestamp = 0,
-                running    = true,
                 partner_manager = Partner,
                 managers  = Managers,
                 callback  = Callback
@@ -143,7 +141,6 @@ init([ServerType, Managers,_Callback, Interval]) ->
     Callback = fun()-> ok end,
     {ok, #state{type      = ServerType,
                 interval  = Interval,
-                running    = true,
                 timestamp = 0,
                 managers  = Managers,
                 callback  = Callback
@@ -158,10 +155,8 @@ handle_call(stop,_From,State) ->
 %%                                      {noreply, State, Timeout} |
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
-handle_cast({start_heartbeat}, #state{running = false} = State) ->
-    {noreply, State};
 handle_cast({start_heartbeat}, State) ->
-    case catch maybe_heartbeat(State#state{running = false}) of
+    case catch maybe_heartbeat(State) of
         {'EXIT', _Reason} ->
             {noreply, State};
         NewState ->
@@ -176,7 +171,7 @@ handle_cast({update_manager_nodes, Managers}, State) ->
     {noreply, State#state{managers  = Managers}};
 
 handle_cast({stop_heartbeat}, State) ->
-    State#state{running = false}.
+    {noreply, State}.
 
 
 %% Function: handle_info(Info, State) -> {noreply, State}          |
@@ -267,7 +262,7 @@ exec(ServerType, Managers, Callback) ->
     Redundancies  = ?rnd_nodes_from_ring(),
     NodesAndState = [{Node, State} ||
                         #redundant_node{node = Node,
-                                available = State} <- Redundancies],
+                                        available = State} <- Redundancies],
     exec_1(ServerType, Managers, NodesAndState, Callback).
 
 
@@ -373,8 +368,8 @@ compare_with_remote_chksum(_,[]) ->
     ok;
 compare_with_remote_chksum(Node, [HashType|T]) ->
     case leo_redundant_manager_api:checksum(HashType) of
-        {ok, LocalChecksum} ->
-            case compare_with_remote_chksum_1(Node, HashType, LocalChecksum) of
+        {ok, LocalChksum} ->
+            case compare_with_remote_chksum_1(Node, HashType, LocalChksum) of
                 ok ->
                     compare_with_remote_chksum(Node, T);
                 Error ->
