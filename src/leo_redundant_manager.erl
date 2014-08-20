@@ -582,14 +582,9 @@ set_alias(_,Member) ->
 %% @doc Add a node into storage-cluster
 %% @private
 attach_1(TblInfo, Member) ->
-    case set_alias(TblInfo, Member) of
-        {ok, Member_1} ->
-            case attach_2(TblInfo, Member_1) of
-                ok ->
-                    leo_redundant_manager_chash:add(TblInfo, Member_1);
-                Error ->
-                    Error
-            end;
+    case attach_2(TblInfo, Member) of
+        ok ->
+            leo_redundant_manager_chash:add(TblInfo, Member);
         Error ->
             Error
     end.
