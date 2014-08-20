@@ -523,11 +523,6 @@ get_redundancies_by_addr_id_1(ServerRef, TblInfo, AddrId, Options) ->
                                            d = D,
                                            ring_hash = CurRingHash}};
         not_found = Cause ->
-            error_logger:warning_msg("~p,~p,~p,~p~n",
-                                     [{module, ?MODULE_STRING},
-                                      {function, "get_redundancies_by_addr_id_1/4"},
-                                      {line, ?LINE},
-                                      {body, "Could not retrieve redundancies"}]),
             {error, Cause}
     end.
 
