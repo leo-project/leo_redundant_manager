@@ -45,7 +45,7 @@
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
          get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2, get_redundancies_by_addr_id/3,
          range_of_vnodes/1, rebalance/0,
-         get_alias/2, get_alias/3
+         get_alias/2, get_alias/3, get_alias/4
         ]).
 %% Member-related
 -export([has_member/1, has_charge_of_node/2,
@@ -741,10 +741,12 @@ after_rebalance([{#member{node = Node} = Member_1, Member_2, SrcMember}|Rest]) -
 %% @doc Generate an alian from 'node'
 %%
 -spec(get_alias(atom(), string()) ->
-             {ok, tuple()} | {error, any()}).
+             {ok, tuple()}).
 get_alias(Node, GrpL2) ->
     get_alias(?MEMBER_TBL_CUR, Node, GrpL2).
 
+-spec(get_alias(atom(), atom(), string()) ->
+             {ok, tuple()}).
 get_alias(Table, Node, GrpL2) ->
     case leo_cluster_tbl_member:find_by_status(
            Table, ?STATE_DETACHED) of
@@ -755,6 +757,12 @@ get_alias(Table, Node, GrpL2) ->
         {error, Cause} ->
             {error, Cause}
     end.
+
+-spec(get_alias(init, atom(), atom(), string()) ->
+             {ok, tuple()}).
+get_alias(init, Table, Node, GrpL2) ->
+    get_alias_1([], Table, Node, GrpL2).
+
 
 %% @private
 get_alias_1([],_,Node,_GrpL2) ->
