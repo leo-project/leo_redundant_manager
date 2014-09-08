@@ -806,7 +806,7 @@ has_member(Node) ->
 
 
 %% @doc Has charge of node?
-%%
+%%      'true' is returned even if it detects an error
 -spec(has_charge_of_node(binary(), integer()) ->
              boolean()).
 has_charge_of_node(Key, 0) ->
@@ -814,7 +814,7 @@ has_charge_of_node(Key, 0) ->
         {ok, #?SYSTEM_CONF{n = NumOfReplica}} ->
             has_charge_of_node(Key, NumOfReplica);
         _ ->
-            false
+            true
     end;
 has_charge_of_node(Key, NumOfReplica) ->
     case get_redundancies_by_key(put, Key) of
@@ -829,7 +829,7 @@ has_charge_of_node(Key, NumOfReplica) ->
                       true
               end, false, Nodes_1);
         _ ->
-            false
+            true
     end.
 
 
