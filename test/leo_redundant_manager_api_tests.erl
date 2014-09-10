@@ -321,13 +321,13 @@ members_table_(_Arg) ->
 synchronize_0_({Hostname}) ->
     %% not create ring
     {ok, _RefSup} = leo_redundant_manager_sup:start_link(manager),
-    {ok, _}  = leo_redundant_manager_api:synchronize(
-                 ?SYNC_TARGET_BOTH, [{?VER_CUR,  ?TEST_MEMBERS},
-                                     {?VER_PREV, ?TEST_MEMBERS}], [{n, 3},
-                                                                   {r, 1},
-                                                                   {w ,2},
-                                                                   {d, 2},
-                                                                   {bit_of_ring, 128}]),
+    {ok, _} = leo_redundant_manager_api:synchronize(
+                ?SYNC_TARGET_BOTH, [{?VER_CUR,  ?TEST_MEMBERS},
+                                    {?VER_PREV, ?TEST_MEMBERS}], [{n, 3},
+                                                                  {r, 1},
+                                                                  {w ,2},
+                                                                  {d, 2},
+                                                                  {bit_of_ring, 128}]),
     %% prepare
     ok = prepare(Hostname, storage),
     {ok, _, _} = leo_redundant_manager_api:create(?VER_CUR),

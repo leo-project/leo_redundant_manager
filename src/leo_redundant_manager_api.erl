@@ -404,12 +404,33 @@ synchronize_1(?SYNC_TARGET_MEMBER, Ver, SyncData) ->
 %% @private
 synchronize_1(Target, Ver) when Target == ?SYNC_TARGET_RING_CUR;
                                 Target == ?SYNC_TARGET_RING_PREV ->
-    ok = leo_cluster_tbl_ring:delete_all(table_info(Ver)),
-    case create(Ver) of
-        {ok,_,_} ->
-            ok;
-        Error ->
-            Error
+    TableInfo = table_info(Ver),
+    case leo_cluster_tbl_ring:tab2list(TableInfo) of
+        {error, Cause} ->
+            {error, Cause};
+        CurRing ->
+            case CurRing of
+                [] ->
+                    void;
+                _  ->
+                    ok = leo_cluster_tbl_ring:delete_all(TableInfo)
+            end,
+
+            case leo_cluster_tbl_member:find_all() of
+                {ok, Members} when length(Members) > 0 ->
+                    case create(Ver) of
+                        {ok,_,_} ->
+                            ok;
+                        Error when CurRing /= [] ->
+                            [leo_cluster_tbl_ring:insert(
+                               table_info(Ver), R) || R <- CurRing],
+                            Error;
+                        Error ->
+                            Error
+                    end;
+                _ ->
+                    {error, ?ERROR_COULD_NOT_GET_MEMBERS}
+            end
     end;
 synchronize_1(_,_) ->
     {error, invalid_target}.

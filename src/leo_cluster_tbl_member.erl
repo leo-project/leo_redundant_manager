@@ -135,17 +135,17 @@ lookup(_,_,_) ->
 %% @doc Retrieve all members from the table.
 %%
 -spec(find_all() ->
-             {ok, list(#member{})} | not_found | {error, any()}).
+             {ok, [#member{}]} | not_found | {error, any()}).
 find_all() ->
     find_all(?MEMBER_TBL_CUR).
 
 -spec(find_all(member_table()) ->
-             {ok, list(#member{})} | not_found | {error, any()}).
+             {ok, [#member{}]} | not_found | {error, any()}).
 find_all(Table) ->
     find_all(?table_type(), Table).
 
 -spec(find_all(?DB_ETS|?DB_MNESIA, member_table()) ->
-             {ok, list(#member{})} | not_found | {error, any()}).
+             {ok, [#member{}]} | not_found | {error, any()}).
 find_all(?DB_MNESIA, Table) ->
     F = fun() ->
                 Q1 = qlc:q([X || X <- mnesia:table(Table)]),
@@ -172,17 +172,17 @@ find_all(_,_) ->
 %% @doc Retrieve members by status
 %%
 -spec(find_by_status(atom()) ->
-             {ok, list(#member{})} | not_found | {error, any()}).
+             {ok, [#member{}]} | not_found | {error, any()}).
 find_by_status(Status) ->
     find_by_status(?MEMBER_TBL_CUR, Status).
 
 -spec(find_by_status(member_table(), atom()) ->
-             {ok, list(#member{})} | not_found | {error, any()}).
+             {ok, [#member{}]} | not_found | {error, any()}).
 find_by_status(Table, Status) ->
     find_by_status(?table_type(), Table, Status).
 
 -spec(find_by_status(?DB_ETS|?DB_MNESIA, member_table(), atom()) ->
-             {ok, list(#member{})} | not_found | {error, any()}).
+             {ok, [#member{}]} | not_found | {error, any()}).
 find_by_status(?DB_MNESIA, Table, St0) ->
     F = fun() ->
                 Q = qlc:q([X || X <- mnesia:table(Table),

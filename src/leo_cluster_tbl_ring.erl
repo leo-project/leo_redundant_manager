@@ -311,7 +311,7 @@ size({?DB_ETS, Table}) ->
 %% @doc Retrieve list from the table
 %%
 -spec(tab2list({?DB_MNESIA|?DB_ETS, atom()}) ->
-             [_]|{error, any()}).
+             [#?RING{}]|{error, any()}).
 tab2list({?DB_MNESIA, Table}) ->
     case mnesia:ets(fun ets:tab2list/1, [Table]) of
         [] ->
