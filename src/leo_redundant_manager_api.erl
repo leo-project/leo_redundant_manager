@@ -713,17 +713,14 @@ after_rebalance([]) ->
                                    leo_redundant_manager_chash:remove(TblPrev, Member)
                            end
                    end, DetachedNodes);
-        {error, Cause} ->
-            error_logger:warning_msg("~p,~p,~p,~p~n",
-                                     [{module, ?MODULE_STRING},
-                                      {function, "rebalance_1/5"},
-                                      {line, ?LINE}, {body, Cause}]),
+        {error,_Cause} ->
             ok
     end,
 
     %% Synchronize previous-ring
     case synchronize_1(?SYNC_TARGET_RING_PREV, ?VER_PREV) of
-        ok -> void;
+        ok ->
+            void;
         {error, Reason} ->
             error_logger:warning_msg("~p,~p,~p,~p~n",
                                      [{module, ?MODULE_STRING},
