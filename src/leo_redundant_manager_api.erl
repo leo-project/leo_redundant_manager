@@ -416,10 +416,17 @@ synchronize_1(Target, Ver) when Target == ?SYNC_TARGET_RING_CUR;
                     ok = leo_cluster_tbl_ring:delete_all(TableInfo)
             end,
 
-            case leo_cluster_tbl_member:find_all() of
+            MemberTbl = case Target of
+                            ?SYNC_TARGET_RING_CUR ->
+                                ?MEMBER_TBL_CUR;
+                            ?SYNC_TARGET_RING_PREV ->
+                                ?MEMBER_TBL_PREV
+                        end,
+
+            case leo_cluster_tbl_member:find_all(MemberTbl) of
                 {ok, Members} when length(Members) > 0 ->
                     case create(Ver) of
-                        {ok,_,_} ->
+                        {ok,_Members,_HashVals} ->
                             ok;
                         Error when CurRing /= [] ->
                             [leo_cluster_tbl_ring:insert(
