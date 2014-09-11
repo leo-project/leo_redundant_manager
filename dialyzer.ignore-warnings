@@ -1,1 +1,2 @@
 The pattern 'true' can never match the type 'false'
+The pattern [ClusterInfo = {'cluster_info_1', ClusterId, DCId, _, _, _, _, _, _, _, _} | Rest] can never match since previous clauses completely covered the type [#cluster_info_1{cluster_id::atom(),dc_id::atom(),n::non_neg_integer(),r::non_neg_integer(),w::non_neg_integer(),d::non_neg_integer(),bit_of_ring::non_neg_integer(),num_of_dc_replicas::non_neg_integer(),num_of_rack_replicas::non_neg_integer(),max_mdc_targets::non_neg_integer()}]
