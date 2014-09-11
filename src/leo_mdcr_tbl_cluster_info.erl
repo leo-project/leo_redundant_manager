@@ -332,7 +332,7 @@ transform_3([]) ->
     ok;
 transform_3([#?CLUSTER_INFO{cluster_id = ClusterId}|Rest]) when is_atom(ClusterId) ->
     transform_3(Rest);
-transform_3([#?CLUSTER_INFO{cluster_id = ClusterId, 
+transform_3([#?CLUSTER_INFO{cluster_id = ClusterId,
                             dc_id = DCId} = ClusterInfo|Rest]) ->
     ClusterId_1 = case is_atom(ClusterId) of
                       true  -> ClusterId;
@@ -365,4 +365,3 @@ transform_3([#?CLUSTER_INFO{cluster_id = ClusterId,
                                       {body, Cause2}])
     end,
     transform_3(Rest).
-

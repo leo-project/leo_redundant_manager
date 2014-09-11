@@ -311,7 +311,7 @@ size({?DB_ETS, Table}) ->
 %% @doc Retrieve list from the table
 %%
 -spec(tab2list({?DB_MNESIA|?DB_ETS, atom()}) ->
-             [#?RING{}]|{error, any()}).
+             [tuple()]|[#?RING{}]|{error, any()}).
 tab2list({?DB_MNESIA, Table}) ->
     case mnesia:ets(fun ets:tab2list/1, [Table]) of
         [] ->
@@ -331,7 +331,7 @@ tab2list({?DB_ETS, Table}) ->
 
 %% @doc Overwrite current records by source records
 %%
--spec(overwrite({mnesia|ets, atom()}, {mnesia|ets, atom()}) ->
+-spec(overwrite({?DB_MNESIA|?DB_ETS, atom()}, {?DB_MNESIA|?DB_ETS, atom()}) ->
              ok | {error, any()}).
 overwrite(SrcTableInfo, DestTableInfo) ->
     case ?MODULE:tab2list(SrcTableInfo) of
@@ -358,22 +358,37 @@ overwrite(SrcTableInfo, DestTableInfo) ->
     end.
 
 %% @private
-overwrite_1({?DB_MNESIA,_} = TableInfo, List) ->
+-spec(overwrite_1(TableInfo, Items) ->
+             ok | {error, any()} when TableInfo::{?DB_MNESIA, atom()} |
+                                                 {?DB_ETS, atom()},
+                                      Items::[tuple()]|[#?RING{}]).
+overwrite_1({?DB_MNESIA,_} = TableInfo,Items) ->
     case mnesia:transaction(
            fun() ->
-                   overwrite_2(TableInfo, List)
+                   overwrite_2(TableInfo, Items)
            end) of
         {atomic, ok} ->
             ok;
         {aborted, Reason} ->
             {error, Reason}
     end;
-overwrite_1({?DB_ETS,_} = TableInfo, List) ->
-    overwrite_2(TableInfo, List).
+overwrite_1({?DB_ETS,_} = TableInfo, Items) ->
+    overwrite_2(TableInfo, Items).
 
 %% @private
+-spec(overwrite_2(TableInfo, Items) ->
+             ok | {error, any()} when TableInfo::{?DB_MNESIA, atom()} |
+                                                 {?DB_ETS, atom()},
+                                      Items::[tuple()]|[#?RING{}]).
 overwrite_2(_,[]) ->
     ok;
+overwrite_2({?DB_MNESIA, Table} = TableInfo, [#?RING{} = Ring|Rest]) ->
+    case mnesia:write(Table, Ring, write) of
+        ok ->
+            overwrite_2(TableInfo, Rest);
+        _ ->
+            mnesia:abort("Not inserted")
+    end;
 overwrite_2({?DB_MNESIA, Table} = TableInfo, [{VNodeId, Node, Clock}|Rest]) ->
     case mnesia:write(Table, #?RING{vnode_id = VNodeId,
                                     node     = Node,
@@ -382,6 +397,16 @@ overwrite_2({?DB_MNESIA, Table} = TableInfo, [{VNodeId, Node, Clock}|Rest]) ->
             overwrite_2(TableInfo, Rest);
         _ ->
             mnesia:abort("Not inserted")
+    end;
+overwrite_2({?DB_ETS,_} = TableInfo, [#?RING{vnode_id = VNodeId,
+                                             node     = Node,
+                                             clock    = Clock}|Rest]) ->
+    Ring = {VNodeId, Node, Clock},
+    case insert(TableInfo, Ring) of
+        ok ->
+            overwrite_2(TableInfo, Rest);
+        Error ->
+            Error
     end;
 overwrite_2({?DB_ETS,_} = TableInfo, [Ring|Rest]) ->
     case insert(TableInfo, Ring) of
