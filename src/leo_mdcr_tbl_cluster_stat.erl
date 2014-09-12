@@ -274,6 +274,12 @@ transform() ->
                      ?TBL_CLUSTER_STAT,  fun transform/1,
                      record_info(fields, ?CLUSTER_STAT),
                      ?CLUSTER_STAT),
+    case all() of
+        {ok, RetL} ->
+            ok = transform_1(RetL);
+        _ ->
+            void
+    end,
     ok.
 
 %% @doc the record is the current verion
@@ -284,12 +290,24 @@ transform(#cluster_stat{cluster_id = ClusterId,
                         status     = State,
                         checksum   = Checksum,
                         updated_at = UpdatedAt}) ->
-    ClusterId_1 = case is_atom(ClusterId) of
-                      true  -> ClusterId;
-                      false -> list_to_atom(ClusterId)
-                  end,
-    #?CLUSTER_STAT{cluster_id = ClusterId_1,
+    #?CLUSTER_STAT{cluster_id = ClusterId,
                    state = State,
                    checksum = Checksum,
                    updated_at = UpdatedAt
                   }.
+
+%% @private
+transform_1([]) ->
+    ok;
+transform_1([#?CLUSTER_STAT{cluster_id = ClusterId}|Rest]) when is_atom(ClusterId) ->
+    transform_1(Rest);
+transform_1([#?CLUSTER_STAT{cluster_id = ClusterId}|Rest]) ->
+    case ?MODULE:get(ClusterId) of
+        {ok, #?CLUSTER_STAT{} = ClusterStat} when is_list(ClusterId) ->
+            _ = ?MODULE:delete(ClusterId),
+            ?MODULE:update(ClusterStat#?CLUSTER_STAT{
+                                          cluster_id = list_to_atom(ClusterId)});
+        _ ->
+            void
+    end,
+    transform_1(Rest).

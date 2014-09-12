@@ -185,7 +185,7 @@ set_options(Options) ->
 get_options() ->
     case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         undefined ->
-            case leo_cluster_tbl_conf:get() of
+            case catch leo_cluster_tbl_conf:get() of
                 {ok, #?SYSTEM_CONF{} = SystemConf} ->
                     Options = record_to_tuplelist(SystemConf),
                     ok = set_options(Options),
@@ -404,12 +404,40 @@ synchronize_1(?SYNC_TARGET_MEMBER, Ver, SyncData) ->
 %% @private
 synchronize_1(Target, Ver) when Target == ?SYNC_TARGET_RING_CUR;
                                 Target == ?SYNC_TARGET_RING_PREV ->
-    ok = leo_cluster_tbl_ring:delete_all(table_info(Ver)),
-    case create(Ver) of
-        {ok,_,_} ->
-            ok;
-        Error ->
-            Error
+    TableInfo = table_info(Ver),
+    case leo_cluster_tbl_ring:tab2list(TableInfo) of
+        {error, Cause} ->
+            {error, Cause};
+        CurRing ->
+            case CurRing of
+                [] ->
+                    void;
+                _  ->
+                    ok = leo_cluster_tbl_ring:delete_all(TableInfo)
+            end,
+
+            MemberTbl = case Target of
+                            ?SYNC_TARGET_RING_CUR ->
+                                ?MEMBER_TBL_CUR;
+                            ?SYNC_TARGET_RING_PREV ->
+                                ?MEMBER_TBL_PREV
+                        end,
+
+            case leo_cluster_tbl_member:find_all(MemberTbl) of
+                {ok, Members} when length(Members) > 0 ->
+                    case create(Ver) of
+                        {ok,_Members,_HashVals} ->
+                            ok;
+                        Error when CurRing /= [] ->
+                            [leo_cluster_tbl_ring:insert(
+                               table_info(Ver), R) || R <- CurRing],
+                            Error;
+                        Error ->
+                            Error
+                    end;
+                _ ->
+                    {error, ?ERROR_COULD_NOT_GET_MEMBERS}
+            end
     end;
 synchronize_1(_,_) ->
     {error, invalid_target}.
@@ -692,17 +720,14 @@ after_rebalance([]) ->
                                    leo_redundant_manager_chash:remove(TblPrev, Member)
                            end
                    end, DetachedNodes);
-        {error, Cause} ->
-            error_logger:warning_msg("~p,~p,~p,~p~n",
-                                     [{module, ?MODULE_STRING},
-                                      {function, "rebalance_1/5"},
-                                      {line, ?LINE}, {body, Cause}]),
+        {error,_Cause} ->
             ok
     end,
 
     %% Synchronize previous-ring
     case synchronize_1(?SYNC_TARGET_RING_PREV, ?VER_PREV) of
-        ok -> void;
+        ok ->
+            void;
         {error, Reason} ->
             error_logger:warning_msg("~p,~p,~p,~p~n",
                                      [{module, ?MODULE_STRING},
@@ -806,7 +831,7 @@ has_member(Node) ->
 
 
 %% @doc Has charge of node?
-%%
+%%      'true' is returned even if it detects an error
 -spec(has_charge_of_node(binary(), integer()) ->
              boolean()).
 has_charge_of_node(Key, 0) ->
@@ -814,7 +839,7 @@ has_charge_of_node(Key, 0) ->
         {ok, #?SYSTEM_CONF{n = NumOfReplica}} ->
             has_charge_of_node(Key, NumOfReplica);
         _ ->
-            false
+            true
     end;
 has_charge_of_node(Key, NumOfReplica) ->
     case get_redundancies_by_key(put, Key) of
@@ -829,7 +854,7 @@ has_charge_of_node(Key, NumOfReplica) ->
                       true
               end, false, Nodes_1);
         _ ->
-            false
+            true
     end.
 
 

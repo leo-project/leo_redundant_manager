@@ -289,6 +289,7 @@ transform() ->
                      ?TBL_CLUSTER_INFO,  fun transform/1,
                      record_info(fields, ?CLUSTER_INFO),
                      ?CLUSTER_INFO),
+    transform_2(),
     ok.
 
 
@@ -305,17 +306,8 @@ transform(#cluster_info{cluster_id = ClusterId,
                         bit_of_ring = BitOfRing,
                         num_of_dc_replicas   = Level1,
                         num_of_rack_replicas = Level2}) ->
-
-    ClusterId_1 = case is_atom(ClusterId) of
-                      true  -> ClusterId;
-                      false -> list_to_atom(ClusterId)
-                  end,
-    DCId_1 = case is_atom(DCId) of
-                 true  -> DCId;
-                 false -> list_to_atom(DCId)
-             end,
-    #?CLUSTER_INFO{cluster_id = ClusterId_1,
-                   dc_id = DCId_1,
+    #?CLUSTER_INFO{cluster_id = ClusterId,
+                   dc_id = DCId,
                    n = N,
                    r = R,
                    w = W,
@@ -325,3 +317,51 @@ transform(#cluster_info{cluster_id = ClusterId,
                    num_of_rack_replicas = Level2,
                    max_mdc_targets = ?DEF_MAX_MDC_TARGETS
                   }.
+
+%% @private
+transform_2() ->
+    case all() of
+        {ok, RetL} ->
+            transform_3(RetL);
+        _ ->
+            ok
+    end.
+
+%% @private
+transform_3([]) ->
+    ok;
+transform_3([#?CLUSTER_INFO{cluster_id = ClusterId}|Rest]) when is_atom(ClusterId) ->
+    transform_3(Rest);
+transform_3([#?CLUSTER_INFO{cluster_id = ClusterId,
+                            dc_id = DCId} = ClusterInfo|Rest]) ->
+    ClusterId_1 = case is_atom(ClusterId) of
+                      true  -> ClusterId;
+                      false -> list_to_atom(ClusterId)
+                  end,
+    DCId_1 = case is_atom(DCId) of
+                 true  -> DCId;
+                 false -> list_to_atom(DCId)
+             end,
+    NewClusterInfo = ClusterInfo#?CLUSTER_INFO{cluster_id = ClusterId_1,
+                                               dc_id      = DCId_1},
+    case update(NewClusterInfo) of
+        ok ->
+            void;
+        {error, Cause} ->
+            error_logger:error_msg("~p,~p,~p,~p~n",
+                                   [{module, ?MODULE_STRING},
+                                    {function, "transform_3/1"},
+                                    {line, ?LINE},
+                                    {body, Cause}])
+    end,
+    case delete(ClusterId) of
+        ok ->
+            void;
+        {error, Cause2} ->
+            error_logger:warning_msg("~p,~p,~p,~p~n",
+                                     [{module, ?MODULE_STRING},
+                                      {function, "transform_3/1"},
+                                      {line, ?LINE},
+                                      {body, Cause2}])
+    end,
+    transform_3(Rest).

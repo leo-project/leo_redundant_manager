@@ -34,6 +34,7 @@
 -define(ERROR_COULD_NOT_GET_CHECKSUM,     "Could not get checksum").
 -define(ERROR_COULD_NOT_UPDATE_RING,      "Could not update ring").
 -define(ERROR_COULD_NOT_GET_REDUNDANCIES, "Could not get redundancies").
+-define(ERROR_COULD_NOT_GET_MEMBERS,      "Could not get members").
 
 -define(ERR_TYPE_INCONSISTENT_HASH, inconsistent_hash).
 -define(ERR_TYPE_NODE_DOWN,         nodedown).
