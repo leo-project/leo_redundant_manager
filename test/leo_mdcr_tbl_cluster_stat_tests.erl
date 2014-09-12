@@ -98,6 +98,11 @@ suite_(_) ->
     {ok, Res11} = leo_mdcr_tbl_cluster_stat:checksum("cluster_11"),
     ?assertEqual(true, is_integer(Res11)),
 
+    ok = leo_mdcr_tbl_cluster_stat:transform(),
+    {ok, RetL} = leo_mdcr_tbl_cluster_stat:all(),
+    lists:foreach(fun(#?CLUSTER_STAT{cluster_id = ClusterId}) ->
+                          true = is_atom(ClusterId)
+                  end, RetL),
     application:stop(mnesia),
     ok.
 
