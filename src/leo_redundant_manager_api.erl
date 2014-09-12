@@ -185,7 +185,7 @@ set_options(Options) ->
 get_options() ->
     case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         undefined ->
-            case leo_cluster_tbl_conf:get() of
+            case catch leo_cluster_tbl_conf:get() of
                 {ok, #?SYSTEM_CONF{} = SystemConf} ->
                     Options = record_to_tuplelist(SystemConf),
                     ok = set_options(Options),
