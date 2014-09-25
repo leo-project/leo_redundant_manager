@@ -500,3 +500,16 @@
             undefined = Ret ->
                 Ret
         end).
+
+%% @doc Retrieve the log-directory for the ring
+-define(log_dir(),
+        begin
+            case application:get_env(leo_redundant_manager, log_dir_ring) of
+                undefined -> ?DEF_LOG_DIR_RING;
+                {ok, _Dir} ->
+                    case (string:len(_Dir) == string:rstr(_Dir, "/")) of
+                        true  -> _Dir;
+                        false -> _Dir ++ "/"
+                    end
+            end
+        end).

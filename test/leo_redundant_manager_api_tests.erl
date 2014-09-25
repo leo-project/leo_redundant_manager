@@ -300,8 +300,8 @@ members_table_(_Arg) ->
 
     %% update
     ok = leo_cluster_tbl_member:insert({'node_1@127.0.0.1', #member{node  = 'node_1@127.0.0.1',
-                                                                                clock = 12345,
-                                                                                state = 'suspend'}}),
+                                                                    clock = 12345,
+                                                                    state = 'suspend'}}),
 
     %% get
     {ok, Members} = leo_cluster_tbl_member:find_all(),
@@ -711,7 +711,7 @@ inspect0(Hostname) ->
                                                               end, Nodes0a)
                                         end, Nodes0),
                           ?assertEqual(3, length(Nodes0))
-                  end, lists:seq(0, 10)),
+                  end, lists:seq(0, 10000)),
 
     {ok, #redundancies{nodes = N0}} = leo_redundant_manager_api:get_redundancies_by_addr_id(put, 0),
     {ok, #redundancies{nodes = N1}} = leo_redundant_manager_api:get_redundancies_by_addr_id(put, leo_math:power(2, 128)),
@@ -739,6 +739,8 @@ inspect0(Hostname) ->
     Max1 = leo_math:power(2,128) - 1,
     {ok, Res4} = leo_redundant_manager_api:range_of_vnodes(Max1),
     ?assertEqual(2, length(Res4)),
+
+    leo_redundant_manager_api:dump(work),
     ok.
 
 

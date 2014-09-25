@@ -662,15 +662,7 @@ update_member_by_node_1(Node, Clock, NodeState) ->
 %% @doc Export 'Ring' from a table
 %% @private
 dump_ring_tabs() ->
-    LogDir = case application:get_env(leo_redundant_manager, log_dir_ring) of
-                 undefined -> ?DEF_LOG_DIR_RING;
-                 {ok, Dir} ->
-                     case (string:len(Dir) == string:rstr(Dir, "/")) of
-                         true  -> Dir;
-                         false -> Dir ++ "/"
-                     end
-             end,
-
+    LogDir = ?log_dir(),
     _ = filelib:ensure_dir(LogDir),
     File_1 = LogDir ++ ?DUMP_FILE_RING_CUR  ++ integer_to_list(leo_date:now()),
     File_2 = LogDir ++ ?DUMP_FILE_RING_PREV ++ integer_to_list(leo_date:now()),

@@ -469,10 +469,20 @@ get_ring(?SYNC_TARGET_RING_PREV) ->
 dump(both) ->
     catch dump(member),
     catch dump(ring),
+    catch dump(work),
     ok;
+dump(work) ->
+    dump_1(?RING_WORKER_POOL_SIZE - 1);
 dump(Type) ->
     leo_redundant_manager:dump(Type).
 
+dump_1(-1) ->
+    ok;
+dump_1(Index) ->
+    Id = list_to_atom(lists:append([?WORKER_POOL_NAME_PREFIX,
+                                    integer_to_list(Index)])),
+    ok = leo_redundant_manager_worker:dump(Id),
+    dump_1(Index - 1).
 
 %%--------------------------------------------------------------------
 %% API-2  FUNCTIONS (leo_routing_tbl_provide_server)

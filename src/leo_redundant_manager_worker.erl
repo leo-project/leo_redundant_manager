@@ -30,7 +30,9 @@
 
 %% API
 -export([start_link/1, stop/1]).
--export([lookup/3, first/2, last/2, force_sync/2, redundancies/4]).
+-export([lookup/3, first/2, last/2, force_sync/2,
+         redundancies/4,
+         dump/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -128,6 +130,13 @@ redundancies(ServerRef, Table, AddrId, Members) ->
     gen_server:call(ServerRef, {redundancies, Table, AddrId, Members}, ?DEF_TIMEOUT).
 
 
+%% @doc Dump the current ring-info
+-spec(dump(atom()) ->
+             ok | {error, any()}).
+dump(ServerRef) ->
+    gen_server:call(ServerRef, dump, ?DEF_TIMEOUT).
+
+
 %%--------------------------------------------------------------------
 %% GEN_SERVER CALLBACKS
 %%--------------------------------------------------------------------
@@ -191,6 +200,24 @@ handle_call({redundancies, Table, AddrId, Members},_From, #state{num_of_replicas
                                                                  num_of_rack_awareness = L2} = State) ->
     Reply = redundancies(Table, AddrId, N, L2, Members),
     {reply, Reply, State};
+
+handle_call(dump,_From, #state{id   = Id,
+                               cur  = #ring_info{ring_group_list = CurRing },
+                               prev = #ring_info{ring_group_list = PrevRing}} = State) ->
+    try
+        LogDir = ?log_dir(),
+        _ = filelib:ensure_dir(LogDir),
+        leo_file:file_unconsult(LogDir ++ "ring_cur-"
+                                ++ atom_to_list(Id) ++ ".log."
+                                ++ integer_to_list(leo_date:now()), CurRing),
+        leo_file:file_unconsult(LogDir ++ "ring_prv-"
+                                ++ atom_to_list(Id) ++ ".log."
+                                ++ integer_to_list(leo_date:now()), PrevRing)
+    catch
+        _:_ ->
+            void
+    end,
+    {reply, ok, State};
 
 handle_call(_Handle, _From, State) ->
     {reply, ok, State}.
