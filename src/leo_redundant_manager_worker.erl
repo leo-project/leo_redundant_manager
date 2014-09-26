@@ -32,6 +32,7 @@
 -export([start_link/0, stop/0]).
 -export([lookup/2, first/1, last/1, force_sync/1,
          redundancies/3,
+         checksum/0,
          dump/0]).
 
 %% gen_server callbacks
@@ -68,7 +69,8 @@
           num_of_rack_awareness = 0 :: non_neg_integer(),
           min_interval = ?DEF_SYNC_MIN_INTERVAL :: non_neg_integer(),
           max_interval = ?DEF_SYNC_MAX_INTERVAL :: non_neg_integer(),
-          timestamp = 0 :: non_neg_integer()
+          timestamp = 0 :: non_neg_integer(),
+          checksum = {-1,-1} :: {integer(), integer()}
          }).
 
 -record(ring_conf, {
@@ -147,6 +149,14 @@ redundancies(Table, AddrId, Members) ->
     gen_server:call(?MODULE, {redundancies, Table, AddrId, Members}, ?DEF_TIMEOUT).
 
 
+%% @doc Retrieve the checksums
+-spec(checksum() ->
+             {ok, {PrevChecksum, CurChecksum}} when PrevChecksum::integer(),
+                                                    CurChecksum::integer()).
+checksum() ->
+    gen_server:call(?MODULE, checksum, ?DEF_TIMEOUT).
+
+
 %% @doc Dump the current ring-info
 -spec(dump() ->
              ok | {error, any()}).
@@ -219,17 +229,17 @@ handle_call({redundancies, Table, AddrId, Members},_From, #state{num_of_replicas
     Reply = redundancies(Table, AddrId, N, L2, Members),
     {reply, Reply, State};
 
-handle_call(dump,_From, #state{id   = Id,
-                               cur  = #ring_info{ring_group_list = CurRing },
+handle_call(checksum,_From, #state{checksum = Checksum} = State) ->
+    {reply, {ok, Checksum}, State};
+
+handle_call(dump,_From, #state{cur  = #ring_info{ring_group_list = CurRing },
                                prev = #ring_info{ring_group_list = PrevRing}} = State) ->
     try
         LogDir = ?log_dir(),
         _ = filelib:ensure_dir(LogDir),
-        leo_file:file_unconsult(LogDir ++ "ring_cur-"
-                                ++ atom_to_list(Id) ++ ".log."
+        leo_file:file_unconsult(LogDir ++ "ring_cur_worker.log."
                                 ++ integer_to_list(leo_date:now()), CurRing),
-        leo_file:file_unconsult(LogDir ++ "ring_prv-"
-                                ++ atom_to_list(Id) ++ ".log."
+        leo_file:file_unconsult(LogDir ++ "ring_prv_worker.log."
                                 ++ integer_to_list(leo_date:now()), PrevRing)
     catch
         _:_ ->
@@ -371,17 +381,26 @@ maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
 -spec(maybe_sync_1_1(#sync_info{}, #state{}) ->
              #state{}).
 maybe_sync_1_1(#sync_info{org_checksum = OrgChecksum,
-                          cur_checksum = CurChecksum}, State) when OrgChecksum == CurChecksum ->
+                          cur_checksum = CurChecksum},
+               State) when OrgChecksum == CurChecksum ->
     State;
-maybe_sync_1_1(SyncInfo, State) ->
+maybe_sync_1_1(SyncInfo, #state{checksum = WorkerChecksum} = State) ->
     TargetRing = SyncInfo#sync_info.target,
     case gen_routing_table(SyncInfo, State) of
         {ok, RingInfo} ->
             case TargetRing of
                 ?SYNC_TARGET_RING_CUR ->
-                    State#state{cur = RingInfo};
+                    {PrevHash,_} = WorkerChecksum,
+                    CurHash = erlang:crc32(
+                                term_to_binary(RingInfo)),
+                    State#state{cur = RingInfo,
+                                checksum = {PrevHash, CurHash}};
                 ?SYNC_TARGET_RING_PREV ->
-                    State#state{prev = RingInfo}
+                    {_,CurHash} = WorkerChecksum,
+                    PrevHash = erlang:crc32(
+                                 term_to_binary(RingInfo)),
+                    State#state{prev = RingInfo,
+                                checksum = {PrevHash, CurHash}}
             end;
         {error,_} ->
             State
@@ -843,10 +862,18 @@ force_sync_fun(TargetRing, State) ->
     end.
 
 %% @private
-force_sync_fun_1({ok, RingInfo}, ?SYNC_TARGET_RING_CUR, State) ->
-    State#state{cur  = RingInfo};
-force_sync_fun_1({ok, RingInfo}, ?SYNC_TARGET_RING_PREV, State) ->
-    State#state{prev = RingInfo};
+force_sync_fun_1({ok, RingInfo}, ?SYNC_TARGET_RING_CUR,
+                 #state{checksum = Checksum} = State) ->
+    {PrevHash,_} = Checksum,
+    CurHash = erlang:crc32(term_to_binary(RingInfo)),
+    State#state{cur = RingInfo,
+                checksum = {PrevHash, CurHash}};
+force_sync_fun_1({ok, RingInfo}, ?SYNC_TARGET_RING_PREV,
+                 #state{checksum = Checksum} = State) ->
+    {_,CurHash} = Checksum,
+    PrevHash = erlang:crc32(term_to_binary(RingInfo)),
+    State#state{prev = RingInfo,
+                checksum = {PrevHash, CurHash}};
 force_sync_fun_1(_,_,State) ->
     State.
 

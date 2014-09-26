@@ -86,6 +86,8 @@ teardown(Pid) ->
 
 suite() ->
     ?debugVal("=== START - Get Redundancies ==="),
+    ?debugVal(leo_redundant_manager_worker:checksum()),
+
     {ok, #redundancies{vnode_id_from = 0,
                        vnode_id_to   = VNodeIdTo1,
                        nodes = N0}} = leo_redundant_manager_worker:first('leo_ring_cur'),

@@ -519,6 +519,7 @@ rack_aware_1_({Hostname}) ->
 
     ok = leo_redundant_manager_worker:force_sync(?RING_TBL_CUR),
     ok = leo_redundant_manager_worker:force_sync(?RING_TBL_PREV),
+    ?debugVal(leo_redundant_manager_worker:checksum()),
 
 
     lists:foreach(
@@ -612,6 +613,7 @@ rack_aware_2_({Hostname}) ->
 
     ok = leo_redundant_manager_worker:force_sync(?RING_TBL_CUR),
     ok = leo_redundant_manager_worker:force_sync(?RING_TBL_PREV),
+    ?debugVal(leo_redundant_manager_worker:checksum()),
 
     lists:foreach(
       fun(N) ->
@@ -706,7 +708,8 @@ inspect_0(Hostname, NumOfIteration) ->
     ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), leo_cluster_tbl_ring:size({ets, ?RING_TBL_CUR} )),
     ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), leo_cluster_tbl_ring:size({ets, ?RING_TBL_PREV})),
 
-    timer:sleep(100),
+    timer:sleep(1000),
+    ?debugVal(leo_redundant_manager_worker:checksum()),
 
     ok = inspect_redundancies_1(NumOfIteration),
     ok = inspect_redundancies_2(NumOfIteration),
