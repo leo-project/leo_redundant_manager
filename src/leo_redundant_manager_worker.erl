@@ -387,18 +387,18 @@ maybe_sync_1_1(#sync_info{org_checksum = OrgChecksum,
 maybe_sync_1_1(SyncInfo, #state{checksum = WorkerChecksum} = State) ->
     TargetRing = SyncInfo#sync_info.target,
     case gen_routing_table(SyncInfo, State) of
-        {ok, RingInfo} ->
+        {ok, #ring_info{ring_group_list = RetL} = RingInfo} ->
             case TargetRing of
                 ?SYNC_TARGET_RING_CUR ->
                     {PrevHash,_} = WorkerChecksum,
                     CurHash = erlang:crc32(
-                                term_to_binary(RingInfo)),
+                                term_to_binary(RetL)),
                     State#state{cur = RingInfo,
                                 checksum = {PrevHash, CurHash}};
                 ?SYNC_TARGET_RING_PREV ->
                     {_,CurHash} = WorkerChecksum,
                     PrevHash = erlang:crc32(
-                                 term_to_binary(RingInfo)),
+                                 term_to_binary(RetL)),
                     State#state{prev = RingInfo,
                                 checksum = {PrevHash, CurHash}}
             end;
@@ -862,16 +862,16 @@ force_sync_fun(TargetRing, State) ->
     end.
 
 %% @private
-force_sync_fun_1({ok, RingInfo}, ?SYNC_TARGET_RING_CUR,
+force_sync_fun_1({ok, #ring_info{ring_group_list = RetL} = RingInfo}, ?SYNC_TARGET_RING_CUR,
                  #state{checksum = Checksum} = State) ->
     {PrevHash,_} = Checksum,
-    CurHash = erlang:crc32(term_to_binary(RingInfo)),
+    CurHash = erlang:crc32(term_to_binary(RetL)),
     State#state{cur = RingInfo,
                 checksum = {PrevHash, CurHash}};
-force_sync_fun_1({ok, RingInfo}, ?SYNC_TARGET_RING_PREV,
+force_sync_fun_1({ok, #ring_info{ring_group_list = RetL} = RingInfo}, ?SYNC_TARGET_RING_PREV,
                  #state{checksum = Checksum} = State) ->
     {_,CurHash} = Checksum,
-    PrevHash = erlang:crc32(term_to_binary(RingInfo)),
+    PrevHash = erlang:crc32(term_to_binary(RetL)),
     State#state{prev = RingInfo,
                 checksum = {PrevHash, CurHash}};
 force_sync_fun_1(_,_,State) ->
