@@ -29,10 +29,10 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %% API
--export([start_link/1, stop/1]).
--export([lookup/3, first/2, last/2, force_sync/2,
-         redundancies/4,
-         dump/1]).
+-export([start_link/0, stop/0]).
+-export([lookup/2, first/1, last/1, force_sync/1,
+         redundancies/3,
+         dump/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -97,44 +97,61 @@
 %%--------------------------------------------------------------------
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
-start_link(Id) ->
-    gen_server:start_link({local, Id}, ?MODULE, [Id], []).
+start_link() ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-stop(Id) ->
-    gen_server:call(Id, stop, ?DEF_TIMEOUT).
+stop() ->
+    gen_server:call(?MODULE, stop, ?DEF_TIMEOUT).
 
 
--spec(lookup(atom(), atom(), integer()) ->
-             {ok, #redundancies{}} | not_found).
-lookup(ServerRef, Table, AddrId) ->
-    gen_server:call(ServerRef, {lookup, Table, AddrId}, ?DEF_TIMEOUT).
+%% @doc Look up the redundant-nodes by address-id
+-spec(lookup(Table, AddrId) ->
+             {ok, #redundancies{}} |
+             not_found when Table::atom(),
+                            AddrId::non_neg_integer()).
+lookup(Table, AddrId) ->
+    gen_server:call(?MODULE, {lookup, Table, AddrId}, ?DEF_TIMEOUT).
 
--spec(first(atom(), atom()) ->
-             {ok, #redundancies{}} | not_found).
-first(ServerRef, Table) ->
-    gen_server:call(ServerRef, {first, Table}, ?DEF_TIMEOUT).
 
--spec(last(atom(), atom()) ->
-             {ok, #redundancies{}} | not_found).
-last(ServerRef, Table) ->
-    gen_server:call(ServerRef, {last, Table}, ?DEF_TIMEOUT).
+%% @doc Retrieve the first record of the redundant-nodes
+-spec(first(Table) ->
+             {ok, #redundancies{}} |
+             not_found when Table::atom()).
+first(Table) ->
+    gen_server:call(?MODULE, {first, Table}, ?DEF_TIMEOUT).
 
--spec(force_sync(atom(), atom()) ->
-             ok | {error, invalid_table}).
-force_sync(ServerRef, Table) ->
-    gen_server:call(ServerRef, {force_sync, Table}, ?DEF_TIMEOUT_LONG).
 
--spec(redundancies(atom(), {atom(),atom()}, integer(), [#member{}]) ->
-             {ok, #redundancies{}} | not_found).
-redundancies(ServerRef, Table, AddrId, Members) ->
-    gen_server:call(ServerRef, {redundancies, Table, AddrId, Members}, ?DEF_TIMEOUT).
+%% @doc Retrieve the last record of the redundant-nodes
+-spec(last(Table) ->
+             {ok, #redundancies{}} |
+             not_found when Table::atom()).
+last(Table) ->
+    gen_server:call(?MODULE, {last, Table}, ?DEF_TIMEOUT).
+
+
+%% @doc
+-spec(force_sync(Table) ->
+             ok |
+             {error, invalid_table} when Table::atom()).
+force_sync(Table) ->
+    gen_server:call(?MODULE, {force_sync, Table}, ?DEF_TIMEOUT_LONG).
+
+
+%% @doc Retrieve redundancies
+-spec(redundancies(Table, AddrId, Members) ->
+             {ok, #redundancies{}} |
+             not_found when Table::atom(),
+                            AddrId::non_neg_integer(),
+                            Members::[#member{}]).
+redundancies(Table, AddrId, Members) ->
+    gen_server:call(?MODULE, {redundancies, Table, AddrId, Members}, ?DEF_TIMEOUT).
 
 
 %% @doc Dump the current ring-info
--spec(dump(atom()) ->
+-spec(dump() ->
              ok | {error, any()}).
-dump(ServerRef) ->
-    gen_server:call(ServerRef, dump, ?DEF_TIMEOUT).
+dump() ->
+    gen_server:call(?MODULE, dump, ?DEF_TIMEOUT).
 
 
 %%--------------------------------------------------------------------
@@ -145,9 +162,9 @@ dump(ServerRef) ->
 %%                         ignore               |
 %%                         {stop, Reason}
 %% Description: Initiates the server
-init([Id]) ->
+init([]) ->
     sync(),
-    {ok, #state{id = Id,
+    {ok, #state{id = ?MODULE,
                 timestamp = timestamp()}}.
 
 handle_call(stop,_From,State) ->
@@ -159,12 +176,13 @@ handle_call({lookup, Tbl,_AddrId},_From, State) when Tbl /= ?RING_TBL_CUR,
     {reply, {error, invalid_table}, State};
 
 handle_call({lookup, Tbl, AddrId},_From, State) ->
-    #ring_info{ring_group_list = RingGroupList,
-               first_vnode_id  = FirstVNodeId,
-               last_vnode_id   = LastVNodeId} = ring_info(Tbl, State),
-    Reply = lookup_fun(RingGroupList, FirstVNodeId, LastVNodeId, AddrId, State),
+    #ring_info{
+       ring_group_list = RingGroupList,
+       first_vnode_id  = FirstVNodeId,
+       last_vnode_id   = LastVNodeId} = ring_info(Tbl, State),
+    Reply = lookup_fun(RingGroupList, FirstVNodeId,
+                       LastVNodeId, AddrId, State),
     {reply, Reply, State};
-
 
 handle_call({first, Tbl},_From, State) when Tbl /= ?RING_TBL_CUR,
                                             Tbl /= ?RING_TBL_PREV ->
@@ -360,7 +378,7 @@ maybe_sync_1_1(SyncInfo, State) ->
     case gen_routing_table(SyncInfo, State) of
         {ok, RingInfo} ->
             case TargetRing of
-                 ?SYNC_TARGET_RING_CUR ->
+                ?SYNC_TARGET_RING_CUR ->
                     State#state{cur = RingInfo};
                 ?SYNC_TARGET_RING_PREV ->
                     State#state{prev = RingInfo}
@@ -761,10 +779,12 @@ last_fun(RingGroupList) ->
              not_found | {ok, #redundancies{}}).
 lookup_fun([],_,_,_AddrId,_) ->
     not_found;
-lookup_fun(RingGroupList, FirstVNodeId,_LastVNodeId, AddrId, State) when FirstVNodeId >= AddrId ->
+lookup_fun(RingGroupList, FirstVNodeId,
+           _LastVNodeId, AddrId, State) when FirstVNodeId >= AddrId ->
     Ret = first_fun(RingGroupList),
     reply_redundancies(Ret, AddrId, State);
-lookup_fun(RingGroupList,_FirstVNodeId, LastVNodeId, AddrId, State) when LastVNodeId < AddrId ->
+lookup_fun(RingGroupList,_FirstVNodeId,
+           LastVNodeId, AddrId, State) when LastVNodeId < AddrId ->
     Ret = first_fun(RingGroupList),
     reply_redundancies(Ret, AddrId, State);
 lookup_fun(RingGroupList,_,_, AddrId, State) ->

@@ -32,7 +32,7 @@
 
 -export([add/2, add_from_list/2,
          remove/2, remove_from_list/2,
-         redundancies/3, range_of_vnodes/2, rebalance/1,
+         redundancies/2, range_of_vnodes/2, rebalance/1,
          checksum/1, vnode_id/1, vnode_id/2]).
 -export([export/2]).
 
@@ -104,10 +104,10 @@ remove_from_list_1([Member|Rest], Acc) ->
 
 %% @doc Retrieve redundancies by vnode-id.
 %%
--spec(redundancies(atom(), {_,atom()}, integer()) ->
+-spec(redundancies({_,atom()}, integer()) ->
              {ok, #redundancies{}} | not_found).
-redundancies(ServerRef, {_,Table}, VNodeId) ->
-    leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId).
+redundancies({_,Table}, VNodeId) ->
+    leo_redundant_manager_worker:lookup(Table, VNodeId).
 
 
 %% @doc Execute rebalance
@@ -119,15 +119,14 @@ rebalance(RebalanceInfo) ->
                tbl_prev = TblInfoPrev} = RebalanceInfo,
 
     %% force sync worker's ring
-    ServerRef = leo_redundant_manager_api:get_server_id(),
     {_, TblNameCur } = TblInfoCur,
     {_, TblNamePrev} = TblInfoPrev,
 
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, TblNameCur),
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, TblNamePrev),
+    ok = leo_redundant_manager_worker:force_sync(TblNameCur),
+    ok = leo_redundant_manager_worker:force_sync(TblNamePrev),
 
     %% retrieve different node between current and previous ring
-    rebalance_1(ServerRef, RebalanceInfo, 0, []).
+    rebalance_1(RebalanceInfo, 0, []).
 
 %% @doc Retrieve diffrences between current-ring and prev-ring
 %% case-1:
@@ -139,7 +138,7 @@ rebalance(RebalanceInfo) ->
 %% prev-ring: |...------E------|2^128, 0|------F...
 %%
 %% @private
-rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
+rebalance_1(RebalanceInfo, AddrId, Acc) ->
     #rebalance{tbl_cur      = TblInfoCur,
                members_cur  = MembersCur,
                members_prev = MembersPrev} = RebalanceInfo,
@@ -152,8 +151,7 @@ rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
 
     {ok, #redundancies{vnode_id_to = PrevVNodeIdTo,
                        nodes = PrevNodes}} =
-        leo_redundant_manager_worker:redundancies(
-          ServerRef, TblInfo, AddrId, MembersPrev),
+        leo_redundant_manager_worker:redundancies(TblInfo, AddrId, MembersPrev),
 
     {VNodeIdTo, CurNodes} =
         case (PrevLastVNodeId > CurLastVNodeId andalso
@@ -161,13 +159,13 @@ rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
             true ->
                 %% case-2
                 {ok, #redundancies{nodes = CurNodes_1}} =
-                    leo_redundant_manager_worker:first(ServerRef, TblNameCur),
+                    leo_redundant_manager_worker:first(TblNameCur),
                 {PrevVNodeIdTo, CurNodes_1};
             false ->
                 %% case-1
                 {ok, #redundancies{vnode_id_to = CurVNodeIdTo,
                                    nodes = CurNodes_1}} =
-                    leo_redundant_manager_worker:lookup(ServerRef, TblNameCur,  AddrId),
+                    leo_redundant_manager_worker:lookup(TblNameCur,  AddrId),
                 {CurVNodeIdTo, CurNodes_1}
         end,
 
@@ -199,7 +197,7 @@ rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
         true ->
             {ok, lists:reverse(Acc_1)};
         false  ->
-            rebalance_1(ServerRef, RebalanceInfo, NewVNodeIdTo, Acc_1)
+            rebalance_1(RebalanceInfo, NewVNodeIdTo, Acc_1)
     end.
 
 
@@ -260,18 +258,17 @@ export(Table, FileName) ->
 -spec(range_of_vnodes({_,atom()}, integer()) ->
              {ok, [tuple()]}).
 range_of_vnodes({_,Table}, VNodeId) ->
-    ServerRef = leo_redundant_manager_api:get_server_id(),
-    range_of_vnodes_1(ServerRef, Table, VNodeId).
+    range_of_vnodes_1(Table, VNodeId).
 
-range_of_vnodes_1(ServerRef, Table, VNodeId) ->
-    case leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId) of
+range_of_vnodes_1(Table, VNodeId) ->
+    case leo_redundant_manager_worker:lookup(Table, VNodeId) of
         not_found ->
             {error, not_found};
         {ok, #redundancies{vnode_id_from = From,
                            vnode_id_to   = To}} ->
             case From of
                 0 ->
-                    case leo_redundant_manager_worker:last(ServerRef, Table) of
+                    case leo_redundant_manager_worker:last(Table) of
                         not_found ->
                             {ok, [{From, To}]};
                         {ok, #redundancies{vnode_id_to = LastId}} ->

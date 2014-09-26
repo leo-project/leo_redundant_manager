@@ -73,14 +73,15 @@
 -type(ring_table_info() :: {ring_table(), ?RING_TBL_CUR} |
                            {ring_table(), ?RING_TBL_PREV}).
 
--define(WORKER_POOL_NAME_PREFIX, "leo_redundant_manager_worker_").
+-define(WORKER_POOL_NAME,        'leo_redundant_manager_worker').
+-define(WORKER_POOL_NAME_PREFIX, lists:append([atom_to_list(?WORKER_POOL_NAME), "_"])).
 
 -define(RING_WORKER_POOL_NAME, 'ring_worker_pool').
 -ifdef(TEST).
 -define(RING_WORKER_POOL_SIZE, 1).
 -define(RING_WORKER_POOL_BUF,  0).
 -else.
--define(RING_WORKER_POOL_SIZE, 8).
+-define(RING_WORKER_POOL_SIZE, 1).
 -define(RING_WORKER_POOL_BUF,  0).
 -endif.
 
@@ -89,7 +90,7 @@
 -define(CHECKSUM_RING,   'ring').
 -define(CHECKSUM_MEMBER, 'member').
 
--type(checksum_type()   :: ?CHECKSUM_RING  | ?CHECKSUM_MEMBER).
+-type(checksum_type() :: ?CHECKSUM_RING | ?CHECKSUM_MEMBER).
 
 
 %% Default

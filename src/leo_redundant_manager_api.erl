@@ -43,7 +43,7 @@
         ]).
 %% Redundancy-related
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
-         get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2, get_redundancies_by_addr_id/3,
+         get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2,
          range_of_vnodes/1, rebalance/0,
          get_alias/2, get_alias/3, get_alias/4
         ]).
@@ -57,7 +57,6 @@
          get_cluster_status/0,
          get_cluster_tbl_checksums/0
         ]).
--export([get_server_id/0, get_server_id/1]).
 
 %% Multi-DC-replciation-related
 -export([get_remote_clusters/0, get_remote_clusters/1,
@@ -479,9 +478,7 @@ dump(Type) ->
 dump_1(-1) ->
     ok;
 dump_1(Index) ->
-    Id = list_to_atom(lists:append([?WORKER_POOL_NAME_PREFIX,
-                                    integer_to_list(Index)])),
-    ok = leo_redundant_manager_worker:dump(Id),
+    ok = leo_redundant_manager_worker:dump(),
     dump_1(Index - 1).
 
 %%--------------------------------------------------------------------
@@ -501,8 +498,7 @@ get_redundancies_by_key(Method, Key) ->
         {ok, Options} ->
             BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
             AddrId    = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
-            ServerRef = get_server_id(AddrId),
-            get_redundancies_by_addr_id_1(ServerRef, ring_table(Method), AddrId, Options);
+            get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options);
         _ ->
             {error, not_found}
     end.
@@ -518,12 +514,6 @@ get_redundancies_by_addr_id(AddrId) ->
 -spec(get_redundancies_by_addr_id(method(), integer()) ->
              {ok, #redundancies{}} | {error, any()}).
 get_redundancies_by_addr_id(Method, AddrId) ->
-    ServerRef = get_server_id(AddrId),
-    get_redundancies_by_addr_id(ServerRef, Method, AddrId).
-
--spec(get_redundancies_by_addr_id(atom(), method(), integer()) ->
-             {ok, #redundancies{}} | {error, any()}).
-get_redundancies_by_addr_id(ServerRef, Method, AddrId) ->
     Options_1 = case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
                     {ok, Options} ->
                         Options;
@@ -532,19 +522,19 @@ get_redundancies_by_addr_id(ServerRef, Method, AddrId) ->
                         ok = set_options(Options),
                         Options
                 end,
-    get_redundancies_by_addr_id_1(
-      ServerRef, ring_table(Method), AddrId, Options_1).
+    get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options_1).
 
 %% @private
--spec(get_redundancies_by_addr_id_1(atom(), {_,atom()}, integer(), [_]) ->
+-spec(get_redundancies_by_addr_id_1({_,atom()}, integer(), [_]) ->
              {ok, #redundancies{}} | {error, any()}).
-get_redundancies_by_addr_id_1(ServerRef, TblInfo, AddrId, Options) ->
+get_redundancies_by_addr_id_1(TblInfo, AddrId, Options) ->
+    %% @TODO
     N = leo_misc:get_value(?PROP_N, Options),
     R = leo_misc:get_value(?PROP_R, Options),
     W = leo_misc:get_value(?PROP_W, Options),
     D = leo_misc:get_value(?PROP_D, Options),
 
-    case leo_redundant_manager_chash:redundancies(ServerRef, TblInfo, AddrId) of
+    case leo_redundant_manager_chash:redundancies(TblInfo, AddrId) of
         {ok, Redundancies} ->
             CurRingHash =
                 case leo_misc:get_env(?APP, ?PROP_RING_HASH) of
@@ -999,9 +989,7 @@ force_sync_workers() ->
 
 %% @private
 force_sync_workers_1(Index) ->
-    ServerRef = list_to_atom(lists:append([?WORKER_POOL_NAME_PREFIX,
-                                           integer_to_list(Index)])),
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, ?RING_TBL_CUR),
+    ok = leo_redundant_manager_worker:force_sync(?RING_TBL_CUR),
     timer:sleep(erlang:phash2(leo_date:clock(), 64)),
     force_sync_workers_1(Index - 1).
 
@@ -1060,21 +1048,6 @@ get_cluster_tbl_checksums() ->
           {?CHKSUM_CLUSTER_MEMBER,  Chksum_4},
           {?CHKSUM_CLUSTER_STAT,    Chksum_5}
          ]}.
-
-
-%% @doc Retrieve a srever id
-%%
--spec(get_server_id() ->
-             atom()).
-get_server_id() ->
-    get_server_id(leo_date:clock()).
--spec(get_server_id(integer()) ->
-             atom()).
-get_server_id(AddrId) ->
-    Procs = ?RING_WORKER_POOL_SIZE,
-    Index = erlang:phash2(AddrId, Procs),
-    list_to_atom(lists:append([?WORKER_POOL_NAME_PREFIX,
-                               integer_to_list(Index)])).
 
 
 %%--------------------------------------------------------------------

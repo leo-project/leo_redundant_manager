@@ -30,6 +30,37 @@
 %%--------------------------------------------------------------------
 -ifdef(EUNIT).
 
+check_redundancies_test_() ->
+    {setup,
+     fun ( ) ->
+             ?debugVal("### CHECK-REDUNDANCIES.START ###"),
+             Now = lists:flatten(leo_date:date_format()),
+             ?debugVal(Now),
+             {_} = setup(),
+             ok
+     end,
+     fun (_) ->
+             Now = lists:flatten(leo_date:date_format()),
+             ?debugVal(Now),
+             ?debugVal("### CHECK-REDUNDANCIES.END ###"),
+             teardown([]),
+             timer:sleep(1000),
+             ok
+     end,
+     [
+      {"check redundancies",
+       {timeout, 5000, fun check_redundancies/0}}
+     ]}.
+
+check_redundancies() ->
+    {ok, Hostname} = inet:gethostname(),
+    ok = prepare(Hostname, master),
+    ok = inspect_0(Hostname, 500000),
+    ok.
+
+
+%% @doc Test SUITE
+%%
 redundant_manager_test_() ->
     {timeout, 300,
      {foreach, fun setup/0, fun teardown/1,
@@ -49,6 +80,7 @@ redundant_manager_test_() ->
                             fun rack_aware_1_/1,
                             fun rack_aware_2_/1
                            ]]}}.
+
 
 
 setup() ->
@@ -84,12 +116,12 @@ teardown(_) ->
 
 redundant_manager_0_({Hostname}) ->
     ok = prepare(Hostname, master),
-    inspect0(Hostname),
+    inspect_0(Hostname, 1000),
     ok.
 
 redundant_manager_1_({Hostname}) ->
     ok = prepare(Hostname, storage),
-    inspect0(Hostname),
+    inspect_0(Hostname, 1000),
     ok.
 
 attach_1_({Hostname}) ->
@@ -485,9 +517,8 @@ rack_aware_1_({Hostname}) ->
     {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
     timer:sleep(100),
 
-    ServerRef = leo_redundant_manager_api:get_server_id(),
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, ?RING_TBL_CUR),
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, ?RING_TBL_PREV),
+    ok = leo_redundant_manager_worker:force_sync(?RING_TBL_CUR),
+    ok = leo_redundant_manager_worker:force_sync(?RING_TBL_PREV),
 
 
     lists:foreach(
@@ -579,9 +610,8 @@ rack_aware_2_({Hostname}) ->
     {ok, _, _} = leo_redundant_manager_api:create(?VER_PREV),
     timer:sleep(100),
 
-    ServerRef = leo_redundant_manager_api:get_server_id(),
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, ?RING_TBL_CUR),
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, ?RING_TBL_PREV),
+    ok = leo_redundant_manager_worker:force_sync(?RING_TBL_CUR),
+    ok = leo_redundant_manager_worker:force_sync(?RING_TBL_PREV),
 
     lists:foreach(
       fun(N) ->
@@ -638,7 +668,8 @@ prepare(Hostname, ServerType, NumOfNodes) ->
     ok.
 
 
-inspect0(Hostname) ->
+inspect_0(Hostname, NumOfIteration) ->
+    ?debugVal({Hostname, NumOfIteration}),
     {ok, {Chksum0, _Chksum1}} = leo_redundant_manager_api:checksum(?CHECKSUM_RING),
     ?assertEqual(true, (Chksum0 > -1)),
 
@@ -676,48 +707,16 @@ inspect0(Hostname) ->
     ?assertEqual((8 * ?DEF_NUMBER_OF_VNODES), leo_cluster_tbl_ring:size({ets, ?RING_TBL_PREV})),
 
     timer:sleep(100),
-    Max = leo_math:power(2, ?MD5),
-    lists:foreach(fun(Num) ->
-                          {ok, #redundancies{id = _Id0,
-                                             vnode_id_to = _VNodeId0,
-                                             nodes = Nodes0,
-                                             n = 3,
-                                             r = 1,
-                                             w = 2,
-                                             d = 2}
-                          } = leo_redundant_manager_api:get_redundancies_by_key(integer_to_list(Num)),
-                          lists:foreach(fun(A) ->
-                                                Nodes0a = lists:delete(A, Nodes0),
-                                                lists:foreach(fun(B) ->
-                                                                      ?assertEqual(false, (A == B))
-                                                              end, Nodes0a)
-                                        end, Nodes0),
-                          ?assertEqual(3, length(Nodes0))
-                  end, lists:seq(0, 10)),
-    lists:foreach(fun(_) ->
-                          Id = random:uniform(Max),
-                          {ok, #redundancies{id = _Id0,
-                                             vnode_id_to = _VNodeId0,
-                                             nodes = Nodes0,
-                                             n = 3,
-                                             r = 1,
-                                             w = 2,
-                                             d = 2}
-                          } = leo_redundant_manager_api:get_redundancies_by_addr_id(put, Id),
-                          lists:foreach(fun(A) ->
-                                                Nodes0a = lists:delete(A, Nodes0),
-                                                lists:foreach(fun(B) ->
-                                                                      ?assertEqual(false, (A == B))
-                                                              end, Nodes0a)
-                                        end, Nodes0),
-                          ?assertEqual(3, length(Nodes0))
-                  end, lists:seq(0, 10000)),
+
+    ok = inspect_redundancies_1(NumOfIteration),
+    ok = inspect_redundancies_2(NumOfIteration),
 
     {ok, #redundancies{nodes = N0}} = leo_redundant_manager_api:get_redundancies_by_addr_id(put, 0),
     {ok, #redundancies{nodes = N1}} = leo_redundant_manager_api:get_redundancies_by_addr_id(put, leo_math:power(2, 128)),
     ?assertEqual(3, length(N0)),
     ?assertEqual(3, length(N1)),
 
+    Max = leo_math:power(2, ?MD5),
     {ok, #redundancies{id = Id,
                        vnode_id_to = VNodeId1,
                        nodes = Nodes1,
@@ -731,10 +730,10 @@ inspect0(Hostname) ->
     lists:foreach(fun(_) ->
                           Id2 = random:uniform(Max),
                           {ok, Res2} = leo_redundant_manager_api:range_of_vnodes(Id2),
-                          inspect1(Id2, Res2)
+                          inspect_1(Id2, Res2)
                   end, lists:seq(0, 300)),
     {ok, Res3} = leo_redundant_manager_api:range_of_vnodes(0),
-    inspect1(0, Res3),
+    inspect_1(0, Res3),
 
     Max1 = leo_math:power(2,128) - 1,
     {ok, Res4} = leo_redundant_manager_api:range_of_vnodes(Max1),
@@ -744,7 +743,55 @@ inspect0(Hostname) ->
     ok.
 
 
-inspect1(Id, VNodes) ->
+%% @private
+inspect_redundancies_1(0) ->
+    ?debugVal(ok),
+    ok;
+inspect_redundancies_1(Counter) ->
+    {ok, #redundancies{id = _Id0,
+                       vnode_id_to = _VNodeId0,
+                       nodes = Nodes0,
+                       n = 3,
+                       r = 1,
+                       w = 2,
+                       d = 2}} = 
+        leo_redundant_manager_api:get_redundancies_by_key(
+          integer_to_list(Counter)),
+    lists:foreach(fun(A) ->
+                          Nodes0a = lists:delete(A, Nodes0),
+                          lists:foreach(fun(B) ->
+                                                ?assertEqual(false, (A == B))
+                                        end, Nodes0a)
+                  end, Nodes0),
+    ?assertEqual(3, length(Nodes0)),
+    inspect_redundancies_1(Counter - 1).
+
+inspect_redundancies_2(0) ->
+    ?debugVal(ok),
+    ok;
+inspect_redundancies_2(Counter) ->
+    Max = leo_math:power(2, ?MD5),
+    Id  = random:uniform(Max),
+    {ok, #redundancies{id = _Id0,
+                       vnode_id_to = _VNodeId0,
+                       nodes = Nodes0,
+                       n = 3,
+                       r = 1,
+                       w = 2,
+                       d = 2}
+    } = leo_redundant_manager_api:get_redundancies_by_addr_id(put, Id),
+    lists:foreach(fun(A) ->
+                          Nodes0a = lists:delete(A, Nodes0),
+                          lists:foreach(fun(B) ->
+                                                ?assertEqual(false, (A == B))
+                                        end, Nodes0a)
+                  end, Nodes0),
+    ?assertEqual(3, length(Nodes0)),
+    inspect_redundancies_2(Counter - 1).
+
+
+%% @private
+inspect_1(Id, VNodes) ->
     Max = leo_math:power(2, 128),
     case length(VNodes) of
         1 ->

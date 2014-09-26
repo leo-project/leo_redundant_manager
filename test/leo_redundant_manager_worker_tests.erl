@@ -86,29 +86,28 @@ teardown(Pid) ->
 
 suite() ->
     ?debugVal("=== START - Get Redundancies ==="),
-    ServerRef = leo_redundant_manager_api:get_server_id(),
     {ok, #redundancies{vnode_id_from = 0,
                        vnode_id_to   = VNodeIdTo1,
-                       nodes = N0}} = leo_redundant_manager_worker:first(ServerRef, 'leo_ring_cur'),
+                       nodes = N0}} = leo_redundant_manager_worker:first('leo_ring_cur'),
     {ok, #redundancies{vnode_id_from = 0,
                        vnode_id_to   = VNodeIdTo2,
-                       nodes = N0}} = leo_redundant_manager_worker:first(ServerRef, 'leo_ring_prv'),
+                       nodes = N0}} = leo_redundant_manager_worker:first('leo_ring_prv'),
     {ok, #redundancies{nodes = N1}} = leo_redundant_manager_worker:lookup(
-                                        ServerRef, 'leo_ring_cur', 0),
+                                        'leo_ring_cur', 0),
     {ok, #redundancies{nodes = N2}} = leo_redundant_manager_worker:lookup(
-                                        ServerRef, 'leo_ring_cur', 1264314306571079495751037749109419166),
+                                        'leo_ring_cur', 1264314306571079495751037749109419166),
     {ok, #redundancies{nodes = N3}} = leo_redundant_manager_worker:lookup(
-                                        ServerRef, 'leo_ring_cur', 3088066518744027498382227205172020754),
+                                        'leo_ring_cur', 3088066518744027498382227205172020754),
     {ok, #redundancies{nodes = N4}} = leo_redundant_manager_worker:lookup(
-                                        ServerRef, 'leo_ring_cur', 4870818527799149765629747665733758595),
+                                        'leo_ring_cur', 4870818527799149765629747665733758595),
     {ok, #redundancies{nodes = N5}} = leo_redundant_manager_worker:lookup(
-                                        ServerRef, 'leo_ring_cur', 5257965865843856950061366315134191522),
+                                        'leo_ring_cur', 5257965865843856950061366315134191522),
     {ok, #redundancies{nodes = N6}} = leo_redundant_manager_worker:lookup(
-                                        ServerRef, 'leo_ring_cur', 340282366920938463463374607431768211456),
-    {ok, #redundancies{nodes = N7}} = leo_redundant_manager_worker:last(ServerRef, 'leo_ring_cur'),
+                                        'leo_ring_cur', 340282366920938463463374607431768211456),
+    {ok, #redundancies{nodes = N7}} = leo_redundant_manager_worker:last('leo_ring_cur'),
 
-    Size1 = collect_redundancies(ServerRef, 'leo_ring_cur', 1, VNodeIdTo1 + 1, []),
-    Size2 = collect_redundancies(ServerRef, 'leo_ring_prv', 1, VNodeIdTo2 + 1, []),
+    Size1 = collect_redundancies('leo_ring_cur', 1, VNodeIdTo1 + 1, []),
+    Size2 = collect_redundancies('leo_ring_prv', 1, VNodeIdTo2 + 1, []),
     ?assertEqual((?DEF_NUMBER_OF_VNODES * 5), Size1),
     ?assertEqual((?DEF_NUMBER_OF_VNODES * 5), Size2),
 
@@ -122,7 +121,7 @@ suite() ->
     ?assertEqual(3, length(N7)),
 
     St = leo_date:clock(),
-    ok = check_redundancies(100000, ServerRef),
+    ok = check_redundancies(100000),
     End = leo_date:clock(),
 
     ?debugVal((End - St) / 1000),
@@ -130,24 +129,23 @@ suite() ->
     ok.
 
 %% @private
-collect_redundancies(_ServerRef,_Tbl,0,_To,Acc) ->
+collect_redundancies(_Tbl,0,_To,Acc) ->
     length(Acc);
-collect_redundancies(ServerRef, Tbl,_From, To, Acc) ->
-    {ok, Ret} = leo_redundant_manager_worker:lookup(ServerRef, Tbl, To),
+collect_redundancies( Tbl,_From, To, Acc) ->
+    {ok, Ret} = leo_redundant_manager_worker:lookup(Tbl, To),
     From = Ret#redundancies.vnode_id_from,
     To1  = Ret#redundancies.vnode_id_to + 1,
-    collect_redundancies(ServerRef, Tbl, From, To1, [Ret|Acc]).
+    collect_redundancies(Tbl, From, To1, [Ret|Acc]).
 
 
 %% @private
-check_redundancies(0,_) ->
+check_redundancies(0) ->
     ok;
-check_redundancies(Index, ServerRef) ->
+check_redundancies(Index) ->
     AddrId = leo_redundant_manager_chash:vnode_id(128, crypto:rand_bytes(64)),
     {ok, #redundancies{nodes = N8}} =
-        leo_redundant_manager_worker:lookup(
-          ServerRef, 'leo_ring_cur', AddrId),
+        leo_redundant_manager_worker:lookup('leo_ring_cur', AddrId),
     ?assertEqual(3, length(N8)),
-    check_redundancies(Index - 1, ServerRef).
+    check_redundancies(Index - 1).
 
 -endif.
