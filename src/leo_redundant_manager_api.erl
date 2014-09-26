@@ -107,9 +107,10 @@ create(Ver) when Ver == ?VER_CUR;
         ok ->
             case leo_cluster_tbl_member:find_all(?member_table(Ver)) of
                 {ok, Members} ->
-                    ok = leo_redundant_manager_worker:force_sync(?ring_table(Ver)),
+                    spawn(fun() ->
+                                  ok = leo_redundant_manager_worker:force_sync(?ring_table(Ver))
+                          end),
                     {ok, HashRing} = checksum(?CHECKSUM_RING),
-
                     ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, erlang:element(1, HashRing)),
                     {ok, HashMember} = checksum(?CHECKSUM_MEMBER),
                     {ok, Members, [{?CHECKSUM_RING,   HashRing},
@@ -989,13 +990,9 @@ table_info(?VER_PREV) ->
 -spec(force_sync_workers() ->
              ok).
 force_sync_workers() ->
-    force_sync_workers_1(?RING_WORKER_POOL_SIZE - 1).
-
-%% @private
-force_sync_workers_1(Index) ->
     ok = leo_redundant_manager_worker:force_sync(?RING_TBL_CUR),
-    timer:sleep(erlang:phash2(leo_date:clock(), 64)),
-    force_sync_workers_1(Index - 1).
+    ok = leo_redundant_manager_worker:force_sync(?RING_TBL_PREV),
+    ok.
 
 
 %% Retrieve local cluster's status
