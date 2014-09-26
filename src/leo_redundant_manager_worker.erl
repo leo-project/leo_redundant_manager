@@ -136,7 +136,6 @@ last(Table) ->
              ok |
              {error, invalid_table} when Table::atom()).
 force_sync(Table) ->
-    ?debugVal(Table),
     gen_server:call(?MODULE, {force_sync, Table}, ?DEF_TIMEOUT_LONG).
 
 
