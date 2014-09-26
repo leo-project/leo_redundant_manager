@@ -178,11 +178,8 @@ sync() ->
             ok = exec(Managers);
         not_found ->
             void;
-        {error, Cause} ->
-            error_logger:error_msg("~p,~p,~p,~p~n",
-                                   [{module, ?MODULE_STRING},
-                                    {function, "maybe_heartbeat/1"},
-                                    {line, ?LINE}, {body, Cause}])
+        {error,_Cause} ->
+            void
     end,
     ok.
 

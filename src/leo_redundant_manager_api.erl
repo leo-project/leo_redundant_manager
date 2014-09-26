@@ -82,6 +82,7 @@ create() ->
                       _ ->
                           case create(?VER_PREV) of
                               {ok,_,_} ->
+
                                   ok;
                               Error_1 ->
                                   Error_1
@@ -106,7 +107,9 @@ create(Ver) when Ver == ?VER_CUR;
         ok ->
             case leo_cluster_tbl_member:find_all(?member_table(Ver)) of
                 {ok, Members} ->
+                    ok = leo_redundant_manager_worker:force_sync(?ring_table(Ver)),
                     {ok, HashRing} = checksum(?CHECKSUM_RING),
+
                     ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, erlang:element(1, HashRing)),
                     {ok, HashMember} = checksum(?CHECKSUM_MEMBER),
                     {ok, Members, [{?CHECKSUM_RING,   HashRing},
@@ -298,7 +301,6 @@ checksum(?CHECKSUM_MEMBER = Type) ->
 checksum(?CHECKSUM_RING) ->
     TblInfoCur  = table_info(?VER_CUR),
     TblInfoPrev = table_info(?VER_PREV),
-
     {ok, RingHashCur } = leo_redundant_manager_chash:checksum(TblInfoCur),
     {ok, RingHashPrev} = leo_redundant_manager_chash:checksum(TblInfoPrev),
     {ok, {RingHashCur, RingHashPrev}};

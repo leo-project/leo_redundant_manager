@@ -43,11 +43,6 @@ suite_test_() ->
        {timeout, 300, fun suite/0}}
      ]}.
 
-%% redundant_manager_test_() ->
-%%     {foreach, fun setup/0, fun teardown/1,
-%%      [{with, [T]} || T <- [fun suite_/1
-%%                           ]]}.
-
 setup() ->
     application:start(crypto),
 

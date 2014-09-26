@@ -136,6 +136,7 @@ last(Table) ->
              ok |
              {error, invalid_table} when Table::atom()).
 force_sync(Table) ->
+    ?debugVal(Table),
     gen_server:call(?MODULE, {force_sync, Table}, ?DEF_TIMEOUT_LONG).
 
 
@@ -216,8 +217,8 @@ handle_call({force_sync, Tbl},_From, State) when Tbl /= ?RING_TBL_CUR,
                                                  Tbl /= ?RING_TBL_PREV ->
     {reply, {error, invalid_table}, State};
 
-handle_call({force_sync, Tbl},_From, State) ->
-    TargetRing = case Tbl of
+handle_call({force_sync, Table},_From, State) ->
+    TargetRing = case Table of
                      ?RING_TBL_CUR  -> ?SYNC_TARGET_RING_CUR;
                      ?RING_TBL_PREV -> ?SYNC_TARGET_RING_PREV
                  end,

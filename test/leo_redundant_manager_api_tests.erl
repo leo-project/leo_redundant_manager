@@ -671,10 +671,6 @@ prepare(Hostname, ServerType, NumOfNodes) ->
 
 
 inspect_0(Hostname, NumOfIteration) ->
-    ?debugVal({Hostname, NumOfIteration}),
-    {ok, {Chksum0, _Chksum1}} = leo_redundant_manager_api:checksum(?CHECKSUM_RING),
-    ?assertEqual(true, (Chksum0 > -1)),
-
     %% member-related.
     {ok, Members0} = leo_redundant_manager_api:get_members(),
 
@@ -693,6 +689,10 @@ inspect_0(Hostname, NumOfIteration) ->
 
     %% create routing-table > confirmations.
     {ok, Members1, Chksums} = leo_redundant_manager_api:create(),
+    {ok, {Chksum0, _Chksum1}} = leo_redundant_manager_api:checksum(?CHECKSUM_RING),
+    ?debugVal({Chksum0, _Chksum1}),
+    %% ?assertEqual(true, (Chksum0 > -1)),
+
     ?assertEqual(8, length(Members1)),
     ?assertEqual(2, length(Chksums)),
 
@@ -748,7 +748,6 @@ inspect_0(Hostname, NumOfIteration) ->
 
 %% @private
 inspect_redundancies_1(0) ->
-    ?debugVal(ok),
     ok;
 inspect_redundancies_1(Counter) ->
     {ok, #redundancies{id = _Id0,
@@ -757,7 +756,7 @@ inspect_redundancies_1(Counter) ->
                        n = 3,
                        r = 1,
                        w = 2,
-                       d = 2}} = 
+                       d = 2}} =
         leo_redundant_manager_api:get_redundancies_by_key(
           integer_to_list(Counter)),
     lists:foreach(fun(A) ->
@@ -770,7 +769,6 @@ inspect_redundancies_1(Counter) ->
     inspect_redundancies_1(Counter - 1).
 
 inspect_redundancies_2(0) ->
-    ?debugVal(ok),
     ok;
 inspect_redundancies_2(Counter) ->
     Max = leo_math:power(2, ?MD5),
