@@ -303,7 +303,7 @@ exec_1(ServerType, Managers, [{Node, State}|T], Callback) ->
             void;
         false ->
             Ret = compare_with_remote_chksum(Node),
-            _ = inspect_result(Ret, [ServerType, Managers, Node, State])
+            ok  = inspect_result(Ret, [ServerType, Managers, Node, State])
     end,
     exec_1(ServerType, Managers, T, Callback).
 
@@ -314,21 +314,18 @@ exec_1(ServerType, Managers, [{Node, State}|T], Callback) ->
              ok).
 inspect_result(ok, [ServerType, _, Node, false]) ->
     leo_membership_mq_client:publish(ServerType, Node, ?ERR_TYPE_NODE_DOWN);
-
 inspect_result(ok, _) ->
     ok;
-
 inspect_result({error, {HashType, ?ERR_TYPE_INCONSISTENT_HASH, NodesWithChksum}}, [_, Managers, _, _]) ->
     notify_error_to_manager(Managers, HashType, NodesWithChksum);
-
 inspect_result({error, ?ERR_TYPE_NODE_DOWN}, [ServerType,_,Node,_]) ->
     leo_membership_mq_client:publish(ServerType, Node, ?ERR_TYPE_NODE_DOWN);
-
 inspect_result(Error, _) ->
     error_logger:warning_msg("~p,~p,~p,~p~n",
                              [{module, ?MODULE_STRING},
                               {function, "inspect_result/2"},
-                              {line, ?LINE}, {body, Error}]).
+                              {line, ?LINE}, {body, Error}]),
+    ok.
 
 
 %% @doc Compare manager-hash with remote-node-hash
@@ -337,7 +334,10 @@ inspect_result(Error, _) ->
              ok).
 compare_manager_with_remote_chksum(Node, Managers) ->
     compare_manager_with_remote_chksum(
-      Node, Managers, [?CHECKSUM_RING, ?CHECKSUM_MEMBER]).
+      Node, Managers, [?CHECKSUM_RING,
+                       ?CHECKSUM_MEMBER,
+                       ?CHECKSUM_WORKER
+                      ]).
 
 compare_manager_with_remote_chksum(_Node,_Managers, []) ->
     ok;
@@ -350,7 +350,7 @@ compare_manager_with_remote_chksum( Node, Managers, [HashType|T]) ->
                     end,
 
             Ret = compare_with_remote_chksum_1(Node, HashType, LocalChksum),
-            _ = inspect_result(Ret, [?SERVER_MANAGER, Managers, Node, State]),
+            ok  = inspect_result(Ret, [?SERVER_MANAGER, Managers, Node, State]),
             compare_manager_with_remote_chksum(Node, Managers, T);
         Error ->
             Error
@@ -362,7 +362,10 @@ compare_manager_with_remote_chksum( Node, Managers, [HashType|T]) ->
 -spec(compare_with_remote_chksum(atom()) ->
              ok | {error, any()}).
 compare_with_remote_chksum(Node) ->
-    compare_with_remote_chksum(Node, [?CHECKSUM_RING, ?CHECKSUM_MEMBER]).
+    compare_with_remote_chksum(Node, [?CHECKSUM_RING,
+                                      ?CHECKSUM_MEMBER,
+                                      ?CHECKSUM_WORKER
+                                     ]).
 
 compare_with_remote_chksum(_,[]) ->
     ok;

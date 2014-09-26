@@ -304,6 +304,8 @@ checksum(?CHECKSUM_RING) ->
     {ok, RingHashCur } = leo_redundant_manager_chash:checksum(TblInfoCur),
     {ok, RingHashPrev} = leo_redundant_manager_chash:checksum(TblInfoPrev),
     {ok, {RingHashCur, RingHashPrev}};
+checksum(?CHECKSUM_WORKER) ->
+    leo_redundant_manager_worker:checksum();
 checksum(_) ->
     {error, invalid_type}.
 
