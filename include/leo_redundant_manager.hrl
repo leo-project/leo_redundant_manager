@@ -89,8 +89,11 @@
 %% Checksum
 -define(CHECKSUM_RING,   'ring').
 -define(CHECKSUM_MEMBER, 'member').
+-define(CHECKSUM_WORKER, 'worker').
 
--type(checksum_type() :: ?CHECKSUM_RING | ?CHECKSUM_MEMBER).
+-type(checksum_type() :: ?CHECKSUM_RING |
+                         ?CHECKSUM_MEMBER |
+                         ?CHECKSUM_WORKER).
 
 
 %% Default
