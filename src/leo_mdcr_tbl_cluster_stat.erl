@@ -17,6 +17,10 @@
 %% KIND, either express or implied.  See the License for the
 %% specific language governing permissions and limitations
 %% under the License.
+%%
+%% @doc The multi-datacenter cluster status talble's operation
+%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_mdcr_tbl_cluster_stat.erl]
+%% @end
 %%======================================================================
 -module(leo_mdcr_tbl_cluster_stat).
 -author('Yosuke Hara').
@@ -37,8 +41,9 @@
 
 %% @doc Create a table of system-configutation
 %%
--spec(create_table(mnesia_copies(), [atom()]) ->
-             ok | {error, any()}).
+-spec(create_table(Mode, Nodes) ->
+             ok | {error, any()} when Mode::mnesia_copies(),
+                                      Nodes::[atom()]).
 create_table(Mode, Nodes) ->
     case mnesia:create_table(
            ?TBL_CLUSTER_STAT,
@@ -63,7 +68,9 @@ create_table(Mode, Nodes) ->
 %% @doc Retrieve system configuration by cluster-id
 %%
 -spec(all() ->
-             {ok, [#?CLUSTER_STAT{}]} | not_found | {error, any()}).
+             {ok, [#?CLUSTER_STAT{}]} |
+             not_found |
+             {error, any()}).
 all() ->
     Tbl = ?TBL_CLUSTER_STAT,
     case catch mnesia:table_info(Tbl, all) of
@@ -81,8 +88,10 @@ all() ->
 
 %% @doc Retrieve system configuration by cluster-id
 %%
--spec(get(atom()) ->
-             {ok, #?CLUSTER_STAT{}} | not_found | {error, any()}).
+-spec(get(ClusterId) ->
+             {ok, #?CLUSTER_STAT{}} |
+             not_found |
+             {error, any()} when ClusterId::atom()).
 get(ClusterId) ->
     Tbl = ?TBL_CLUSTER_STAT,
     case catch mnesia:table_info(Tbl, all) of
@@ -105,8 +114,10 @@ get(ClusterId) ->
 
 %% @doc Retrieve system configuration by State
 %%
--spec(find_by_state(atom()) ->
-             {ok, #?CLUSTER_STAT{}} | not_found | {error, any()}).
+-spec(find_by_state(State) ->
+             {ok, #?CLUSTER_STAT{}} |
+             not_found |
+             {error, any()} when State::atom()).
 find_by_state(State) ->
     Tbl = ?TBL_CLUSTER_STAT,
     case catch mnesia:table_info(Tbl, all) of
@@ -130,8 +141,10 @@ find_by_state(State) ->
 
 %% @doc Retrieve system configuration by cluster-id
 %%
--spec(find_by_cluster_id(atom()) ->
-             {ok, #?CLUSTER_STAT{}} | not_found | {error, any()}).
+-spec(find_by_cluster_id(ClusterId) ->
+             {ok, #?CLUSTER_STAT{}} |
+             not_found |
+             {error, any()} when ClusterId::atom()).
 find_by_cluster_id(ClusterId) ->
     Tbl = ?TBL_CLUSTER_STAT,
     case catch mnesia:table_info(Tbl, all) of
@@ -155,8 +168,8 @@ find_by_cluster_id(ClusterId) ->
 
 %% @doc Modify system-configuration
 %%
--spec(update(#?CLUSTER_STAT{}) ->
-             ok | {error, any()}).
+-spec(update(ClusterStat) ->
+             ok | {error, any()} when ClusterStat::#?CLUSTER_STAT{}).
 update(ClusterStat) ->
     Tbl = ?TBL_CLUSTER_STAT,
     case catch mnesia:table_info(Tbl, all) of
@@ -170,8 +183,8 @@ update(ClusterStat) ->
 
 %% @doc Remove a cluster-status
 %%
--spec(delete(atom()) ->
-             ok | {error, any()}).
+-spec(delete(ClusterId) ->
+             ok | {error, any()} when ClusterId::atom()).
 delete(ClusterId) ->
     Tbl = ?TBL_CLUSTER_STAT,
     case ?MODULE:get(ClusterId) of
@@ -199,8 +212,8 @@ checksum() ->
             Error
     end.
 
--spec(checksum(atom()) ->
-             {ok, pos_integer()} | {error, any()}).
+-spec(checksum(ClusterId) ->
+             {ok, pos_integer()} | {error, any()} when ClusterId::atom()).
 checksum(ClusterId) ->
     case find_by_cluster_id(ClusterId) of
         {ok, Vals} ->

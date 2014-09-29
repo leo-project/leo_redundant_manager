@@ -20,7 +20,9 @@
 %%
 %% ---------------------------------------------------------------------
 %% Leo Redundant Manager - Membership (REMOTE)
-%% @doc
+%%
+%% @doc The membership operation with remote-cluster(s)
+%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_membership_cluster_remote.erl]
 %% @end
 %%======================================================================
 -module(leo_membership_cluster_remote).
@@ -65,20 +67,25 @@
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the server
+%% @doc Start the server
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE,
                           [?DEF_MEMBERSHIP_INTERVAL], []).
 
+%% @doc Stop the server
 stop() ->
     gen_server:call(?MODULE, stop, 30000).
 
 
+%% @doc Start the heartbeat operation
 -spec(heartbeat() -> ok | {error, any()}).
 heartbeat() ->
     gen_server:cast(?MODULE, heartbeat).
 
+%% @doc Force the info to synchronize with the remote-cluster(s)
+-spec(force_sync(ClusterId, RemoteManagers) ->
+             ok when ClusterId::atom(),
+                     RemoteManagers::[atom()]).
 force_sync(ClusterId, RemoteManagers) ->
     gen_server:call(?MODULE, {force_sync, ClusterId, RemoteManagers}).
 
@@ -86,17 +93,13 @@ force_sync(ClusterId, RemoteManagers) ->
 %%--------------------------------------------------------------------
 %% GEN_SERVER CALLBACKS
 %%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State}          |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
+%% @doc Initiates the server
 init([Interval]) ->
     defer_heartbeat(Interval),
     {ok, #state{interval  = Interval,
                 timestamp = 0}}.
 
-
+%% @doc gen_server callback - Module:handle_call(Request, From, State) -> Result
 handle_call(stop,_From,State) ->
     {stop, normal, ok, State};
 
@@ -108,10 +111,10 @@ handle_call({force_sync, ClusterId, RemoteManagers},_From, State) ->
     {reply, ok, State}.
 
 
-%% Function: handle_cast(Msg, State) -> {noreply, State}          |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
+%% @doc Handling cast message
+%% <p>
+%% gen_server callback - Module:handle_cast(Request, State) -> Result.
+%% </p>
 handle_cast(heartbeat, State) ->
     case catch maybe_heartbeat(State) of
         {'EXIT', _Reason} ->
@@ -120,25 +123,23 @@ handle_cast(heartbeat, State) ->
             {noreply, NewState}
     end.
 
-%% Function: handle_info(Info, State) -> {noreply, State}          |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
+%% @doc Handling all non call/cast messages
+%% <p>
+%% gen_server callback - Module:handle_info(Info, State) -> Result.
+%% </p>
 handle_info(_Info, State) ->
     {noreply, State}.
 
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
+%% @doc This function is called by a gen_server when it is about to
+%%      terminate. It should be the opposite of Module:init/1 and do any necessary
+%%      cleaning up. When it returns, the gen_server terminates with Reason.
 terminate(_Reason, _State) ->
     ok.
 
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
+%% @doc Convert process state when code is changed
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
 
 %%--------------------------------------------------------------------
 %% INTERNAL FUNCTIONS

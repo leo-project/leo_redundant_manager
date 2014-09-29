@@ -18,6 +18,9 @@
 %% specific language governing permissions and limitations
 %% under the License.
 %%
+%% @doc The multi-datacenter cluster manager talble's operation
+%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_mdcr_tbl_cluster_mgr.erl]
+%% @end
 %%======================================================================
 -module(leo_mdcr_tbl_cluster_mgr).
 -author('Yosuke Hara').
@@ -37,8 +40,9 @@
 
 %% @doc Create a table of system-configutation
 %%
--spec(create_table(mnesia_copies(), [atom()]) ->
-             ok | {error, any()}).
+-spec(create_table(Mode, Node) ->
+             ok | {error, any()} when Mode::mnesia_copies(),
+                                      Node::[atom()]).
 create_table(Mode, Nodes) ->
     case mnesia:create_table(
            ?TBL_CLUSTER_MGR,
@@ -80,8 +84,10 @@ all() ->
 
 %% @doc Retrieve system configuration by cluster-id
 %%
--spec(get(atom()) ->
-             {ok, [#cluster_manager{}]} | not_found | {error, any()}).
+-spec(get(ClusterId) ->
+             {ok, [#cluster_manager{}]} |
+             not_found |
+             {error, any()} when ClusterId::atom()).
 get(ClusterId) ->
     Tbl = ?TBL_CLUSTER_MGR,
     case catch mnesia:table_info(Tbl, all) of
@@ -99,8 +105,8 @@ get(ClusterId) ->
 
 %% @doc Modify system-configuration
 %%
--spec(update(#cluster_manager{}) ->
-             ok | {error, any()}).
+-spec(update(ClusterMgr) ->
+             ok | {error, any()} when ClusterMgr::#cluster_manager{}).
 update(ClusterMgr) ->
     Tbl = ?TBL_CLUSTER_MGR,
     case catch mnesia:table_info(Tbl, all) of
@@ -114,8 +120,8 @@ update(ClusterMgr) ->
 
 %% @doc Remove system-configuration
 %%
--spec(delete(atom()) ->
-             ok | {error, any()}).
+-spec(delete(ClusterId) ->
+             ok | {error, any()} when ClusterId::atom()).
 delete(ClusterId) ->
     Tbl = ?TBL_CLUSTER_MGR,
     case ?MODULE:get(ClusterId) of
@@ -137,8 +143,8 @@ delete_1([Value|Rest], Tbl) ->
 
 %% @doc Remove a node by a node-name
 %%
--spec(delete_by_node(atom()) ->
-             ok | not_found | {error, any()}).
+-spec(delete_by_node(Node) ->
+             ok | not_found | {error, any()} when Node::atom()).
 delete_by_node(Node) ->
     Tbl = ?TBL_CLUSTER_MGR,
     case catch mnesia:table_info(Tbl, all) of
@@ -187,14 +193,14 @@ size() ->
 
 %% @doc Synchronize records
 %%
--spec(synchronize(list()) ->
-             ok | {error, any()}).
-synchronize(Vals) ->
-    case synchronize_1(Vals) of
+-spec(synchronize(ValL) ->
+             ok | {error, any()} when ValL::[#cluster_manager{}]).
+synchronize(ValL) ->
+    case synchronize_1(ValL) of
         ok ->
             case all() of
-                {ok, CurVals} ->
-                    ok = synchronize_2(CurVals, Vals);
+                {ok, CurValL} ->
+                    ok = synchronize_2(CurValL, ValL);
                 _ ->
                     void
             end;

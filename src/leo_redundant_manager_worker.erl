@@ -134,7 +134,7 @@ last(Table) ->
     gen_server:call(?MODULE, {last, Table}, ?DEF_TIMEOUT).
 
 
-%% @doc Force RING synchronize with the manager-node
+%% @doc Force RING to synchronize with the manager-node
 -spec(force_sync(Table) ->
              ok |
              {error, invalid_table} when Table::atom()).

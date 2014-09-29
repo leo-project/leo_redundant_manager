@@ -18,6 +18,9 @@
 %% specific language governing permissions and limitations
 %% under the License.
 %%
+%% @doc The multi-datacenter cluster talble synchronizer
+%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_mdcr_tbl_sync.erl]
+%% @end
 %%======================================================================
 -module(leo_mdcr_tbl_sync).
 
@@ -65,15 +68,16 @@
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the server
+%% @doc Start the server
 start_link(ServerType, Managers) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE,
                           [ServerType, Managers, ?DEF_MEMBERSHIP_INTERVAL], []).
 
+%% @doc Stop the server
 stop() ->
     gen_server:call(?MODULE, stop, ?DEF_TIMEOUT).
 
+%% @doc Force the records synchronize with the remote cluster(s)
 force_sync() ->
     gen_server:call(?MODULE, force_sync, ?DEF_TIMEOUT).
 
@@ -81,18 +85,14 @@ force_sync() ->
 %%--------------------------------------------------------------------
 %% GEN_SERVER CALLBACKS
 %%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State}          |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
+%% @doc Initiates the server
 init([ServerType, Managers, Interval]) ->
     {ok, #state{
             server_type = ServerType,
             managers = Managers,
             interval = Interval}, Interval}.
 
-
+%% @doc gen_server callback - Module:handle_call(Request, From, State) -> Result
 handle_call(stop,_From,State) ->
     {stop, normal, ok, State};
 
@@ -101,18 +101,18 @@ handle_call(force_sync,_From, #state{managers = Managers} = State) ->
     {reply, ok, State}.
 
 
-%% Function: handle_cast(Msg, State) -> {noreply, State}          |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
+%% @doc Handling cast message
+%% <p>
+%% gen_server callback - Module:handle_cast(Request, State) -> Result.
+%% </p>
 handle_cast(_, #state{interval = Interval} = State) ->
     {noreply, State, Interval}.
 
 
-%% Function: handle_info(Info, State) -> {noreply, State}          |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
+%% @doc Handling all non call/cast messages
+%% <p>
+%% gen_server callback - Module:handle_info(Info, State) -> Result.
+%% </p>
 handle_info(timeout, #state{server_type = ServerType,
                             managers = Managers,
                             interval = Interval} = State) ->
@@ -129,16 +129,14 @@ handle_info(_Info, #state{interval = Interval} = State) ->
     {noreply, State, Interval}.
 
 
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
+%% @doc This function is called by a gen_server when it is about to
+%%      terminate. It should be the opposite of Module:init/1 and do any necessary
+%%      cleaning up. When it returns, the gen_server terminates with Reason.
 terminate(_Reason, _State) ->
     ok.
 
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
+
+%% @doc Convert process state when code is changed
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
