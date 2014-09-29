@@ -22,15 +22,12 @@
 -module(leo_cluster_tbl_sync_behaviour).
 -author('Yosuke Hara').
 
-%% @doc Synchronize bad items with records of a manager node
 -callback(synchronize(HashType::atom(), list()) ->
                  ok | {error, any()}).
 
 -callback(synchronize(BadItems::list(atom()), Node_1::atom(), Node_2::atom()) ->
                  ok | {error, any()}).
 
-
-%% @doc Notify a message to a manager
 -callback(notify(sync, VNodeId::pos_integer(), Node::atom()) ->
                  ok | {error, any()}).
 -callback(notify(error, Node_1::atom(), Node_2::atom(), Error::any()) ->
