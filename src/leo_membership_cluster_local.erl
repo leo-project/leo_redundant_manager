@@ -279,7 +279,6 @@ exec_1(?SERVER_MANAGER = ServerType, Managers, [{Node, State}|T], Callback) ->
                       false -> SleepTime
                   end,
     timer:sleep(SleepTime_1),
-
     case State of
         ?STATE_RUNNING ->
             case is_function(Callback) of

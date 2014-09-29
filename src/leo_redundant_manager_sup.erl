@@ -87,7 +87,7 @@ start_link(ServerType, Managers, MQStoragePath, Conf, MembershipCallback) ->
 
             %% Launch membership for local-cluster,
             %% then lunch mdc-tables sync
-            case start_link_3(ServerType, Managers, MembershipCallback) of
+            case start_link_3(ServerType_1, Managers, MembershipCallback) of
                 ok ->
                     ok = leo_membership_mq_client:start(ServerType_1, MQStoragePath),
                     ok = leo_membership_cluster_local:start_heartbeat(),

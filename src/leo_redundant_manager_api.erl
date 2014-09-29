@@ -533,7 +533,6 @@ get_redundancies_by_addr_id(Method, AddrId) ->
 -spec(get_redundancies_by_addr_id_1({_,atom()}, integer(), [_]) ->
              {ok, #redundancies{}} | {error, any()}).
 get_redundancies_by_addr_id_1(TblInfo, AddrId, Options) ->
-    %% @TODO
     N = leo_misc:get_value(?PROP_N, Options),
     R = leo_misc:get_value(?PROP_R, Options),
     W = leo_misc:get_value(?PROP_W, Options),

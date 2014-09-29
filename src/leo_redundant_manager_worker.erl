@@ -444,8 +444,10 @@ gen_routing_table(#sync_info{target = Target} = SyncInfo, State) ->
 -spec(gen_routing_table_1([]|[{integer(),atom(),integer()}],
                           #sync_info{}, #ring_conf{}, #state{}) ->
              {ok, #ring_info{}} | {error, any()}).
-gen_routing_table_1([], #sync_info{target = Target}, #ring_conf{index_list = IdxAcc,
-                                                                checksum   = Checksum}, State) ->
+gen_routing_table_1([], #sync_info{target = Target},
+                    #ring_conf{index_list = IdxAcc,
+                               checksum   = Checksum},
+                    #state{num_of_replicas = NumOfReplicas} = State) ->
     IdxAcc_1 = lists:reverse(IdxAcc),
     Members = case Target of
                   ?SYNC_TARGET_RING_CUR  -> (State#state.cur )#ring_info.members;
@@ -461,6 +463,13 @@ gen_routing_table_1([], #sync_info{target = Target}, #ring_conf{index_list = Idx
                       {ok, #redundancies{vnode_id_to = To_2}} ->
                           To_2
                   end,
+    case check_redandancies(NumOfReplicas, IdxAcc_1) of
+        ok ->
+            void;
+        _ ->
+            timer:apply_after(250, ?MODULE,
+                              force_sync, [?sync_target_to_table(Target)])
+    end,
     {ok, #ring_info{
             checksum        = Checksum,
             ring_group_list = IdxAcc_1,
@@ -565,6 +574,36 @@ gen_routing_table_2(#redundancies{nodes = Nodes}, #ring_conf{id = Id,
                                group_id = GrpId + 1,
                                from_addr_id = AddrId + 1,
                                table_list = [VNodeId_Nodes|TblAcc]}
+    end.
+
+
+%% @doc Check to satisfy the number of replicas
+%% @private
+-spec(check_redandancies(NumOfReplicas, Ring) ->
+             ok | {error, any()} when NumOfReplicas::pos_integer(),
+                                      Ring::[#ring_group{}]).
+check_redandancies(_,[]) ->
+    ok;
+check_redandancies(NumOfReplicas, [#ring_group{vnodeid_nodes_list = Ring}|Rest]) ->
+    case check_redandancies_1(NumOfReplicas, Ring) of
+        ok ->
+            check_redandancies(NumOfReplicas, Rest);
+        {error, Cause} ->
+            {error, Cause}
+    end.
+
+%% @private
+-spec(check_redandancies_1(NumOfReplicas, VNodesL) ->
+             ok | {error, invalid_redundancies} when NumOfReplicas::pos_integer(),
+                                                     VNodesL::[#vnodeid_nodes{}]).
+check_redandancies_1(_,[]) ->
+    ok;
+check_redandancies_1(NumOfReplicas, [#vnodeid_nodes{nodes = VNodes}|Rest]) ->
+    case (NumOfReplicas =< length(VNodes)) of
+        true ->
+            check_redandancies_1(NumOfReplicas, Rest);
+        false ->
+            {error, invalid_redundancies}
     end.
 
 

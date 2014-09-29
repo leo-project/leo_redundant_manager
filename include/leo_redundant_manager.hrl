@@ -170,11 +170,19 @@
             ?SYNC_TARGET_RING_PREV -> ?VER_PREV
         end).
 
+-define(sync_target_to_table(_Target),
+        case _Target of
+            ?SYNC_TARGET_RING_CUR  -> ?RING_TBL_CUR;
+            ?SYNC_TARGET_RING_PREV -> ?RING_TBL_PREV
+        end).
+
 -define(ring_table(_VER),
         case _VER of
             ?VER_CUR  -> ?RING_TBL_CUR;
             ?VER_PREV -> ?RING_TBL_PREV
         end).
+
+
 
 %% Synchronization
 -define(SYNC_TARGET_BOTH,      'both').
