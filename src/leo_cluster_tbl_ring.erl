@@ -17,6 +17,10 @@
 %% KIND, either express or implied.  See the License for the
 %% specific language governing permissions and limitations
 %% under the License.
+%%
+%% @doc The cluster ring table's operation
+%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_cluster_tbl_ring.erl]
+%% @end
 %%======================================================================
 -module(leo_cluster_tbl_ring).
 -author('Yosuke Hara').
@@ -36,11 +40,14 @@
 
 %% @doc create ring-current table
 %%
--spec(create_table_current(mnesia_copies()) ->
-             ok).
+-spec(create_table_current(Mode) ->
+             ok when Mode::mnesia_copies()).
 create_table_current(Mode) ->
     create_table_current(Mode, [erlang:node()]).
 
+-spec(create_table_current(Mode, Nodes) ->
+             ok when Mode::mnesia_copies(),
+                     Nodes::[atom()]).
 create_table_current(Mode, Nodes) ->
     case mnesia:create_table(
            ?RING_TBL_CUR,
@@ -63,11 +70,14 @@ create_table_current(Mode, Nodes) ->
 
 %% @doc create ring-prev table
 %%
--spec(create_table_prev(mnesia_copies()) ->
-             ok).
+-spec(create_table_prev(Mode) ->
+             ok when Mode::mnesia_copies()).
 create_table_prev(Mode) ->
     create_table_prev(Mode, [erlang:node()]).
 
+-spec(create_table_prev(Mode, Nodes) ->
+             ok when Mode::mnesia_copies(),
+                     Nodes::[atom()]).
 create_table_prev(Mode, Nodes) ->
     mnesia:create_table(
       ?RING_TBL_PREV,
@@ -99,10 +109,13 @@ create_table_for_test(Mode, Nodes, Table) ->
       ]).
 
 
-%% Retrieve a record by key from the table
+%% @doc Retrieve a record by key from the table
 %%
--spec(lookup({?DB_MNESIA|?DB_ETS, atom()}, integer()) ->
-             #?RING{} | not_found | {error, any()}).
+-spec(lookup(TableInfo, VNodeId) ->
+             #?RING{} |
+             not_found |
+             {error, any()} when TableInfo::table_info(),
+                                 VNodeId::integer()).
 lookup({?DB_MNESIA, Table}, VNodeId) ->
     case catch mnesia:ets(fun ets:lookup/2, [Table, VNodeId]) of
         [Ring|_] ->
@@ -126,8 +139,9 @@ lookup({?DB_ETS, Table}, VNodeId) ->
 
 %% @doc Insert a record into the table
 %%
--spec(insert({?DB_MNESIA|?DB_ETS, atom()}, #ring{}|#ring_0_16_8{}|tuple()) ->
-             ok | {error, any()}).
+-spec(insert(TableInfo, Ring) ->
+             ok | {error, any()} when TableInfo::table_info(),
+                                      Ring::#ring{}|#ring_0_16_8{}|tuple()).
 insert({?DB_MNESIA, Table}, Ring) when is_record(Ring, ring);
                                        is_record(Ring, ring_0_16_8) ->
     Fun = fun() -> mnesia:write(Table, Ring, write) end,
@@ -144,8 +158,9 @@ insert({?DB_ETS, Table}, {VNodeId, Node, Clock}) ->
 
 %% @doc Insert bulk of records into the table
 %%
--spec(bulk_insert({?DB_MNESIA|?DB_ETS, atom()}, []) ->
-             ok | {error, any()}).
+-spec(bulk_insert(TableInfo, List) ->
+             ok | {error, any()} when TableInfo::table_info(),
+                                      List::[{integer(), atom(), integer()}]).
 bulk_insert({?DB_MNESIA, Table}, List) ->
     case mnesia:transaction(
            fun() ->
@@ -183,8 +198,9 @@ bulk_insert_1(Table, [{VNodeId, Node, Clock}|Rest]) ->
 
 %% @doc Remove a record from the table
 %%
--spec(delete({?DB_MNESIA|?DB_ETS, atom()}, integer()) ->
-             ok | {error, any()}).
+-spec(delete(TableInfo, VNodeId) ->
+             ok | {error, any()} when TableInfo::table_info(),
+                                      VNodeId::integer()).
 delete({?DB_MNESIA, Table} = TableInfo, VNodeId) ->
     case lookup(TableInfo, VNodeId) of
         {error, Cause} ->
@@ -204,8 +220,9 @@ delete({?DB_ETS, Table}, VNodeId) ->
 
 %% @doc Remove bulk of records from the table
 %%
--spec(bulk_delete({?DB_MNESIA|?DB_ETS,_}, [integer()]) ->
-             ok | {error, any()}).
+-spec(bulk_delete(TableInfo, List) ->
+             ok | {error, any()} when TableInfo::table_info(),
+                                      List::[integer()]).
 bulk_delete({?DB_MNESIA,_} = TableInfo, List) ->
     case mnesia:transaction(
            fun() ->
@@ -248,8 +265,8 @@ bulk_delete_1({_, Table} = TableInfo, [VNodeId|Rest]) ->
 
 %% @doc Retrieve a first record from the table
 %%
--spec(first({?DB_MNESIA|?DB_ETS, atom()}) ->
-             integer() | '$end_of_table').
+-spec(first(TableInfo) ->
+             integer() | '$end_of_table' when TableInfo::table_info()).
 first({?DB_MNESIA, Table}) ->
     mnesia:ets(fun ets:first/1, [Table]);
 first({?DB_ETS, Table}) ->
@@ -258,8 +275,8 @@ first({?DB_ETS, Table}) ->
 
 %% @doc Retrieve a last record from the table
 %%
--spec(last({?DB_MNESIA|?DB_ETS, atom()}) ->
-             integer() | '$end_of_table').
+-spec(last(TableInfo) ->
+             integer() | '$end_of_table' when TableInfo::table_info()).
 last({?DB_MNESIA, Table}) ->
     mnesia:ets(fun ets:last/1, [Table]);
 last({?DB_ETS, Table}) ->
@@ -268,8 +285,9 @@ last({?DB_ETS, Table}) ->
 
 %% @doc Retrieve a previous record from the table
 %%
--spec(prev({?DB_MNESIA|?DB_ETS, atom()}, integer()) ->
-             integer() | '$end_of_table').
+-spec(prev(TableInfo, VNodeId) ->
+             integer() | '$end_of_table' when TableInfo::table_info(),
+                                              VNodeId::integer()).
 prev({?DB_MNESIA, Table}, VNodeId) ->
     mnesia:ets(fun ets:prev/2, [Table, VNodeId]);
 prev({?DB_ETS, Table}, VNodeId) ->
@@ -288,8 +306,8 @@ next({?DB_ETS, Table}, VNodeId) ->
 
 %% @doc Remove all objects from the table
 %%
--spec(delete_all({?DB_MNESIA|?DB_ETS, atom()}) ->
-             ok).
+-spec(delete_all(TableInfo) ->
+             ok when TableInfo::table_info()).
 delete_all({?DB_MNESIA, Table}) ->
     true = mnesia:ets(fun ets:delete_all_objects/1, [Table]),
     ok;
@@ -300,8 +318,8 @@ delete_all({?DB_ETS, Table}) ->
 
 %% @doc Retrieve total of records
 %%
--spec(size({?DB_MNESIA|?DB_ETS, atom()}) ->
-             integer()).
+-spec(size(TableInfo) ->
+             integer() when TableInfo::table_info()).
 size({?DB_MNESIA, Table}) ->
     mnesia:ets(fun ets:info/2, [Table, size]);
 size({?DB_ETS, Table}) ->
@@ -310,8 +328,8 @@ size({?DB_ETS, Table}) ->
 
 %% @doc Retrieve list from the table
 %%
--spec(tab2list({?DB_MNESIA|?DB_ETS, atom()}) ->
-             [tuple()]|[#?RING{}]|{error, any()}).
+-spec(tab2list(TableInfo) ->
+             [tuple()]|[#?RING{}]|{error, any()} when TableInfo::table_info()).
 tab2list({?DB_MNESIA, Table}) ->
     case mnesia:ets(fun ets:tab2list/1, [Table]) of
         [] ->
@@ -331,8 +349,8 @@ tab2list({?DB_ETS, Table}) ->
 
 %% @doc Overwrite current records by source records
 %%
--spec(overwrite({?DB_MNESIA|?DB_ETS, atom()}, {?DB_MNESIA|?DB_ETS, atom()}) ->
-             ok | {error, any()}).
+-spec(overwrite(TableInfo, TableInfo) ->
+             ok | {error, any()} when TableInfo::table_info()).
 overwrite(SrcTableInfo, DestTableInfo) ->
     case ?MODULE:tab2list(SrcTableInfo) of
         {error, Cause} ->

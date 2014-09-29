@@ -17,6 +17,10 @@
 %% KIND, either express or implied.  See the License for the
 %% specific language governing permissions and limitations
 %% under the License.
+%%
+%% @doc The cluster member table operation
+%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_cluster_tbl_member.erl]
+%% @end
 %%======================================================================
 -module(leo_cluster_tbl_member).
 -author('Yosuke Hara').
@@ -57,18 +61,22 @@
 -endif.
 
 
-%% @doc create member table.
+%% @doc Create the member table.
 %%
--spec(create_table(member_table()) -> ok).
+-spec(create_table(Table) ->
+             ok when Table::member_table()).
 create_table(Table) ->
     catch ets:new(Table, [named_table, set, public, {read_concurrency, true}]),
     ok.
 
--spec(create_table(mnesia_copies(), [atom()], member_table()) -> ok).
-create_table(Mode, Nodes, Table) ->
+-spec(create_table(DiscCopy, Nodes, Table) ->
+             ok when DiscCopy::mnesia_copies(),
+                     Nodes::[atom()],
+                     Table::member_table()).
+create_table(DiscCopy, Nodes, Table) ->
     case mnesia:create_table(
            Table,
-           [{Mode, Nodes},
+           [{DiscCopy, Nodes},
             {type, set},
             {record_name, member},
             {attributes, record_info(fields, member)},
@@ -94,18 +102,27 @@ create_table(Mode, Nodes, Table) ->
 
 %% @doc Retrieve a record by key from the table.
 %%
--spec(lookup(atom()) ->
-             {ok, #member{}} | not_found | {error, any()}).
+-spec(lookup(Node) ->
+             {ok, #member{}} |
+             not_found |
+             {error, any()} when Node::atom()).
 lookup(Node) ->
     lookup(?MEMBER_TBL_CUR, Node).
 
--spec(lookup(atom(), atom()) ->
-             {ok, #member{}} | not_found | {error, any()}).
+-spec(lookup(Table, Node) ->
+             {ok, #member{}} |
+             not_found |
+             {error, any()} when Table::atom(),
+                                 Node::atom()).
 lookup(Table, Node) ->
     lookup(?table_type(), Table, Node).
 
--spec(lookup(?DB_ETS|?DB_MNESIA, atom(), atom()) ->
-             {ok, #member{}} | not_found | {error, any()}).
+-spec(lookup(DBType, Table, Node) ->
+             {ok, #member{}} |
+             not_found |
+             {error, any()} when DBType::?DB_ETS|?DB_MNESIA,
+                                 Table::atom(),
+                                 Node::atom()).
 lookup(?DB_MNESIA, Table, Node) ->
     case catch mnesia:ets(fun ets:lookup/2, [Table, Node]) of
         [H|_T] ->
@@ -139,13 +156,18 @@ lookup(_,_,_) ->
 find_all() ->
     find_all(?MEMBER_TBL_CUR).
 
--spec(find_all(member_table()) ->
-             {ok, [#member{}]} | not_found | {error, any()}).
+-spec(find_all(Table) ->
+             {ok, [#member{}]} |
+             not_found |
+             {error, any()} when Table::member_table()).
 find_all(Table) ->
     find_all(?table_type(), Table).
 
--spec(find_all(?DB_ETS|?DB_MNESIA, member_table()) ->
-             {ok, [#member{}]} | not_found | {error, any()}).
+-spec(find_all(DBType, Table) ->
+             {ok, [#member{}]} |
+             not_found |
+             {error, any()} when DBType::?DB_ETS|?DB_MNESIA,
+                                 Table::member_table()).
 find_all(?DB_MNESIA, Table) ->
     F = fun() ->
                 Q1 = qlc:q([X || X <- mnesia:table(Table)]),
@@ -171,18 +193,27 @@ find_all(_,_) ->
 
 %% @doc Retrieve members by status
 %%
--spec(find_by_status(atom()) ->
-             {ok, [#member{}]} | not_found | {error, any()}).
+-spec(find_by_status(Status) ->
+             {ok, [#member{}]} |
+             not_found |
+             {error, any()} when Status::atom()).
 find_by_status(Status) ->
     find_by_status(?MEMBER_TBL_CUR, Status).
 
--spec(find_by_status(member_table(), atom()) ->
-             {ok, [#member{}]} | not_found | {error, any()}).
+-spec(find_by_status(Table, Status) ->
+             {ok, [#member{}]} |
+             not_found |
+             {error, any()} when Table::member_table(),
+                                 Status::atom()).
 find_by_status(Table, Status) ->
     find_by_status(?table_type(), Table, Status).
 
--spec(find_by_status(?DB_ETS|?DB_MNESIA, member_table(), atom()) ->
-             {ok, [#member{}]} | not_found | {error, any()}).
+-spec(find_by_status(DBType, Table, Status) ->
+             {ok, [#member{}]} |
+             not_found |
+             {error, any()} when DBType::?DB_ETS|?DB_MNESIA,
+                                 Table::member_table(),
+                                 Status::atom()).
 find_by_status(?DB_MNESIA, Table, St0) ->
     F = fun() ->
                 Q = qlc:q([X || X <- mnesia:table(Table),
@@ -210,18 +241,30 @@ find_by_status(_,_,_) ->
 
 %% @doc Retrieve records by L1 and L2
 %%
--spec(find_by_level1(atom(), atom()) ->
-             {ok, list()} | not_found | {error, any()}).
+-spec(find_by_level1(L1, L2) ->
+             {ok, list()} |
+             not_found |
+             {error, any()} when L1::atom(),
+                                 L2::atom()).
 find_by_level1(L1, L2) ->
     find_by_level1(?MEMBER_TBL_CUR, L1, L2).
 
--spec(find_by_level1(member_table(), atom(), atom()) ->
-             {ok, list()} | not_found | {error, any()}).
+-spec(find_by_level1(Table, L1, L2) ->
+             {ok, list()} |
+             not_found |
+             {error, any()} when Table::member_table(),
+                                 L1::atom(),
+                                 L2::atom()).
 find_by_level1(Table, L1, L2) ->
     find_by_level1(?table_type(), Table, L1, L2).
 
--spec(find_by_level1(?DB_ETS|?DB_MNESIA, member_table(), atom(), atom()) ->
-             {ok, list()} | not_found | {error, any()}).
+-spec(find_by_level1(DBType, Table, L1, L2) ->
+             {ok, list()} |
+             not_found |
+             {error, any()} when DBType::?DB_ETS|?DB_MNESIA,
+                                 Table::member_table(),
+                                 L1::atom(),
+                                 L2::atom()).
 find_by_level1(?DB_MNESIA, Table, L1, L2) ->
     F = fun() ->
                 Q = qlc:q([X || X <- mnesia:table(Table),
@@ -252,18 +295,27 @@ find_by_level1(_,_,_,_) ->
 
 %% @doc Retrieve records by L2
 %%
--spec(find_by_level2(atom()) ->
-             {ok, list()} | not_found | {error, any()}).
+-spec(find_by_level2(L2) ->
+             {ok, list()} |
+             not_found |
+             {error, any()} when L2::atom()).
 find_by_level2(L2) ->
     find_by_level2(?MEMBER_TBL_CUR, L2).
 
--spec(find_by_level2(member_table(), atom()) ->
-             {ok, list()} | not_found | {error, any()}).
+-spec(find_by_level2(Table, L2) ->
+             {ok, list()} |
+             not_found |
+             {error, any()} when Table::member_table(),
+                                 L2::atom()).
 find_by_level2(Table, L2) ->
     find_by_level2(?table_type(), Table, L2).
 
--spec(find_by_level2(?DB_ETS|?DB_MNESIA, member_table(), atom()) ->
-             {ok, list()} | not_found | {error, any()}).
+-spec(find_by_level2(DBType, Table, L2) ->
+             {ok, list()} |
+             not_found |
+             {error, any()} when DBType::?DB_ETS|?DB_MNESIA,
+                                 Table::member_table(),
+                                 L2::atom()).
 find_by_level2(?DB_MNESIA, Table, L2) ->
     F = fun() ->
                 Q = qlc:q([X || X <- mnesia:table(Table),
@@ -291,18 +343,27 @@ find_by_level2(_,_,_) ->
 
 %% @doc Retrieve records by alias
 %%
--spec(find_by_alias(string()) ->
-             {ok, list()} | not_found | {error, any()}).
+-spec(find_by_alias(Alias) ->
+             {ok, list()} |
+             not_found |
+             {error, any()} when Alias::string()).
 find_by_alias(Alias) ->
     find_by_alias(?MEMBER_TBL_CUR, Alias).
 
--spec(find_by_alias(atom(), string()) ->
-             {ok, list()} | not_found | {error, any()}).
+-spec(find_by_alias(Table, Alias) ->
+             {ok, list()} |
+             not_found |
+             {error, any()} when Table::atom(),
+                                 Alias::string()).
 find_by_alias(Table, Alias) ->
     find_by_alias(?table_type(), Table, Alias).
 
--spec(find_by_alias(?DB_MNESIA|?DB_ETS, atom(), string()) ->
-             {ok, list()} | not_found | {error, any()}).
+-spec(find_by_alias(DBType, Table, Alias) ->
+             {ok, list()} |
+             not_found |
+             {error, any()} when DBType::?DB_MNESIA|?DB_ETS,
+                                 Table::atom(),
+                                 Alias::string()).
 find_by_alias(?DB_MNESIA, Table, Alias) ->
     F = fun() ->
                 Q = qlc:q([X || X <- mnesia:table(Table),
@@ -330,13 +391,20 @@ find_by_alias(_,_,_) ->
 
 %% @doc Retrieve records by name
 %%
--spec(find_by_name(atom(), atom()) ->
-             {ok, list()} | not_found | {error, any()}).
+-spec(find_by_name(Table, Name) ->
+             {ok, list()} |
+             not_found |
+             {error, any()} when Table::atom(),
+                                 Name::atom()).
 find_by_name(Table, Name) ->
     find_by_name(?table_type(), Table, Name).
 
--spec(find_by_name(?DB_MNESIA|?DB_ETS, atom(), atom()) ->
-             {ok, list()} | not_found | {error, any()}).
+-spec(find_by_name(DBType, Table, Name) ->
+             {ok, list()} |
+             not_found |
+             {error, any()} when DBType::?DB_MNESIA|?DB_ETS,
+                                 Table::atom(),
+                                 Name::atom()).
 find_by_name(?DB_MNESIA, Table, Name) ->
     F = fun() ->
                 Q = qlc:q([X || X <- mnesia:table(Table),
@@ -364,18 +432,24 @@ find_by_name(_,_,_) ->
 
 %% @doc Insert a record into the table.
 %%
--spec(insert({atom(), #member{}}) ->
-             ok | {error, any}).
+-spec(insert(Record) ->
+             ok | {error, any} when Record::{atom(),
+                                             #member{}}).
 insert({Node, Member}) ->
     insert(?MEMBER_TBL_CUR, {Node, Member}).
 
--spec(insert(member_table(), {atom(), #member{}}) ->
-             ok | {error, any}).
+-spec(insert(Table, Record) ->
+             ok | {error, any} when Table::member_table(),
+                                    Record::{atom(),
+                                             #member{}}).
 insert(Table, {Node, Member}) ->
     insert(?table_type(), Table, {Node, Member}).
 
--spec(insert(?DB_ETS|?DB_MNESIA, member_table(), {atom(), #member{}}) ->
-             ok | {error, any}).
+-spec(insert(DBType, Table, Record) ->
+             ok | {error, any} when DBType::?DB_ETS|?DB_MNESIA,
+                                    Table::member_table(),
+                                    Record::{atom(),
+                                             #member{}}).
 insert(?DB_MNESIA, Table, {_, Member}) ->
     Fun = fun() -> mnesia:write(Table, Member, write) end,
     leo_mnesia:write(Fun);
@@ -392,18 +466,21 @@ insert(_,_,_) ->
 
 %% @doc Remove a record from the table.
 %%
--spec(delete(atom()) ->
-             ok | {error, any}).
+-spec(delete(Node) ->
+             ok | {error, any} when Node::atom()).
 delete(Node) ->
     delete(?MEMBER_TBL_CUR, Node).
 
--spec(delete(member_table(), atom()) ->
-             ok | {error, any}).
+-spec(delete(Table, Node) ->
+             ok | {error, any} when Table::member_table(),
+                                    Node::atom()).
 delete(Table, Node) ->
     delete(?table_type(), Table, Node).
 
--spec(delete(?DB_ETS|?DB_MNESIA, member_table(), atom()) ->
-             ok | {error, any}).
+-spec(delete(DBType, Table, Node) ->
+             ok | {error, any} when DBType::?DB_ETS|?DB_MNESIA,
+                                    Table::member_table(),
+                                    Node::atom()).
 delete(?DB_MNESIA, Table, Node) ->
     case lookup(?DB_MNESIA, Table, Node) of
         {ok, Member} ->
@@ -426,15 +503,16 @@ delete(_,_,_) ->
 
 
 %% @doc Remove all records
--spec(delete_all(member_table()) ->
-             ok | {error, any()}).
+-spec(delete_all(Table) ->
+             ok | {error, any()} when Table::member_table()).
 delete_all(Table) ->
     delete_all(?table_type(), Table).
 
--spec(delete_all(?DB_ETS|?DB_MNESIA, member_table()) ->
-             ok | {error, any()}).
-delete_all(?DB_MNESIA = DB, Table) ->
-    case find_all(DB, Table) of
+-spec(delete_all(DBType, Table) ->
+             ok | {error, any()} when DBType::?DB_ETS|?DB_MNESIA,
+                                      Table::member_table()).
+delete_all(?DB_MNESIA = DBType, Table) ->
+    case find_all(DBType, Table) of
         {ok, L} ->
             case mnesia:transaction(
                    fun() ->
@@ -478,18 +556,24 @@ delete_all_1([#member{node = Node}|Rest], Table) ->
 
 %% @doc Replace members into the db.
 %%
--spec(replace(list(), list()) ->
-             ok).
+-spec(replace(OldMembers, NewMembers) ->
+             ok when OldMembers::[#member{}],
+                     NewMembers::[#member{}]).
 replace(OldMembers, NewMembers) ->
     replace(?MEMBER_TBL_CUR, OldMembers, NewMembers).
 
--spec(replace(member_table(), list(), list()) ->
-             ok).
+-spec(replace(Table, OldMembers, NewMembers) ->
+             ok when Table::member_table(),
+                     OldMembers::[#member{}],
+                     NewMembers::[#member{}]).
 replace(Table, OldMembers, NewMembers) ->
     replace(?table_type(), Table, OldMembers, NewMembers).
 
--spec(replace(?DB_ETS | ?DB_MNESIA, member_table(), list(), list()) ->
-             ok).
+-spec(replace(DBType, Table, OldMembers, NewMembers) ->
+             ok when DBType::?DB_ETS | ?DB_MNESIA,
+                             Table::member_table(),
+                     OldMembers::[#member{}],
+                     NewMembers::[#member{}]).
 replace(DBType, Table, OldMembers, NewMembers) ->
     lists:foreach(fun(Item) ->
                           delete(DBType, Table, Item#member.node)
@@ -502,8 +586,9 @@ replace(DBType, Table, OldMembers, NewMembers) ->
 
 %% @doc Overwrite current records by source records
 %%
--spec(overwrite(member_table(), member_table()) ->
-             ok | {error, any()}).
+-spec(overwrite(SrcTable, DestTable) ->
+             ok | {error, any()} when SrcTable::member_table(),
+                                      DestTable::member_table()).
 overwrite(SrcTable, DestTable) ->
     case find_all(SrcTable) of
         {error, Cause} ->
@@ -566,13 +651,14 @@ overwrite_1_1(?DB_ETS = DB, Table, [Member|Rest]) ->
 table_size() ->
     table_size(?MEMBER_TBL_CUR).
 
--spec(table_size(atom()) ->
-             integer() | {error, any()}).
+-spec(table_size(Table) ->
+             integer() | {error, any()} when Table::atom()).
 table_size(Table) ->
     table_size(?table_type(), Table).
 
--spec(table_size(?DB_ETS|?DB_MNESIA, atom()) ->
-             integer() | {error, any()}).
+-spec(table_size(DBType, Table) ->
+             integer() | {error, any()} when DBType::?DB_ETS|?DB_MNESIA,
+                                             Table::atom()).
 table_size(?DB_MNESIA, Table) ->
     case mnesia:ets(fun ets:info/2, [Table, size]) of
         undefined ->
@@ -598,13 +684,14 @@ table_size(_,_) ->
 tab2list() ->
     tab2list(?MEMBER_TBL_CUR).
 
--spec(tab2list(member_table()) ->
-             list() | {error, any()}).
+-spec(tab2list(Table) ->
+             list() | {error, any()} when Table::member_table()).
 tab2list(Table) ->
     tab2list(?table_type(), Table).
 
--spec(tab2list(?DB_ETS|?DB_MNESIA, member_table()) ->
-             list() | {error, any()}).
+-spec(tab2list(DBType, Table) ->
+             list() | {error, any()} when DBType::?DB_ETS|?DB_MNESIA,
+                                          Table::member_table()).
 tab2list(?DB_MNESIA, Table) ->
     case mnesia:ets(fun ets:tab2list/1, [Table]) of
         [] ->
@@ -625,14 +712,15 @@ tab2list(_,_) ->
 
 
 %% Go to first record
--spec(first(atom()) ->
-             atom() | '$end_of_table').
+-spec(first(Table) ->
+             atom() | '$end_of_table' when Table::atom()).
 first(Table) ->
     first(?table_type(), Table).
 
 %% @private
--spec(first(?DB_MNESIA|?DB_ETS, atom()) ->
-             atom() | '$end_of_table').
+-spec(first(DBType, Table) ->
+             atom() | '$end_of_table' when DBType::?DB_MNESIA|?DB_ETS,
+                                           Table::atom()).
 first(?DB_MNESIA, Table) ->
     mnesia:ets(fun ets:first/1, [Table]);
 first(?DB_ETS, Table) ->
@@ -640,14 +728,17 @@ first(?DB_ETS, Table) ->
 
 
 %% Go to next record
--spec(next(atom(), atom()) ->
-             atom() | '$end_of_table').
+-spec(next(Table, MemberName) ->
+             atom() | '$end_of_table' when Table::atom(),
+                                           MemberName::atom()).
 next(Table, MemberName) ->
     next(?table_type(), Table, MemberName).
 
 %% @private
--spec(next(?DB_MNESIA|?DB_ETS, atom(), atom()) ->
-             atom() | '$end_of_table').
+-spec(next(DBType, Table, MemberName) ->
+             atom() | '$end_of_table' when DBType::?DB_MNESIA|?DB_ETS,
+                                           Table::atom(),
+                                           MemberName::atom()).
 next(?DB_MNESIA, Table, MemberName) ->
     mnesia:ets(fun ets:next/2, [Table, MemberName]);
 next(?DB_ETS, Table, MemberName) ->
@@ -661,8 +752,8 @@ next(?DB_ETS, Table, MemberName) ->
 transform() ->
     transform([]).
 
--spec(transform(list(atom())) ->
-             ok | {error, any()}).
+-spec(transform(MnesiaNodes) ->
+             ok | {error, any()} when MnesiaNodes::[atom()]).
 transform(MnesiaNodes) ->
     OldTbl  = 'leo_members',
     NewTbls = [?MEMBER_TBL_CUR, ?MEMBER_TBL_PREV],

@@ -54,6 +54,8 @@
 
 -define(DB_ETS,    'ets').
 -define(DB_MNESIA, 'mnesia').
+-type(table_info() :: {?DB_MNESIA, atom()} |
+                      {?DB_ETS,    atom()}).
 
 %% Member tables
 -define(MEMBER_TBL_CUR,  'leo_members_cur').

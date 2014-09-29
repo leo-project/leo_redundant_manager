@@ -20,7 +20,9 @@
 %%
 %% ---------------------------------------------------------------------
 %% Leo Redundant Manager - API
-%% @doc
+%%
+%% @doc leo_redaundant_manager's API
+%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_redundant_manager_api.erl]
 %% @end
 %%======================================================================
 -module(leo_redundant_manager_api).
@@ -1072,7 +1074,7 @@ force_sync_workers() ->
     ok.
 
 
-%% Retrieve local cluster's status
+%% @doc Retrieve local cluster's status
 -spec(get_cluster_status() ->
              {ok, #?CLUSTER_STAT{}} | not_found).
 get_cluster_status() ->
