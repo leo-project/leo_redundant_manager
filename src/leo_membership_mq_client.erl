@@ -20,7 +20,9 @@
 %%
 %% ---------------------------------------------------------------------
 %% Leo Redundant Manager - Membership's MQ Client.
-%% @doc
+%%
+%% @doc The membership operation's messsage-queues client
+%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_membership_mq_client.erl]
 %% @end
 %%======================================================================
 -module(leo_membership_mq_client).
@@ -67,8 +69,9 @@
 %%--------------------------------------------------------------------
 %% @doc create queues and launch mq-servers.
 %%
--spec(start(type_of_server(), string()) ->
-             ok | {error, any()}).
+-spec(start(ServerType, RootPath) ->
+             ok | {error, any()} when ServerType::type_of_server(),
+                                      RootPath::string()).
 start(?SERVER_MANAGER, RootPath) ->
     start1(?MQ_INSTANCE_ID_MANAGER, RootPath);
 start(?SERVER_GATEWAY, RootPath) ->
@@ -94,21 +97,35 @@ start1(InstanceId, RootPath0) ->
     ok.
 
 
-%% @doc publish a message into the queue.
+%% @doc Publish a message into the queue.
 %%
--spec(publish(atom(), atom(), any()) ->
-             ok | {error, any()}).
-publish(TypeOfServer, Node, Error) ->
-    publish(TypeOfServer, Node, Error, 1).
+-spec(publish(ServerType, Node, Error) ->
+             ok | {error, any()} when ServerType::atom(),
+                                      Node::atom(),
+                                      Error::any()).
+publish(ServerType, Node, Error) ->
+    publish(ServerType, Node, Error, 1).
 
-publish(TypeOfServer, Node, Error, Times) ->
+%% @doc Publish a message into the queue.
+%%
+-spec(publish(ServerType, Node, Error, Times) ->
+             ok | {error, any()} when ServerType::atom(),
+                                      Node::atom(),
+                                      Error::any(),
+                                      Times::non_neg_integer()).
+publish(ServerType, Node, Error, Times) ->
     KeyBin     = term_to_binary(Node),
     MessageBin = term_to_binary(#message{node = Node,
                                          error = Error,
                                          times = Times,
                                          published_at = leo_date:now()}),
-    publish(TypeOfServer, {KeyBin, MessageBin}).
+    publish(ServerType, {KeyBin, MessageBin}).
 
+%% @doc Publish a message into the queue.
+%%
+-spec(publish(ServerType, KeyAndMessage) ->
+             ok | {error, any()} when ServerType::atom(),
+                                      KeyAndMessage::{binary(),binary()}).
 publish(manager, {KeyBin, MessageBin}) ->
     leo_mq_api:publish(?MQ_INSTANCE_ID_MANAGER, KeyBin, MessageBin);
 publish(gateway, {KeyBin, MessageBin}) ->
@@ -136,8 +153,9 @@ init() ->
 
 %% @doc Publish callback function
 %%
--spec(handle_call({publish | consume, any(), any()}) ->
-             ok).
+-spec(handle_call({publish | consume, Id, Reply}) ->
+             ok when Id::any(),
+                     Reply::any()).
 handle_call({publish, _Id, _Reply}) ->
     ok;
 

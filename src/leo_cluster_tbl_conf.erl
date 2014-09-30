@@ -17,6 +17,10 @@
 %% KIND, either express or implied.  See the License for the
 %% specific language governing permissions and limitations
 %% under the License.
+%%
+%% @doc The cluster conf table's operation
+%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_cluster_tbl_conf.erl]
+%% @end
 %%======================================================================
 -module(leo_cluster_tbl_conf).
 -author('Yosuke Hara').
@@ -34,10 +38,11 @@
         ]).
 
 
-%% @doc Create a table of system-configutation
+%% @doc Create the system-configutation table
 %%
--spec(create_table(mnesia_copies(), [atom()]) ->
-             ok | {error, any()}).
+-spec(create_table(Mode, Nodes) ->
+             ok | {error, any()} when Mode::mnesia_copies(),
+                                      Nodes::[atom()]).
 create_table(Mode, Nodes) ->
     case mnesia:create_table(
            ?TBL_SYSTEM_CONF,
@@ -111,8 +116,10 @@ get_1(Other) ->
 
 %% @doc Retrieve a system configuration
 %%
--spec(find_by_ver(pos_integer()) ->
-             {ok, #?SYSTEM_CONF{}} | not_found | {error, any()}).
+-spec(find_by_ver(Ver) ->
+             {ok, #?SYSTEM_CONF{}} |
+             not_found |
+             {error, any()} when Ver::pos_integer()).
 find_by_ver(Ver) ->
     Tbl = ?TBL_SYSTEM_CONF,
     case catch mnesia:table_info(Tbl, all) of
@@ -132,8 +139,8 @@ find_by_ver(Ver) ->
 
 %% @doc Modify a system-configuration
 %%
--spec(update(#?SYSTEM_CONF{}) ->
-             ok | {error, any()}).
+-spec(update(SystemConfig) ->
+             ok | {error, any()} when SystemConfig::#?SYSTEM_CONF{}).
 update(SystemConfig) ->
     Tbl = ?TBL_SYSTEM_CONF,
     case catch mnesia:table_info(Tbl, all) of
@@ -147,8 +154,8 @@ update(SystemConfig) ->
 
 %% @doc Remove a system-configuration
 %%
--spec(delete(#?SYSTEM_CONF{}) ->
-             ok | {error, any()}).
+-spec(delete(SystemConfig) ->
+             ok | {error, any()} when SystemConfig::#?SYSTEM_CONF{}).
 delete(SystemConfig) ->
     Tbl = ?TBL_SYSTEM_CONF,
     case catch mnesia:table_info(Tbl, all) of
@@ -179,14 +186,14 @@ checksum() ->
 
 %% @doc Synchronize records
 %%
--spec(synchronize(list()) ->
-             ok | {error, any()}).
-synchronize(Vals) ->
-    case synchronize_1(Vals) of
+-spec(synchronize(ValL) ->
+             ok | {error, any()} when ValL::[#?SYSTEM_CONF{}]).
+synchronize(ValL) ->
+    case synchronize_1(ValL) of
         ok ->
             case all() of
-                {ok, CurVals} ->
-                    ok = synchronize_2(CurVals, Vals);
+                {ok, CurValL} ->
+                    ok = synchronize_2(CurValL, ValL);
                 _ ->
                     void
             end;

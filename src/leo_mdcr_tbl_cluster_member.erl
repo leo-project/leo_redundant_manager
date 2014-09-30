@@ -18,6 +18,9 @@
 %% specific language governing permissions and limitations
 %% under the License.
 %%
+%% @doc The multi-datacenter cluster member table's operation
+%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_mdcr_tbl_cluster_member.erl]
+%% @end
 %%======================================================================
 -module(leo_mdcr_tbl_cluster_member).
 -author('Yosuke Hara').
@@ -41,8 +44,9 @@
 
 %% @doc Create a table of system-configutation
 %%
--spec(create_table(mnesia_copies(), [atom()]) ->
-             ok | {error, any()}).
+-spec(create_table(Mode, Nodes) ->
+             ok | {error, any()} when Mode::mnesia_copies(),
+                                      Nodes::[atom()]).
 create_table(Mode, Nodes) ->
     case mnesia:create_table(
            ?TBL_CLUSTER_MEMBER,
@@ -91,8 +95,10 @@ all() ->
 
 %% @doc Retrieve members by cluster-id
 %%
--spec(get(atom()) ->
-             {ok, [#?CLUSTER_MEMBER{}]} | not_found | {error, any()}).
+-spec(get(ClusterId) ->
+             {ok, [#?CLUSTER_MEMBER{}]} |
+             not_found |
+             {error, any()} when ClusterId::atom()).
 get(ClusterId) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
     case catch mnesia:table_info(Tbl, all) of
@@ -111,8 +117,11 @@ get(ClusterId) ->
 
 %% @doc Retrieve members by cluseter-id and state
 %%
--spec(find_by_state(atom(), node_state()) ->
-             {ok, list(#?CLUSTER_MEMBER{})} | not_found | {error, any()}).
+-spec(find_by_state(ClusterId, State) ->
+             {ok, list(#?CLUSTER_MEMBER{})} |
+             not_found |
+             {error, any()} when ClusterId::atom(),
+                                 State::node_state()).
 find_by_state(ClusterId, State) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
     case catch mnesia:table_info(Tbl, all) of
@@ -133,8 +142,10 @@ find_by_state(ClusterId, State) ->
 
 %% @doc Retrieve a member by a node
 %%
--spec(find_by_node(atom())->
-             {ok, #?CLUSTER_MEMBER{}} | not_found | {error, any()}).
+-spec(find_by_node(Node)->
+             {ok, #?CLUSTER_MEMBER{}} |
+             not_found |
+             {error, any()} when Node::atom()).
 find_by_node(Node) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
     case catch mnesia:table_info(Tbl, all) of
@@ -160,8 +171,11 @@ find_by_node_1(Other) ->
 
 %% @doc Retrieve members by limit
 %%
--spec(find_by_limit(atom(), pos_integer()) ->
-             {ok, list(#?CLUSTER_MEMBER{})} | not_found | {error, any()}).
+-spec(find_by_limit(ClusterId, Rows) ->
+             {ok, list(#?CLUSTER_MEMBER{})} |
+             not_found |
+             {error, any()} when ClusterId::atom(),
+                                 Rows::pos_integer()).
 find_by_limit(ClusterId, Rows) ->
     case find_by_state(ClusterId, ?STATE_RUNNING) of
         {ok, List} when Rows >= length(List) ->
@@ -175,8 +189,11 @@ find_by_limit(ClusterId, Rows) ->
 
 %% @doc Retrieve members by limit
 %%
--spec(find_by_limit_with_rnd(atom(), pos_integer()) ->
-             {ok, list(#?CLUSTER_MEMBER{})} | not_found | {error, any()}).
+-spec(find_by_limit_with_rnd(ClusterId, Rows) ->
+             {ok, list(#?CLUSTER_MEMBER{})} |
+             not_found |
+             {error, any()} when ClusterId::atom(),
+                                 Rows::pos_integer()).
 find_by_limit_with_rnd(ClusterId, Rows) ->
     case find_by_state(ClusterId, ?STATE_RUNNING) of
         {ok, List} ->
@@ -206,8 +223,10 @@ find_by_limit_with_rnd_1(List, Rows, Acc) ->
 
 %% @doc Retrieve members by cluster-id
 %%
--spec(find_by_cluster_id(atom()) ->
-             {ok, list(#?CLUSTER_MEMBER{})} | not_found | {error, any()}).
+-spec(find_by_cluster_id(ClusterId) ->
+             {ok, list(#?CLUSTER_MEMBER{})} |
+             not_found |
+             {error, any()} when ClusterId::atom()).
 find_by_cluster_id(ClusterId) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
     case catch mnesia:table_info(Tbl, all) of
@@ -227,8 +246,8 @@ find_by_cluster_id(ClusterId) ->
 
 %% @doc Modify a member
 %%
--spec(update(#?CLUSTER_MEMBER{}) ->
-             ok | {error, any()}).
+-spec(update(Member) ->
+             ok | {error, any()} when Member::#?CLUSTER_MEMBER{}).
 update(Member) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
     case catch mnesia:table_info(Tbl, all) of
@@ -242,8 +261,8 @@ update(Member) ->
 
 %% @doc Remove members by cluster-id
 %%
--spec(delete(atom()) ->
-             ok | {error, any()}).
+-spec(delete(ClusterId) ->
+             ok | {error, any()} when ClusterId::atom()).
 delete(ClusterId) ->
     case ?MODULE:get(ClusterId) of
         {ok, Members} ->
@@ -267,6 +286,8 @@ delete_1([Value|Rest], Tbl) ->
 
 %% @doc Remove a member by a node
 %%
+-spec(delete_by_node(Node) ->
+             ok | {error, any()} when Node::atom()).
 delete_by_node(Node) ->
     Tbl = ?TBL_CLUSTER_MEMBER,
     case find_by_node(Node) of
@@ -280,7 +301,6 @@ delete_by_node(Node) ->
         Error ->
             Error
     end.
-
 
 
 %% @doc Retrieve a checksum by cluster-id
@@ -297,8 +317,8 @@ checksum() ->
             Error
     end.
 
--spec(checksum(atom()) ->
-             {ok, pos_integer()} | {error, any()}).
+-spec(checksum(ClusterId) ->
+             {ok, pos_integer()} | {error, any()} when ClusterId::atom()).
 checksum(ClusterId) ->
     case find_by_cluster_id(ClusterId) of
         {ok, Vals} ->
@@ -320,14 +340,14 @@ size() ->
 
 %% @doc Synchronize records
 %%
--spec(synchronize([#?CLUSTER_MEMBER{}]) ->
-             ok | {error, any()}).
-synchronize(Vals) ->
-    case synchronize_1(Vals) of
+-spec(synchronize(ValL) ->
+             ok | {error, any()} when ValL::[#?CLUSTER_MEMBER{}]).
+synchronize(ValL) ->
+    case synchronize_1(ValL) of
         ok ->
             case all() of
-                {ok, CurVals} ->
-                    ok = synchronize_2(CurVals, Vals);
+                {ok, CurValL} ->
+                    ok = synchronize_2(CurValL, ValL);
                 _ ->
                     void
             end;

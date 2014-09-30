@@ -18,6 +18,9 @@
 %% specific language governing permissions and limitations
 %% under the License.
 %%
+%% @doc The multi-datacenter cluster info table's operation
+%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_mdcr_tbl_cluster_info.erl]
+%% @end
 %%======================================================================
 -module(leo_mdcr_tbl_cluster_info).
 -author('Yosuke Hara').
@@ -38,8 +41,9 @@
 
 %% @doc Create a table of configuration of clusters
 %%
--spec(create_table(mnesia_copies(), [atom()]) ->
-             ok | {error, any()}).
+-spec(create_table(Mode, Nodes) ->
+             ok | {error, any()} when Mode::mnesia_copies(),
+                                      Nodes::[atom()]).
 create_table(Mode, Nodes) ->
     case mnesia:create_table(
            ?TBL_CLUSTER_INFO,
@@ -88,8 +92,10 @@ all() ->
 
 %% @doc Retrieve a configuration of remote-clusters by cluster-id
 %%
--spec(get(atom()) ->
-             {ok, #?CLUSTER_INFO{}} | not_found | {error, any()}).
+-spec(get(ClusterId) ->
+             {ok, #?CLUSTER_INFO{}} |
+             not_found |
+             {error, any()} when ClusterId::atom()).
 get(ClusterId) ->
     Tbl = ?TBL_CLUSTER_INFO,
     case catch mnesia:table_info(Tbl, all) of
@@ -112,8 +118,10 @@ get(ClusterId) ->
 
 %% @doc Retrieve records by limit
 %%
--spec(find_by_limit(pos_integer()) ->
-             {ok, #?CLUSTER_INFO{}} | not_found | {error, any()}).
+-spec(find_by_limit(Rows) ->
+             {ok, #?CLUSTER_INFO{}} |
+             not_found |
+             {error, any()} when Rows::pos_integer()).
 find_by_limit(Rows) ->
     find_by_limit(Rows, []).
 
@@ -158,8 +166,8 @@ find_by_limit(Rows, ClusterId, Acc) ->
 
 %% @doc Modify a configuration of a cluster
 %%
--spec(update(#?CLUSTER_INFO{}) ->
-             ok | {error, any()}).
+-spec(update(ClusterInfo) ->
+             ok | {error, any()} when ClusterInfo::#?CLUSTER_INFO{}).
 update(ClusterInfo) ->
     Tbl = ?TBL_CLUSTER_INFO,
 
@@ -174,8 +182,8 @@ update(ClusterInfo) ->
 
 %% @doc Remove a configuration of a cluster
 %%
--spec(delete(atom()) ->
-             ok | {error, any()}).
+-spec(delete(ClusterId) ->
+             ok | {error, any()} when ClusterId::atom()).
 delete(ClusterId) ->
     Tbl = ?TBL_CLUSTER_INFO,
 
@@ -215,14 +223,14 @@ size() ->
 
 %% @doc Synchronize records
 %%
--spec(synchronize(list()) ->
-             ok | {error, any()}).
-synchronize(Vals) ->
-    case synchronize_1(Vals) of
+-spec(synchronize(ValL) ->
+             ok | {error, any()} when ValL::[#?CLUSTER_INFO{}]).
+synchronize(ValL) ->
+    case synchronize_1(ValL) of
         ok ->
             case all() of
-                {ok, CurVals} ->
-                    ok = synchronize_2(CurVals, Vals);
+                {ok, CurValL} ->
+                    ok = synchronize_2(CurValL, ValL);
                 _ ->
                     void
             end;

@@ -59,6 +59,7 @@ setup() ->
     S = os:cmd("pwd"),
     Path = string:substr(S, 1, length(S) -1) ++ "/db",
 
+    catch leo_redundant_manager_sup:stop(),
     application:start(mnesia),
     {Mgr0, Node0, Path}.
 

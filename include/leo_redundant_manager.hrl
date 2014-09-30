@@ -54,6 +54,8 @@
 
 -define(DB_ETS,    'ets').
 -define(DB_MNESIA, 'mnesia').
+-type(table_info() :: {?DB_MNESIA, atom()} |
+                      {?DB_ETS,    atom()}).
 
 %% Member tables
 -define(MEMBER_TBL_CUR,  'leo_members_cur').
@@ -73,14 +75,15 @@
 -type(ring_table_info() :: {ring_table(), ?RING_TBL_CUR} |
                            {ring_table(), ?RING_TBL_PREV}).
 
--define(WORKER_POOL_NAME_PREFIX, "leo_redundant_manager_worker_").
+-define(WORKER_POOL_NAME,        'leo_redundant_manager_worker').
+-define(WORKER_POOL_NAME_PREFIX, lists:append([atom_to_list(?WORKER_POOL_NAME), "_"])).
 
 -define(RING_WORKER_POOL_NAME, 'ring_worker_pool').
 -ifdef(TEST).
 -define(RING_WORKER_POOL_SIZE, 1).
 -define(RING_WORKER_POOL_BUF,  0).
 -else.
--define(RING_WORKER_POOL_SIZE, 8).
+-define(RING_WORKER_POOL_SIZE, 1).
 -define(RING_WORKER_POOL_BUF,  0).
 -endif.
 
@@ -88,8 +91,11 @@
 %% Checksum
 -define(CHECKSUM_RING,   'ring').
 -define(CHECKSUM_MEMBER, 'member').
+-define(CHECKSUM_WORKER, 'worker').
 
--type(checksum_type()   :: ?CHECKSUM_RING  | ?CHECKSUM_MEMBER).
+-type(checksum_type() :: ?CHECKSUM_RING |
+                         ?CHECKSUM_MEMBER |
+                         ?CHECKSUM_WORKER).
 
 
 %% Default
@@ -151,6 +157,7 @@
             ?VER_CUR  -> ?MEMBER_TBL_CUR;
             ?VER_PREV -> ?MEMBER_TBL_PREV
         end).
+
 -define(ring_table_to_member_table(_Tbl),
         case _Tbl of
             {_, ?RING_TBL_CUR} ->
@@ -158,11 +165,26 @@
             {_, ?RING_TBL_PREV} ->
                 ?MEMBER_TBL_PREV
         end).
+
 -define(sync_target_to_ver(_Target),
         case _Target of
             ?SYNC_TARGET_RING_CUR  -> ?VER_CUR;
             ?SYNC_TARGET_RING_PREV -> ?VER_PREV
         end).
+
+-define(sync_target_to_table(_Target),
+        case _Target of
+            ?SYNC_TARGET_RING_CUR  -> ?RING_TBL_CUR;
+            ?SYNC_TARGET_RING_PREV -> ?RING_TBL_PREV
+        end).
+
+-define(ring_table(_VER),
+        case _VER of
+            ?VER_CUR  -> ?RING_TBL_CUR;
+            ?VER_PREV -> ?RING_TBL_PREV
+        end).
+
+
 
 %% Synchronization
 -define(SYNC_TARGET_BOTH,      'both').
@@ -499,4 +521,17 @@
                 _Mod;
             undefined = Ret ->
                 Ret
+        end).
+
+%% @doc Retrieve the log-directory for the ring
+-define(log_dir(),
+        begin
+            case application:get_env(leo_redundant_manager, log_dir_ring) of
+                undefined -> ?DEF_LOG_DIR_RING;
+                {ok, _Dir} ->
+                    case (string:len(_Dir) == string:rstr(_Dir, "/")) of
+                        true  -> _Dir;
+                        false -> _Dir ++ "/"
+                    end
+            end
         end).

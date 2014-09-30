@@ -20,7 +20,9 @@
 %%
 %% ---------------------------------------------------------------------
 %% Leo Redundant Manager - Consistent Hashing
-%% @doc
+%%
+%% @doc The consistent-hashing implementation
+%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_redundant_manager_chash.erl]
 %% @end
 %%======================================================================
 -module(leo_redundant_manager_chash).
@@ -32,7 +34,7 @@
 
 -export([add/2, add_from_list/2,
          remove/2, remove_from_list/2,
-         redundancies/3, range_of_vnodes/2, rebalance/1,
+         redundancies/2, range_of_vnodes/2, rebalance/1,
          checksum/1, vnode_id/1, vnode_id/2]).
 -export([export/2]).
 
@@ -44,11 +46,12 @@
 %%====================================================================
 %% @doc Add a node.
 %%
--spec(add({atom(),atom()}, #member{}) ->
-             ok | {error, any()}).
-add(Table, Member) ->
+-spec(add(TableInfo, Member) ->
+             ok | {error, any()} when TableInfo::table_info(),
+                                      Member::#member{}).
+add(TableInfo, Member) ->
     {ok, List} = add_1(0, Member, []),
-    leo_cluster_tbl_ring:bulk_insert(Table, List).
+    leo_cluster_tbl_ring:bulk_insert(TableInfo, List).
 
 %% @private
 add_1(N, #member{num_of_vnodes = N}, Acc) ->
@@ -61,9 +64,9 @@ add_1(N, #member{alias = Alias,
 
 
 %% @doc Insert recods from the list
-add_from_list(Table, Members) ->
+add_from_list(TableInfo, Members) ->
     {ok, List} = add_from_list_1(Members, []),
-    leo_cluster_tbl_ring:bulk_insert(Table, List).
+    leo_cluster_tbl_ring:bulk_insert(TableInfo, List).
 
 %% @private
 add_from_list_1([], Acc) ->
@@ -75,11 +78,12 @@ add_from_list_1([Member|Rest], Acc) ->
 
 %% @doc Remove a node.
 %%
--spec(remove({atom(),atom()}, #member{}) ->
-             ok | {error, any()}).
-remove(Table, Member) ->
+-spec(remove(TableInfo, Member) ->
+             ok | {error, any()} when TableInfo::table_info(),
+                                      Member::#member{}).
+remove(TableInfo, Member) ->
     {ok, List} = remove_1(0, Member, []),
-    leo_cluster_tbl_ring:bulk_delete(Table, List).
+    leo_cluster_tbl_ring:bulk_delete(TableInfo, List).
 
 %% @private
 remove_1(N, #member{num_of_vnodes = N}, Acc) ->
@@ -90,9 +94,12 @@ remove_1(N, #member{alias = Alias} = Member, Acc) ->
 
 
 %% @doc Remove recods from the list
-remove_from_list(Table, Members) ->
+-spec(remove_from_list(TableInfo, Members) ->
+             ok | {error, any()} when TableInfo::table_info(),
+                                      Members::[#member{}]).
+remove_from_list(TableInfo, Members) ->
     {ok, List} = remove_from_list_1(Members, []),
-    leo_cluster_tbl_ring:bulk_delete(Table, List).
+    leo_cluster_tbl_ring:bulk_delete(TableInfo, List).
 
 %% @private
 remove_from_list_1([], Acc) ->
@@ -104,30 +111,30 @@ remove_from_list_1([Member|Rest], Acc) ->
 
 %% @doc Retrieve redundancies by vnode-id.
 %%
--spec(redundancies(atom(), {_,atom()}, integer()) ->
-             {ok, #redundancies{}} | not_found).
-redundancies(ServerRef, {_,Table}, VNodeId) ->
-    leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId).
+-spec(redundancies(TableInfo, VNodeId) ->
+             {ok, #redundancies{}} | not_found when TableInfo::table_info(),
+                                                    VNodeId::integer()).
+redundancies({_,Table}, VNodeId) ->
+    leo_redundant_manager_worker:lookup(Table, VNodeId).
 
 
 %% @doc Execute rebalance
 %% @private
--spec(rebalance(#rebalance{}) ->
-             {ok, []}).
+-spec(rebalance(RebalanceInfo) ->
+             {ok, []} when RebalanceInfo::#rebalance{}).
 rebalance(RebalanceInfo) ->
     #rebalance{tbl_cur  = TblInfoCur,
                tbl_prev = TblInfoPrev} = RebalanceInfo,
 
     %% force sync worker's ring
-    ServerRef = leo_redundant_manager_api:get_server_id(),
     {_, TblNameCur } = TblInfoCur,
     {_, TblNamePrev} = TblInfoPrev,
 
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, TblNameCur),
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, TblNamePrev),
+    ok = leo_redundant_manager_worker:force_sync(TblNameCur),
+    ok = leo_redundant_manager_worker:force_sync(TblNamePrev),
 
     %% retrieve different node between current and previous ring
-    rebalance_1(ServerRef, RebalanceInfo, 0, []).
+    rebalance_1(RebalanceInfo, 0, []).
 
 %% @doc Retrieve diffrences between current-ring and prev-ring
 %% case-1:
@@ -139,7 +146,7 @@ rebalance(RebalanceInfo) ->
 %% prev-ring: |...------E------|2^128, 0|------F...
 %%
 %% @private
-rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
+rebalance_1(RebalanceInfo, AddrId, Acc) ->
     #rebalance{tbl_cur      = TblInfoCur,
                members_cur  = MembersCur,
                members_prev = MembersPrev} = RebalanceInfo,
@@ -152,8 +159,7 @@ rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
 
     {ok, #redundancies{vnode_id_to = PrevVNodeIdTo,
                        nodes = PrevNodes}} =
-        leo_redundant_manager_worker:redundancies(
-          ServerRef, TblInfo, AddrId, MembersPrev),
+        leo_redundant_manager_worker:redundancies(TblInfo, AddrId, MembersPrev),
 
     {VNodeIdTo, CurNodes} =
         case (PrevLastVNodeId > CurLastVNodeId andalso
@@ -161,13 +167,13 @@ rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
             true ->
                 %% case-2
                 {ok, #redundancies{nodes = CurNodes_1}} =
-                    leo_redundant_manager_worker:first(ServerRef, TblNameCur),
+                    leo_redundant_manager_worker:first(TblNameCur),
                 {PrevVNodeIdTo, CurNodes_1};
             false ->
                 %% case-1
                 {ok, #redundancies{vnode_id_to = CurVNodeIdTo,
                                    nodes = CurNodes_1}} =
-                    leo_redundant_manager_worker:lookup(ServerRef, TblNameCur,  AddrId),
+                    leo_redundant_manager_worker:lookup(TblNameCur,  AddrId),
                 {CurVNodeIdTo, CurNodes_1}
         end,
 
@@ -199,7 +205,7 @@ rebalance_1(ServerRef, RebalanceInfo, AddrId, Acc) ->
         true ->
             {ok, lists:reverse(Acc_1)};
         false  ->
-            rebalance_1(ServerRef, RebalanceInfo, NewVNodeIdTo, Acc_1)
+            rebalance_1(RebalanceInfo, NewVNodeIdTo, Acc_1)
     end.
 
 
@@ -215,10 +221,10 @@ rebalance_1_1(VNodeIdTo, SrcNode, [DestNode|Rest], Acc) ->
 
 %% @doc Retrieve ring-checksum
 %%
--spec(checksum({atom(), atom()}) ->
-             {ok, integer()}).
-checksum(Table) ->
-    case catch leo_cluster_tbl_ring:tab2list(Table) of
+-spec(checksum(TableInfo) ->
+             {ok, integer()} when TableInfo::table_info()).
+checksum(TableInfo) ->
+    case catch leo_cluster_tbl_ring:tab2list(TableInfo) of
         {'EXIT', _Cause} ->
             {ok, -1};
         [] ->
@@ -230,8 +236,8 @@ checksum(Table) ->
 
 %% @doc Retrieve virtual-node-id
 %%
--spec(vnode_id(Key::any()) ->
-             integer()).
+-spec(vnode_id(Key) ->
+             integer() when Key::any()).
 vnode_id(Key) ->
     vnode_id(?MD5, Key).
 
@@ -243,35 +249,36 @@ vnode_id(_, _) ->
 
 %% @doc Dump table to a file.
 %%
--spec(export({atom(),atom()}, string()) ->
-             ok | {error, any()}).
-export(Table, FileName) ->
-    case leo_cluster_tbl_ring:size(Table) of
+-spec(export(TableInfo, FileName) ->
+             ok | {error, any()} when TableInfo::table_info(),
+                                      FileName::string()).
+export(TableInfo, FileName) ->
+    case leo_cluster_tbl_ring:size(TableInfo) of
         0 ->
             ok;
         _ ->
-            List0 = leo_cluster_tbl_ring:tab2list(Table),
+            List0 = leo_cluster_tbl_ring:tab2list(TableInfo),
             leo_file:file_unconsult(FileName, List0)
     end.
 
 
 %% @doc Retrieve range of vnodes.
 %%
--spec(range_of_vnodes({_,atom()}, integer()) ->
-             {ok, [tuple()]}).
+-spec(range_of_vnodes(TableInfo, VNodeId) ->
+             {ok, [tuple()]} when TableInfo::table_info(),
+                                  VNodeId::integer()).
 range_of_vnodes({_,Table}, VNodeId) ->
-    ServerRef = leo_redundant_manager_api:get_server_id(),
-    range_of_vnodes_1(ServerRef, Table, VNodeId).
+    range_of_vnodes_1(Table, VNodeId).
 
-range_of_vnodes_1(ServerRef, Table, VNodeId) ->
-    case leo_redundant_manager_worker:lookup(ServerRef, Table, VNodeId) of
+range_of_vnodes_1(Table, VNodeId) ->
+    case leo_redundant_manager_worker:lookup(Table, VNodeId) of
         not_found ->
             {error, not_found};
         {ok, #redundancies{vnode_id_from = From,
                            vnode_id_to   = To}} ->
             case From of
                 0 ->
-                    case leo_redundant_manager_worker:last(ServerRef, Table) of
+                    case leo_redundant_manager_worker:last(Table) of
                         not_found ->
                             {ok, [{From, To}]};
                         {ok, #redundancies{vnode_id_to = LastId}} ->

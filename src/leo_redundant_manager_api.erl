@@ -20,7 +20,9 @@
 %%
 %% ---------------------------------------------------------------------
 %% Leo Redundant Manager - API
-%% @doc
+%%
+%% @doc leo_redaundant_manager's API
+%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_redundant_manager_api.erl]
 %% @end
 %%======================================================================
 -module(leo_redundant_manager_api).
@@ -43,7 +45,7 @@
         ]).
 %% Redundancy-related
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
-         get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2, get_redundancies_by_addr_id/3,
+         get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2,
          range_of_vnodes/1, rebalance/0,
          get_alias/2, get_alias/3, get_alias/4
         ]).
@@ -57,7 +59,6 @@
          get_cluster_status/0,
          get_cluster_tbl_checksums/0
         ]).
--export([get_server_id/0, get_server_id/1]).
 
 %% Multi-DC-replciation-related
 -export([get_remote_clusters/0, get_remote_clusters/1,
@@ -73,7 +74,9 @@
 %% @doc Create the RING
 %%
 -spec(create() ->
-             {ok, list(), list()} | {error, any()}).
+             {ok, Members, HashValues} |
+             {error, any()} when Members::[#member{}],
+                                 HashValues::[{atom(), integer()}]).
 create() ->
     case create(?VER_CUR) of
         {ok, Members, HashValues} ->
@@ -99,14 +102,20 @@ create() ->
             Error
     end.
 
--spec(create(?VER_CUR|?VER_PREV) ->
-             {ok, list(), list()} | {error, any()}).
+-spec(create(Ver) ->
+             {ok, Members, HashValues} |
+             {error, any()} when Ver::?VER_CUR|?VER_PREV,
+                                 Members::[#member{}],
+                                 HashValues::[{atom(), integer()}]).
 create(Ver) when Ver == ?VER_CUR;
                  Ver == ?VER_PREV ->
     case leo_redundant_manager:create(Ver) of
         ok ->
             case leo_cluster_tbl_member:find_all(?member_table(Ver)) of
                 {ok, Members} ->
+                    spawn(fun() ->
+                                  ok = leo_redundant_manager_worker:force_sync(?ring_table(Ver))
+                          end),
                     {ok, HashRing} = checksum(?CHECKSUM_RING),
                     ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, erlang:element(1, HashRing)),
                     {ok, HashMember} = checksum(?CHECKSUM_MEMBER),
@@ -122,13 +131,20 @@ create(_) ->
     {error, invlid_version}.
 
 
--spec(create(?VER_CUR|?VER_PREV, list()) ->
-             {ok, list(), list()} | {error, any()}).
+-spec(create(Ver, Members) ->
+             {ok, Members, HashValues} |
+             {error, any()} when Ver::?VER_CUR|?VER_PREV,
+                                 Members::[#member{}],
+                                 HashValues::[{atom(), integer()}]).
 create(Ver, Members) ->
     create(Ver, Members, []).
 
--spec(create(?VER_CUR|?VER_PREV, list(), list()) ->
-             {ok, list(), list()} | {error, any()}).
+-spec(create(Ver, Members, Options) ->
+             {ok, Members, HashValues} |
+             {error, any()} when Ver::?VER_CUR|?VER_PREV,
+                                 Members::[#member{}],
+                                 Options::[{atom(), any()}],
+                                 HashValues::[{atom(), integer()}]).
 create(Ver, [], []) ->
     create(Ver);
 create(Ver, [], Options) ->
@@ -171,8 +187,8 @@ create_1() ->
 
 %% @doc set routing-table's options.
 %%
--spec(set_options(list()) ->
-             ok).
+-spec(set_options(Options) ->
+             ok when Options::[{atom(), any()}]).
 set_options(Options) ->
     ok = leo_misc:set_env(?APP, ?PROP_OPTIONS, Options),
     ok.
@@ -181,7 +197,7 @@ set_options(Options) ->
 %% @doc get routing-table's options.
 %%
 -spec(get_options() ->
-             {ok, list()}).
+             {ok, Options} when Options::[{atom(), any()}]).
 get_options() ->
     case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         undefined ->
@@ -201,6 +217,8 @@ get_options() ->
 
 %% @doc record to tuple-list for converting system-conf
 %% @private
+-spec(record_to_tuplelist(Value) ->
+             [{atom(), any()}] when Value::any()).
 record_to_tuplelist(Value) ->
     lists:zip(
       record_info(fields, ?SYSTEM_CONF), tl(tuple_to_list(Value))).
@@ -208,24 +226,38 @@ record_to_tuplelist(Value) ->
 
 %% @doc attach a node.
 %%
--spec(attach(atom()) ->
-             ok | {error, any()}).
+-spec(attach(Node) ->
+             ok | {error, any()} when Node::atom()).
 attach(Node) ->
     attach(Node, [], leo_date:clock()).
--spec(attach(atom(), string()) ->
-             ok | {error, any()}).
+
+-spec(attach(Node, AwarenessL2) ->
+             ok | {error, any()} when Node::atom(),
+                                      AwarenessL2::string()).
 attach(Node, AwarenessL2) ->
     attach(Node, AwarenessL2, leo_date:clock()).
--spec(attach(atom(), string(), integer()) ->
-             ok | {error, any()}).
+
+-spec(attach(Node, AwarenessL2, Clock) ->
+             ok | {error, any()} when Node::atom(),
+                                      AwarenessL2::string(),
+                                      Clock::integer()).
 attach(Node, AwarenessL2, Clock) ->
     attach(Node, AwarenessL2, Clock, ?DEF_NUMBER_OF_VNODES).
--spec(attach(atom(), string(), integer(), integer()) ->
-             ok | {error, any()}).
+
+-spec(attach(Node, AwarenessL2, Clock, NumOfVNodes) ->
+             ok | {error, any()} when Node::atom(),
+                                      AwarenessL2::string(),
+                                      Clock::integer(),
+                                      NumOfVNodes::integer()).
 attach(Node, AwarenessL2, Clock, NumOfVNodes) ->
     attach(Node, AwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
--spec(attach(atom(), string(), integer(), integer(), integer()) ->
-             ok | {error, any()}).
+
+-spec(attach(Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
+             ok | {error, any()} when Node::atom(),
+                                      AwarenessL2::string(),
+                                      Clock::integer(),
+                                      NumOfVNodes::integer(),
+                                      RPCPort::integer()).
 attach(Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
     case leo_redundant_manager:attach(
            Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) of
@@ -238,18 +270,29 @@ attach(Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
 
 %% @doc reserve a node during in operation
 %%
--spec(reserve(atom(), atom(), integer()) ->
-             ok | {error, any()}).
+-spec(reserve(Node, CurState, Clock) ->
+             ok | {error, any()} when Node::atom(),
+                                      CurState::atom(),
+                                      Clock::integer()).
 reserve(Node, CurState, Clock) ->
     reserve(Node, CurState, "", Clock, 0).
 
--spec(reserve(atom(), atom(), string(), integer(), integer()) ->
-             ok | {error, any()}).
+-spec(reserve(Node,CurState, AwarenessL2, Clock, NumOfVNodes) ->
+             ok | {error, any()} when Node::atom(),
+                                      CurState::atom(),
+                                      AwarenessL2::string(),
+                                      Clock::integer(),
+                                      NumOfVNodes::integer()).
 reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes) ->
     reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
 
--spec(reserve(atom(), atom(), string(), integer(), integer(), integer()) ->
-             ok | {error, any()}).
+-spec(reserve(Node,CurState, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
+             ok | {error, any()} when Node::atom(),
+                                      CurState::atom(),
+                                      AwarenessL2::string(),
+                                      Clock::integer(),
+                                      NumOfVNodes::integer(),
+                                      RPCPort::integer()).
 reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
     case leo_redundant_manager:reserve(
            Node, CurState, AwarenessL2, Clock, NumOfVNodes, RPCPort) of
@@ -262,10 +305,14 @@ reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
 
 %% @doc detach a node.
 %%
--spec(detach(atom()) ->
-             ok | {error, any()}).
+-spec(detach(Node) ->
+             ok | {error, any()} when Node::atom()).
 detach(Node) ->
     detach(Node, leo_date:clock()).
+
+-spec(detach(Node, Clock) ->
+             ok | {error, any()} when Node::atom(),
+                                      Clock::integer()).
 detach(Node, Clock) ->
     case leo_redundant_manager:detach(Node, Clock) of
         ok ->
@@ -277,10 +324,14 @@ detach(Node, Clock) ->
 
 %% @doc suspend a node. (disable)
 %%
--spec(suspend(atom()) ->
-             ok | {error, any()}).
+-spec(suspend(Node) ->
+             ok | {error, any()} when Node::atom()).
 suspend(Node) ->
     suspend(Node, leo_date:clock()).
+
+-spec(suspend(Node, Clock) ->
+             ok | {error, any()} when Node::atom(),
+                                      Clock::integer()).
 suspend(Node, Clock) ->
     case leo_redundant_manager:suspend(Node, Clock) of
         ok ->
@@ -292,25 +343,31 @@ suspend(Node, Clock) ->
 
 %% @doc get routing_table's checksum.
 %%
--spec(checksum(?CHECKSUM_RING |?CHECKSUM_MEMBER | _) ->
-             {ok, integer()} | {ok, {integer(), integer()}} | {error, any()}).
+-spec(checksum(Type) ->
+             {ok, integer()} |
+             {ok, {integer(), integer()}} |
+             {error, any()} when Type::?CHECKSUM_RING |?CHECKSUM_MEMBER|_).
 checksum(?CHECKSUM_MEMBER = Type) ->
     leo_redundant_manager:checksum(Type);
 checksum(?CHECKSUM_RING) ->
     TblInfoCur  = table_info(?VER_CUR),
     TblInfoPrev = table_info(?VER_PREV),
-
     {ok, RingHashCur } = leo_redundant_manager_chash:checksum(TblInfoCur),
     {ok, RingHashPrev} = leo_redundant_manager_chash:checksum(TblInfoPrev),
     {ok, {RingHashCur, RingHashPrev}};
+checksum(?CHECKSUM_WORKER) ->
+    leo_redundant_manager_worker:checksum();
 checksum(_) ->
     {error, invalid_type}.
 
 
 %% @doc synchronize member-list and routing-table.
 %%
--spec(synchronize(sync_target(), [tuple()], [tuple()]) ->
-             {ok, list(tuple())} | {error, any()}).
+-spec(synchronize(SyncTarget, SyncData, Options) ->
+             {ok, [{atom(), any()}]} |
+             {error, any()} when SyncTarget::sync_target(),
+                                 SyncData::[{atom(), any()}],
+                                 Options::[{atom(), any()}]).
 synchronize(?SYNC_TARGET_BOTH, SyncData, Options) ->
     %% set configurations
     case Options of
@@ -341,8 +398,14 @@ synchronize(?SYNC_TARGET_BOTH, SyncData, Options) ->
             Error
     end.
 
--spec(synchronize(sync_target(), [tuple()]) ->
-             {ok, integer()} | {ok, list(tuple())} | {error, any()}).
+
+%% @doc synchronize member-list and routing-table.
+%%
+-spec(synchronize(SyncTarget, SyncData) ->
+             {ok, integer()} |
+             {ok, [{atom(), any()}]} |
+             {error, any()} when SyncTarget::sync_target(),
+                                 SyncData::[{atom(), any()}]).
 synchronize(?SYNC_TARGET_BOTH, SyncData) ->
     synchronize(?SYNC_TARGET_BOTH, SyncData, []);
 
@@ -358,7 +421,6 @@ synchronize(?SYNC_TARGET_MEMBER = SyncTarget, SyncData) ->
         Error ->
             Error
     end;
-
 
 synchronize(Target, []) when ?SYNC_TARGET_RING_CUR  == Target;
                              ?SYNC_TARGET_RING_PREV == Target ->
@@ -378,6 +440,7 @@ synchronize(Target, SyncData) when ?SYNC_TARGET_RING_CUR  == Target;
     end;
 synchronize(_,_) ->
     {error, invalid_target}.
+
 
 %% @private
 synchronize_1(?SYNC_TARGET_MEMBER, Ver, SyncData) ->
@@ -446,12 +509,12 @@ synchronize_1(_,_) ->
 %% @doc Retrieve Ring
 %%
 -spec(get_ring() ->
-             {ok, list()}).
+             {ok, [tuple()]}).
 get_ring() ->
     {ok, ets:tab2list(?RING_TBL_CUR)}.
 
--spec(get_ring(?SYNC_TARGET_RING_CUR | ?SYNC_TARGET_RING_PREV) ->
-             {ok, list()}).
+-spec(get_ring(SyncTarget) ->
+             {ok, [tuple()]} when SyncTarget::sync_target()).
 get_ring(?SYNC_TARGET_RING_CUR) ->
     TblInfo = table_info(?VER_CUR),
     Ring = leo_cluster_tbl_ring:tab2list(TblInfo),
@@ -464,14 +527,24 @@ get_ring(?SYNC_TARGET_RING_PREV) ->
 
 %% @doc Dump table-records.
 %%
--spec(dump(member | ring | both) ->
-             ok).
+-spec(dump(Type) ->
+             ok when Type::member|ring|both|work).
 dump(both) ->
     catch dump(member),
     catch dump(ring),
+    catch dump(work),
     ok;
+dump(work) ->
+    dump_1(?RING_WORKER_POOL_SIZE - 1);
 dump(Type) ->
     leo_redundant_manager:dump(Type).
+
+%% @private
+dump_1(-1) ->
+    ok;
+dump_1(Index) ->
+    ok = leo_redundant_manager_worker:dump(),
+    dump_1(Index - 1).
 
 
 %%--------------------------------------------------------------------
@@ -479,20 +552,22 @@ dump(Type) ->
 %%--------------------------------------------------------------------
 %% @doc Retrieve redundancies from the ring-table.
 %%
--spec(get_redundancies_by_key(binary()) ->
-             {ok, #redundancies{}} | {error, any()}).
+-spec(get_redundancies_by_key(Key) ->
+             {ok, #redundancies{}} |
+             {error, any()} when Key::binary()).
 get_redundancies_by_key(Key) ->
     get_redundancies_by_key(default, Key).
 
--spec(get_redundancies_by_key(method(), binary()) ->
-             {ok, #redundancies{}} | {error, any()}).
+-spec(get_redundancies_by_key(Method, Key) ->
+             {ok, #redundancies{}} |
+             {error, any()} when Method::method(),
+                                 Key::binary()).
 get_redundancies_by_key(Method, Key) ->
     case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
         {ok, Options} ->
             BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
             AddrId    = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
-            ServerRef = get_server_id(AddrId),
-            get_redundancies_by_addr_id_1(ServerRef, ring_table(Method), AddrId, Options);
+            get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options);
         _ ->
             {error, not_found}
     end.
@@ -500,20 +575,16 @@ get_redundancies_by_key(Method, Key) ->
 
 %% @doc Retrieve redundancies from the ring-table.
 %%
--spec(get_redundancies_by_addr_id(integer()) ->
-             {ok, #redundancies{}} | {error, any()}).
+-spec(get_redundancies_by_addr_id(AddrId) ->
+             {ok, #redundancies{}} |
+             {error, any()} when AddrId::integer()).
 get_redundancies_by_addr_id(AddrId) ->
     get_redundancies_by_addr_id(default, AddrId).
 
--spec(get_redundancies_by_addr_id(method(), integer()) ->
-             {ok, #redundancies{}} | {error, any()}).
+-spec(get_redundancies_by_addr_id(Method, AddrId) ->
+             {ok, #redundancies{}} |
+             {error, any()} when Method::method(), AddrId::integer()).
 get_redundancies_by_addr_id(Method, AddrId) ->
-    ServerRef = get_server_id(AddrId),
-    get_redundancies_by_addr_id(ServerRef, Method, AddrId).
-
--spec(get_redundancies_by_addr_id(atom(), method(), integer()) ->
-             {ok, #redundancies{}} | {error, any()}).
-get_redundancies_by_addr_id(ServerRef, Method, AddrId) ->
     Options_1 = case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
                     {ok, Options} ->
                         Options;
@@ -522,19 +593,18 @@ get_redundancies_by_addr_id(ServerRef, Method, AddrId) ->
                         ok = set_options(Options),
                         Options
                 end,
-    get_redundancies_by_addr_id_1(
-      ServerRef, ring_table(Method), AddrId, Options_1).
+    get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options_1).
 
 %% @private
--spec(get_redundancies_by_addr_id_1(atom(), {_,atom()}, integer(), [_]) ->
+-spec(get_redundancies_by_addr_id_1({_,atom()}, integer(), [_]) ->
              {ok, #redundancies{}} | {error, any()}).
-get_redundancies_by_addr_id_1(ServerRef, TblInfo, AddrId, Options) ->
+get_redundancies_by_addr_id_1(TblInfo, AddrId, Options) ->
     N = leo_misc:get_value(?PROP_N, Options),
     R = leo_misc:get_value(?PROP_R, Options),
     W = leo_misc:get_value(?PROP_W, Options),
     D = leo_misc:get_value(?PROP_D, Options),
 
-    case leo_redundant_manager_chash:redundancies(ServerRef, TblInfo, AddrId) of
+    case leo_redundant_manager_chash:redundancies(TblInfo, AddrId) of
         {ok, Redundancies} ->
             CurRingHash =
                 case leo_misc:get_env(?APP, ?PROP_RING_HASH) of
@@ -557,8 +627,8 @@ get_redundancies_by_addr_id_1(ServerRef, TblInfo, AddrId, Options) ->
 
 %% @doc Retrieve range of vnodes.
 %%
--spec(range_of_vnodes(integer()) ->
-             {ok, [tuple()]}).
+-spec(range_of_vnodes(ToVNodeId) ->
+             {ok, [tuple()]} when ToVNodeId::integer()).
 range_of_vnodes(ToVNodeId) ->
     TblInfo = table_info(?VER_CUR),
     leo_redundant_manager_chash:range_of_vnodes(TblInfo, ToVNodeId).
@@ -567,7 +637,7 @@ range_of_vnodes(ToVNodeId) ->
 %% @doc Re-balance objects in the cluster.
 %%
 -spec(rebalance() ->
-             {ok, list()} | {error, any()}).
+             {ok, [tuple()]} | {error, any()}).
 rebalance() ->
     case leo_cluster_tbl_member:find_all(?MEMBER_TBL_CUR) of
         {ok, MembersCur} ->
@@ -696,8 +766,8 @@ before_rebalance_1([#member{node = Node} = Member|Rest]) ->
 %%      3. Synchronize previous-ring
 %%      4. Export members and ring
 %% @private
--spec(after_rebalance([#member{}]) ->
-             ok).
+-spec(after_rebalance(Members) ->
+             ok when Members::[{#member{}, #member{}, #member{}}]).
 after_rebalance([]) ->
     %% if previous-ring and current-ring has "detached-node(s)",
     %% then remove them, as same as memebers
@@ -763,15 +833,18 @@ after_rebalance([{#member{node = Node} = Member_1, Member_2, SrcMember}|Rest]) -
     after_rebalance(Rest).
 
 
-%% @doc Generate an alian from 'node'
+%% @doc Generate an alias of the node
 %%
--spec(get_alias(atom(), string()) ->
-             {ok, tuple()}).
+-spec(get_alias(Node, GrpL2) ->
+             {ok, tuple()} when Node::atom(),
+                                GrpL2::string()).
 get_alias(Node, GrpL2) ->
     get_alias(?MEMBER_TBL_CUR, Node, GrpL2).
 
--spec(get_alias(atom(), atom(), string()) ->
-             {ok, tuple()}).
+-spec(get_alias(Table, Node, GrpL2) ->
+             {ok, tuple()} when Table::member_table(),
+                                Node::atom(),
+                                GrpL2::string()).
 get_alias(Table, Node, GrpL2) ->
     case leo_cluster_tbl_member:find_by_status(
            Table, ?STATE_DETACHED) of
@@ -783,8 +856,10 @@ get_alias(Table, Node, GrpL2) ->
             {error, Cause}
     end.
 
--spec(get_alias(init, atom(), atom(), string()) ->
-             {ok, tuple()}).
+-spec(get_alias(init, Table, Node, GrpL2) ->
+             {ok, tuple()} when Table::member_table(),
+                                Node::atom(),
+                                GrpL2::string()).
 get_alias(init, Table, Node, GrpL2) ->
     get_alias_1([], Table, Node, GrpL2).
 
@@ -824,16 +899,17 @@ get_alias_1([_|Rest], Table, Node, GrpL2) ->
 %%--------------------------------------------------------------------
 %% @doc Has a member ?
 %%
--spec(has_member(atom()) ->
-             boolean()).
+-spec(has_member(Node) ->
+             boolean() when Node::atom()).
 has_member(Node) ->
     leo_redundant_manager:has_member(Node).
 
 
 %% @doc Has charge of node?
 %%      'true' is returned even if it detects an error
--spec(has_charge_of_node(binary(), integer()) ->
-             boolean()).
+-spec(has_charge_of_node(Key, NumOfReplicas) ->
+             boolean() when Key::binary(),
+                            NumOfReplicas::integer()).
 has_charge_of_node(Key, 0) ->
     case leo_cluster_tbl_conf:get() of
         {ok, #?SYSTEM_CONF{n = NumOfReplica}} ->
@@ -860,6 +936,8 @@ has_charge_of_node(Key, NumOfReplica) ->
 
 %% @doc get members.
 %%
+-spec(get_members() ->
+             {ok, [#member{}]} | {error, any()}).
 get_members() ->
     get_members(?VER_CUR).
 
@@ -874,8 +952,9 @@ get_members(_) ->
 
 %% @doc get a member by node-name.
 %%
--spec(get_member_by_node(atom()) ->
-             {ok, #member{}} | {error, any()}).
+-spec(get_member_by_node(Node) ->
+             {ok, #member{}} |
+             {error, any()} when Node::atom()).
 get_member_by_node(Node) ->
     leo_redundant_manager:get_member_by_node(Node).
 
@@ -890,21 +969,24 @@ get_members_count() ->
 
 %% @doc get members by status
 %%
--spec(get_members_by_status(atom()) ->
-             {ok, list(#member{})} | {error, any()}).
+-spec(get_members_by_status(Status) ->
+             {ok, [#member{}]} |
+             {error, any()} when Status::atom()).
 get_members_by_status(Status) ->
     get_members_by_status(?VER_CUR, Status).
 
--spec(get_members_by_status(?VER_CUR | ?VER_PREV, atom()) ->
-             {ok, list(#member{})} | {error, any()}).
+-spec(get_members_by_status(Ver, Status) ->
+             {ok, [#member{}]} |
+             {error, any()} when Ver::?VER_CUR | ?VER_PREV,
+                                 Status::atom()).
 get_members_by_status(Ver, Status) ->
     leo_redundant_manager:get_members_by_status(Ver, Status).
 
 
 %% @doc update members.
 %%
--spec(update_member(#member{}) ->
-             ok | {error, any()}).
+-spec(update_member(Member) ->
+             ok | {error, any()} when Member::#member{}).
 update_member(Member) ->
     case leo_redundant_manager:update_member(Member) of
         ok ->
@@ -916,8 +998,8 @@ update_member(Member) ->
 
 %% @doc update members.
 %%
--spec(update_members(list()) ->
-             ok | {error, any()}).
+-spec(update_members(Members) ->
+             ok | {error, any()} when Members::[#member{}]).
 update_members(Members) ->
     case leo_redundant_manager:update_members(Members) of
         ok ->
@@ -942,22 +1024,24 @@ update_member_by_node(Node, Clock, State) ->
 
 %% @doc remove a member by node-name.
 %%
--spec(delete_member_by_node(atom()) ->
-             ok | {error, any()}).
+-spec(delete_member_by_node(Node) ->
+             ok | {error, any()} when Node::atom()).
 delete_member_by_node(Node) ->
     leo_redundant_manager:delete_member_by_node(Node).
 
 
-%% @doc stop membership.
+%% @doc Is alive the process?
 %%
+-spec(is_alive() ->
+             ok).
 is_alive() ->
     leo_membership_cluster_local:heartbeat().
 
 
 %% @doc Retrieve table-info by version.
 %%
--spec(table_info(?VER_CUR | ?VER_PREV) ->
-             ring_table_info()).
+-spec(table_info(Ver) ->
+             ring_table_info() when Ver::?VER_CUR | ?VER_PREV).
 -ifdef(TEST).
 table_info(?VER_CUR)  -> {ets, ?RING_TBL_CUR };
 table_info(?VER_PREV) -> {ets, ?RING_TBL_PREV}.
@@ -985,18 +1069,12 @@ table_info(?VER_PREV) ->
 -spec(force_sync_workers() ->
              ok).
 force_sync_workers() ->
-    force_sync_workers_1(?RING_WORKER_POOL_SIZE - 1).
-
-%% @private
-force_sync_workers_1(Index) ->
-    ServerRef = list_to_atom(lists:append([?WORKER_POOL_NAME_PREFIX,
-                                           integer_to_list(Index)])),
-    ok = leo_redundant_manager_worker:force_sync(ServerRef, ?RING_TBL_CUR),
-    timer:sleep(erlang:phash2(leo_date:clock(), 64)),
-    force_sync_workers_1(Index - 1).
+    ok = leo_redundant_manager_worker:force_sync(?RING_TBL_CUR),
+    ok = leo_redundant_manager_worker:force_sync(?RING_TBL_PREV),
+    ok.
 
 
-%% Retrieve local cluster's status
+%% @doc Retrieve local cluster's status
 -spec(get_cluster_status() ->
              {ok, #?CLUSTER_STAT{}} | not_found).
 get_cluster_status() ->
@@ -1015,8 +1093,8 @@ get_cluster_status() ->
 
 %% @doc Judge status of local cluster
 %% @private
--spec(judge_cluster_status(list(#member{})) ->
-             node_state()).
+-spec(judge_cluster_status(Members) ->
+             node_state() when Members::[#member{}]).
 judge_cluster_status(Members) ->
     NumOfMembers = length(Members),
     SuspendNode  = length([N || #member{state = ?STATE_SUSPEND,
@@ -1052,28 +1130,13 @@ get_cluster_tbl_checksums() ->
          ]}.
 
 
-%% @doc Retrieve a srever id
-%%
--spec(get_server_id() ->
-             atom()).
-get_server_id() ->
-    get_server_id(leo_date:clock()).
--spec(get_server_id(integer()) ->
-             atom()).
-get_server_id(AddrId) ->
-    Procs = ?RING_WORKER_POOL_SIZE,
-    Index = erlang:phash2(AddrId, Procs),
-    list_to_atom(lists:append([?WORKER_POOL_NAME_PREFIX,
-                               integer_to_list(Index)])).
-
-
 %%--------------------------------------------------------------------
 %% API-4  FUNCTIONS
 %%--------------------------------------------------------------------
 %% @doc Retrieve conf of remote clusters
 %%
 -spec(get_remote_clusters() ->
-             {ok, list(#?CLUSTER_INFO{})} | {error, any()}).
+             {ok, [#?CLUSTER_INFO{}]} | {error, any()}).
 get_remote_clusters() ->
     case leo_cluster_tbl_conf:get() of
         {ok, #?SYSTEM_CONF{max_mdc_targets = MaxTargetClusters}} ->
@@ -1082,21 +1145,23 @@ get_remote_clusters() ->
             not_found
     end.
 
--spec(get_remote_clusters(integer()) ->
-             {ok, list(#?CLUSTER_INFO{})} | {error, any()}).
+-spec(get_remote_clusters(NumOfDestClusters) ->
+             {ok, [#?CLUSTER_INFO{}]} |
+             {error, any()} when NumOfDestClusters::integer()).
 get_remote_clusters(NumOfDestClusters) ->
     leo_mdcr_tbl_cluster_info:find_by_limit(NumOfDestClusters).
 
 
 %% @doc Retrieve remote cluster members
 %%
--spec(get_remote_members(atom()) ->
-             {ok, #?CLUSTER_MEMBER{}} | {error, any()}).
+-spec(get_remote_members(ClusterId) ->
+             {ok, #?CLUSTER_MEMBER{}} | {error, any()} when ClusterId::atom()).
 get_remote_members(ClusterId) ->
     get_remote_members(ClusterId, ?DEF_NUM_OF_REMOTE_MEMBERS).
 
--spec(get_remote_members(atom(), integer()) ->
-             {ok, #?CLUSTER_MEMBER{}} | {error, any()}).
+-spec(get_remote_members(ClusterId, NumOfMembers) ->
+             {ok, #?CLUSTER_MEMBER{}} | {error, any()} when ClusterId::atom(),
+                                                            NumOfMembers::integer()).
 get_remote_members(ClusterId, NumOfMembers) ->
     leo_mdcr_tbl_cluster_member:find_by_limit(ClusterId, NumOfMembers).
 

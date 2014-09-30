@@ -12,13 +12,27 @@ all:
 	@$(REBAR) get-deps
 	@$(REBAR) compile
 	@$(REBAR) xref skip_deps=true
-	@$(REBAR) eunit skip_deps=true
+	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_info
+	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_member
+	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_mgr
+	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_stat
+	@$(REBAR) eunit suites=leo_redundant_manager_worker
+	@$(REBAR) eunit suites=leo_redundant_manager_api
+	@$(REBAR) eunit suites=leo_membership_cluster_local
+	@$(REBAR) eunit suites=leo_membership_mq_client
 compile:
 	@$(REBAR) compile skip_deps=true
 xref:
 	@$(REBAR) xref skip_deps=true
 eunit:
-	@$(REBAR) eunit skip_deps=true
+	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_info
+	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_member
+	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_mgr
+	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_stat
+	@$(REBAR) eunit suites=leo_redundant_manager_worker
+	@$(REBAR) eunit suites=leo_redundant_manager_api
+	@$(REBAR) eunit suites=leo_membership_cluster_local
+	@$(REBAR) eunit suites=leo_membership_mq_client
 check_plt:
 	@$(REBAR) compile
 	dialyzer --check_plt --plt $(PLT_FILE) --apps $(APPS)

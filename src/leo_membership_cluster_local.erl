@@ -20,7 +20,9 @@
 %%
 %% ---------------------------------------------------------------------
 %% Leo Redundant Manager - Membership (LOCAL)
-%% @doc
+%%
+%% @doc The membership operation in the local-cluster
+%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_membership_cluster_local.erl]
 %% @end
 %%======================================================================
 -module(leo_membership_cluster_local).
@@ -76,44 +78,57 @@
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the server
--spec(start_link(atom(), [atom()]) ->
-             {ok, pid()} | {error, any()}).
+%% @doc Start the server
+-spec(start_link(ServerType, Managers) ->
+             {ok, pid()} | {error, any()} when ServerType::atom(),
+                                               Managers::[atom()]).
 start_link(ServerType, Managers) ->
     Fun =  fun()-> ok end,
     start_link(ServerType, Managers, Fun).
 
--spec(start_link(atom(), [atom()], fun()) ->
-             {ok, pid()} | {error, any()}).
+-spec(start_link(ServerType, Managers, Callback) ->
+             {ok, pid()} | {error, any()} when ServerType::atom(),
+                                               Managers::[atom()],
+                                               Callback::function()
+                                                         ).
 start_link(ServerType, Managers, Callback) ->
     ok = application:set_env(?APP, ?PROP_MANAGERS, Managers),
     gen_server:start_link({local, ?MODULE}, ?MODULE,
                           [ServerType, Managers, Callback, ?DEF_MEMBERSHIP_INTERVAL], []).
 
+%% @doc Stop the server
 stop() ->
     gen_server:call(?MODULE, stop, 30000).
 
 
+%% @doc Start the heartbeat operation
 -spec(start_heartbeat() -> ok | {error, any()}).
 start_heartbeat() ->
     gen_server:cast(?MODULE, {start_heartbeat}).
 
 
+%% @doc Stop the heartbeat operation
 -spec(stop_heartbeat() -> ok | {error, any()}).
 stop_heartbeat() ->
     gen_server:cast(?MODULE, {stop_heartbeat}).
 
 
+%% @doc Start the heartbeat operation
 -spec(heartbeat() -> ok | {error, any()}).
 heartbeat() ->
     gen_server:cast(?MODULE, {start_heartbeat}).
 
--spec(set_proc_auditor(atom()) -> ok | {error, any()}).
+
+%% @doc Set the process of an auditor
+-spec(set_proc_auditor(ProcAuditor) ->
+             ok | {error, any()} when ProcAuditor::atom()).
 set_proc_auditor(ProcAuditor) ->
     gen_server:cast(?MODULE, {set_proc_auditor, ProcAuditor}).
 
--spec(update_manager_nodes(list()) -> ok | {error, any()}).
+
+%% @doc Update the manager nodes
+-spec(update_manager_nodes(Managers) ->
+             ok | {error, any()} when Managers::[atom()]).
 update_manager_nodes(Managers) ->
     gen_server:cast(?MODULE, {update_manager_nodes, Managers}).
 
@@ -121,11 +136,7 @@ update_manager_nodes(Managers) ->
 %%--------------------------------------------------------------------
 %% GEN_SERVER CALLBACKS
 %%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State}          |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
+%% @doc Initiates the server
 init([?SERVER_MANAGER = ServerType, [Partner|_] = Managers, Callback, Interval]) ->
     defer_heartbeat(Interval),
     {ok, #state{type      = ServerType,
@@ -147,14 +158,15 @@ init([ServerType, Managers,_Callback, Interval]) ->
                }}.
 
 
+%% @doc gen_server callback - Module:handle_call(Request, From, State) -> Result
 handle_call(stop,_From,State) ->
     {stop, normal, ok, State}.
 
 
-%% Function: handle_cast(Msg, State) -> {noreply, State}          |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
+%% @doc Handling cast message
+%% <p>
+%% gen_server callback - Module:handle_cast(Request, State) -> Result.
+%% </p>
 handle_cast({start_heartbeat}, State) ->
     case catch maybe_heartbeat(State) of
         {'EXIT', _Reason} ->
@@ -174,25 +186,23 @@ handle_cast({stop_heartbeat}, State) ->
     {noreply, State}.
 
 
-%% Function: handle_info(Info, State) -> {noreply, State}          |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
+%% @doc Handling all non call/cast messages
+%% <p>
+%% gen_server callback - Module:handle_info(Info, State) -> Result.
+%% </p>
 handle_info(_Info, State) ->
     {noreply, State}.
 
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
+%% @doc This function is called by a gen_server when it is about to
+%%      terminate. It should be the opposite of Module:init/1 and do any necessary
+%%      cleaning up. When it returns, the gen_server terminates with Reason.
 terminate(_Reason, _State) ->
     ok.
 
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
+%% @doc Convert process state when code is changed
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
 
 %%--------------------------------------------------------------------
 %% INTERNAL FUNCTIONS
@@ -279,7 +289,6 @@ exec_1(?SERVER_MANAGER = ServerType, Managers, [{Node, State}|T], Callback) ->
                       false -> SleepTime
                   end,
     timer:sleep(SleepTime_1),
-
     case State of
         ?STATE_RUNNING ->
             case is_function(Callback) of
@@ -303,7 +312,7 @@ exec_1(ServerType, Managers, [{Node, State}|T], Callback) ->
             void;
         false ->
             Ret = compare_with_remote_chksum(Node),
-            _ = inspect_result(Ret, [ServerType, Managers, Node, State])
+            ok  = inspect_result(Ret, [ServerType, Managers, Node, State])
     end,
     exec_1(ServerType, Managers, T, Callback).
 
@@ -314,21 +323,18 @@ exec_1(ServerType, Managers, [{Node, State}|T], Callback) ->
              ok).
 inspect_result(ok, [ServerType, _, Node, false]) ->
     leo_membership_mq_client:publish(ServerType, Node, ?ERR_TYPE_NODE_DOWN);
-
 inspect_result(ok, _) ->
     ok;
-
 inspect_result({error, {HashType, ?ERR_TYPE_INCONSISTENT_HASH, NodesWithChksum}}, [_, Managers, _, _]) ->
     notify_error_to_manager(Managers, HashType, NodesWithChksum);
-
 inspect_result({error, ?ERR_TYPE_NODE_DOWN}, [ServerType,_,Node,_]) ->
     leo_membership_mq_client:publish(ServerType, Node, ?ERR_TYPE_NODE_DOWN);
-
 inspect_result(Error, _) ->
     error_logger:warning_msg("~p,~p,~p,~p~n",
                              [{module, ?MODULE_STRING},
                               {function, "inspect_result/2"},
-                              {line, ?LINE}, {body, Error}]).
+                              {line, ?LINE}, {body, Error}]),
+    ok.
 
 
 %% @doc Compare manager-hash with remote-node-hash
@@ -337,7 +343,10 @@ inspect_result(Error, _) ->
              ok).
 compare_manager_with_remote_chksum(Node, Managers) ->
     compare_manager_with_remote_chksum(
-      Node, Managers, [?CHECKSUM_RING, ?CHECKSUM_MEMBER]).
+      Node, Managers, [?CHECKSUM_RING,
+                       ?CHECKSUM_MEMBER,
+                       ?CHECKSUM_WORKER
+                      ]).
 
 compare_manager_with_remote_chksum(_Node,_Managers, []) ->
     ok;
@@ -350,7 +359,7 @@ compare_manager_with_remote_chksum( Node, Managers, [HashType|T]) ->
                     end,
 
             Ret = compare_with_remote_chksum_1(Node, HashType, LocalChksum),
-            _ = inspect_result(Ret, [?SERVER_MANAGER, Managers, Node, State]),
+            ok  = inspect_result(Ret, [?SERVER_MANAGER, Managers, Node, State]),
             compare_manager_with_remote_chksum(Node, Managers, T);
         Error ->
             Error
@@ -362,7 +371,10 @@ compare_manager_with_remote_chksum( Node, Managers, [HashType|T]) ->
 -spec(compare_with_remote_chksum(atom()) ->
              ok | {error, any()}).
 compare_with_remote_chksum(Node) ->
-    compare_with_remote_chksum(Node, [?CHECKSUM_RING, ?CHECKSUM_MEMBER]).
+    compare_with_remote_chksum(Node, [?CHECKSUM_RING,
+                                      ?CHECKSUM_MEMBER,
+                                      ?CHECKSUM_WORKER
+                                     ]).
 
 compare_with_remote_chksum(_,[]) ->
     ok;
@@ -432,4 +444,3 @@ notify_error_to_manager(Managers, HashType, NodesWithChksum) ->
               ok
       end, false, Managers),
     ok.
-

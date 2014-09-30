@@ -20,7 +20,9 @@
 %%
 %% ---------------------------------------------------------------------
 %% Leo Redundant Manageme - Server
-%% @doc
+%%
+%% @doc leo_redaundant_manager's server
+%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_redundant_manager_api.erl]
 %% @end
 %%======================================================================
 -module(leo_redundant_manager).
@@ -61,35 +63,35 @@
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the server
+%% @doc Start the process
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
+%% @doc Stop the process
 stop() ->
     gen_server:call(?MODULE, stop, ?DEF_TIMEOUT).
 
 
-%% @doc Create Rings.
+%% @doc Create the Rings.
 %%
--spec(create(?VER_CUR|?VER_PREV) ->
-             ok | {error, any()}).
+-spec(create(Ver) ->
+             ok | {error, any()} when Ver::?VER_CUR|?VER_PREV).
 create(Ver) ->
     gen_server:call(?MODULE, {create, Ver}, ?DEF_TIMEOUT_LONG).
 
 
-%% @doc Retrieve checksum (ring or member).
+%% @doc Retrieve checksum of ring/member
 %%
--spec(checksum(checksum_type()) ->
-             {ok, integer() | tuple()}).
+-spec(checksum(Type) ->
+             {ok, integer() | tuple()} when Type::checksum_type()).
 checksum(Type) ->
     gen_server:call(?MODULE, {checksum, Type}, ?DEF_TIMEOUT).
 
 
 %% @doc Is exists member?
 %%
--spec(has_member(atom()) ->
-             boolean()).
+-spec(has_member(Node) ->
+             boolean() when Node::atom()).
 has_member(Node) ->
     gen_server:call(?MODULE, {has_member, Node}, ?DEF_TIMEOUT).
 
@@ -97,92 +99,109 @@ has_member(Node) ->
 %% @doc Retrieve all members.
 %%
 -spec(get_members() ->
-             {ok, list()}).
+             {ok, [#member{}]}).
 get_members() ->
     gen_server:call(?MODULE, {get_members, ?VER_CUR}, ?DEF_TIMEOUT).
 
+-spec(get_members(Ver) ->
+             {ok, [#member{}]} when Ver::?VER_CUR|?VER_PREV).
 get_members(Ver) ->
     gen_server:call(?MODULE, {get_members, Ver}, ?DEF_TIMEOUT).
 
 
 %% @doc Retrieve a member by node.
 %%
--spec(get_member_by_node(atom()) ->
-             {ok, #member{}} | {error, any()}).
+-spec(get_member_by_node(Node) ->
+             {ok, #member{}} | {error, any()} when Node::atom()).
 get_member_by_node(Node) ->
     gen_server:call(?MODULE, {get_member_by_node, Node}, ?DEF_TIMEOUT).
 
 
 %% @doc Retrieve members by status.
 %%
--spec(get_members_by_status(?VER_CUR|?VER_PREV, atom()) ->
-             {ok, list(#member{})} | {error, any()}).
+-spec(get_members_by_status(Ver, Status) ->
+             {ok, list(#member{})} |
+             {error, any()} when Ver::?VER_CUR|?VER_PREV,
+                                 Status::atom()).
 get_members_by_status(Ver, Status) ->
     gen_server:call(?MODULE, {get_members_by_status, Ver, Status}, ?DEF_TIMEOUT).
 
 
 %% @doc Modify a member.
 %%
--spec(update_member(#member{}) ->
-             ok | {error, any()}).
+-spec(update_member(Member) ->
+             ok | {error, any()} when Member::#member{}).
 update_member(Member) ->
     gen_server:call(?MODULE, {update_member, Member}, ?DEF_TIMEOUT).
 
 
 %% @doc Modify members.
 %%
--spec(update_members(list()) ->
-             ok | {error, any()}).
+-spec(update_members(Members) ->
+             ok | {error, any()} when Members::[#member{}]).
 update_members(Members) ->
     gen_server:call(?MODULE, {update_members, Members}, ?DEF_TIMEOUT).
 
 
 %% @doc Modify a member by node.
 %%
--spec(update_member_by_node(atom(), atom()) ->
-             ok | {error, any()}).
+-spec(update_member_by_node(Node, NodeState) ->
+             ok | {error, any()} when Node::atom(),
+                                      NodeState::atom()).
 update_member_by_node(Node, NodeState) ->
     gen_server:call(?MODULE, {update_member_by_node, Node, NodeState}, ?DEF_TIMEOUT).
 
--spec(update_member_by_node(atom(), integer(), atom()) ->
-             ok | {error, any()}).
+-spec(update_member_by_node(Node, Clock, NodeState) ->
+             ok | {error, any()} when Node::atom(),
+                                      Clock::integer(),
+                                      NodeState::atom()).
 update_member_by_node(Node, Clock, NodeState) ->
     gen_server:call(?MODULE, {update_member_by_node, Node, Clock, NodeState}, ?DEF_TIMEOUT).
 
 
 %% @doc Remove a member by node.
 %%
--spec(delete_member_by_node(atom()) ->
-             ok | {error, any()}).
+-spec(delete_member_by_node(Node) ->
+             ok | {error, any()} when Node::atom()).
 delete_member_by_node(Node) ->
     gen_server:call(?MODULE, {delete_member_by_node, Node}, ?DEF_TIMEOUT).
 
 
-%% %% @doc Synchronize a ring.
-%% %%
-%% synchronize(TblInfo, Ring0, Ring1) ->
-%%     gen_server:call(?MODULE, {synchronize, TblInfo, Ring0, Ring1}, ?DEF_TIMEOUT_LONG).
-
-
 %% @doc Dump files which are member and ring.
 %%
--spec(dump(atom()) ->
-             ok).
+-spec(dump(Type) ->
+             ok when Type::atom()).
 dump(Type) ->
     gen_server:call(?MODULE, {dump, Type}, ?DEF_TIMEOUT).
 
 
 %% @doc Change node status to 'attach'.
 %%
--spec(attach(atom(), string(), integer(), integer()) ->
-             ok | {error, any()}).
+-spec(attach(Node, AwarenessL2, Clock, NumOfVNodes) ->
+             ok | {error, any()} when Node::atom(),
+                                      AwarenessL2::string(),
+                                      Clock::integer(),
+                                      NumOfVNodes::integer()).
 attach(Node, AwarenessL2, Clock, NumOfVNodes) ->
     attach(Node, AwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
 
+-spec(attach(Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
+             ok | {error, any()} when Node::atom(),
+                                      AwarenessL2::string(),
+                                      Clock::integer(),
+                                      NumOfVNodes::integer(),
+                                      RPCPort::integer()).
 attach(Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
     attach(leo_redundant_manager_api:table_info(?VER_CUR),
            Node, AwarenessL2, Clock, NumOfVNodes, RPCPort).
 
+-spec(attach(TableInfo, Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
+             ok | {error, any()} when TableInfo::ring_table_info(),
+                                      Node::atom(),
+                                      AwarenessL2::string(),
+                                      Clock::integer(),
+                                      NumOfVNodes::integer(),
+                                      RPCPort::integer()).
 attach(TableInfo, Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
     gen_server:call(?MODULE, {attach, TableInfo, Node,
                               AwarenessL2, Clock, NumOfVNodes, RPCPort}, ?DEF_TIMEOUT).
@@ -190,32 +209,47 @@ attach(TableInfo, Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
 
 %% @doc Change node status to 'reserve'.
 %%
--spec(reserve(atom(), atom(), string(), integer(), integer()) ->
-             ok | {error, any()}).
+-spec(reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes) ->
+             ok | {error, any()} when Node::atom(),
+                                      CurState::atom(),
+                                      AwarenessL2::string(),
+                                      Clock::integer(),
+                                      NumOfVNodes::integer()).
 reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes) ->
     reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
 
--spec(reserve(atom(), atom(), string(), integer(), integer(), integer()) ->
-             ok | {error, any()}).
+-spec(reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
+             ok | {error, any()} when Node::atom(),
+                                      CurState::atom(),
+                                      AwarenessL2::string(),
+                                      Clock::integer(),
+                                      NumOfVNodes::integer(),
+                                      RPCPort::integer()).
 reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
     gen_server:call(?MODULE, {reserve, Node, CurState,
                               AwarenessL2, Clock, NumOfVNodes, RPCPort}, ?DEF_TIMEOUT).
 
 %% @doc Change node status to 'detach'.
 %%
--spec(detach(atom(), integer()) ->
-             ok | {error, any()}).
+-spec(detach(Node, Clock) ->
+             ok | {error, any()} when Node::atom(),
+                                      Clock::integer()).
 detach(Node, Clock) ->
     detach(leo_redundant_manager_api:table_info(?VER_CUR), Node, Clock).
 
+-spec(detach(TableInfo, Node, Clock) ->
+             ok | {error, any()} when TableInfo::ring_table_info(),
+                                      Node::atom(),
+                                      Clock::integer()).
 detach(TableInfo, Node, Clock) ->
     gen_server:call(?MODULE, {detach, TableInfo, Node, Clock}, ?DEF_TIMEOUT).
 
 
 %% @doc Change node status to 'suspend'.
 %%
--spec(suspend(atom(), integer()) ->
-             ok | {error, any()}).
+-spec(suspend(Node, Clock) ->
+             ok | {error, any()} when Node::atom(),
+                                      Clock::integer()).
 suspend(Node, Clock) ->
     gen_server:call(?MODULE, {suspend, Node, Clock}, ?DEF_TIMEOUT).
 
@@ -223,14 +257,11 @@ suspend(Node, Clock) ->
 %%--------------------------------------------------------------------
 %% GEN_SERVER CALLBACKS
 %%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State}          |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
+%% @doc Initiates the server
 init([]) ->
     {ok, null}.
 
+%% @doc gen_server callback - Module:handle_call(Request, From, State) -> Result
 handle_call(stop,_From,State) ->
     {stop, normal, ok, State};
 
@@ -449,30 +480,27 @@ handle_call({suspend, Node, _Clock}, _From, State) ->
     {reply, Reply, State}.
 
 
-%% Function: handle_cast(Msg, State) -> {noreply, State}          |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
+%% @doc Handling cast message
+%% <p>
+%% gen_server callback - Module:handle_cast(Request, State) -> Result.
+%% </p>
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-%% Function: handle_info(Info, State) -> {noreply, State}          |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
+%% @doc Handling all non call/cast messages
+%% <p>
+%% gen_server callback - Module:handle_info(Info, State) -> Result.
+%% </p>
 handle_info(_Info, State) ->
     {noreply, State}.
 
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
+%% @doc This function is called by a gen_server when it is about to
+%%      terminate. It should be the opposite of Module:init/1 and do any necessary
+%%      cleaning up. When it returns, the gen_server terminates with Reason.
 terminate(_Reason, _State) ->
     ok.
 
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
+%% @doc Convert process state when code is changed
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -482,8 +510,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% @doc Create a RING(routing-table)
 %% @private
--spec(create_1(?VER_CUR|?VER_PREV) ->
-             ok | {error, any()}).
+-spec(create_1(Ver) ->
+             ok | {error, any()} when Ver::?VER_CUR|?VER_PREV).
 create_1(Ver) ->
     case leo_cluster_tbl_member:find_all(?member_table(Ver)) of
         {ok, Members} ->
@@ -502,16 +530,18 @@ create_1(Ver) ->
     end.
 
 %% @private
--spec(create_2(?VER_CUR|?VER_PREV, list()) ->
-             ok | {ok, list()}).
+-spec(create_2(Ver, Members) ->
+             ok | {ok, Members} when Ver::?VER_CUR|?VER_PREV,
+                                     Members::[#member{}]).
 create_2(Ver, Members) ->
     create_2(Ver, Members, []).
 
--spec(create_2(?VER_CUR|?VER_PREV, list(), list()) ->
-             ok | {ok, list()}).
+-spec(create_2(Ver, Members, Acc) ->
+             ok | {ok, Members} when Ver::?VER_CUR|?VER_PREV,
+                                     Members::[#member{}],
+                                     Acc::[#member{}]).
 create_2(Ver,[], Acc) ->
     create_3(Ver, Acc, []);
-    %% create_3(Ver, Acc);
 create_2( Ver, [#member{state = ?STATE_DETACHED}|Rest], Acc) ->
     create_2(Ver, Rest, Acc);
 create_2( Ver, [#member{state = ?STATE_RESERVED}|Rest], Acc) ->
@@ -535,8 +565,10 @@ create_2( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
     end.
 
 %% @private
-%% -spec(create_3(?VER_CUR|?VER_PREV, list(), list()) ->
-%%              ok | {ok, list()}).
+-spec(create_3(Ver, Members, Acc) ->
+             ok | {ok, Members} when Ver::?VER_CUR|?VER_PREV,
+                                     Members::[#member{}],
+                                     Acc::[#member{}]).
 create_3(Ver, [], Acc) ->
     TblInfo = leo_redundant_manager_api:table_info(Ver),
     leo_redundant_manager_chash:add_from_list(TblInfo, Acc);
@@ -552,6 +584,7 @@ create_3(Ver, [Member|Rest], Acc) ->
     end.
 
 
+%% @doc Ser alias of the node
 %% @private
 set_alias(TblInfo, #member{node  = Node,
                            alias = [],
@@ -635,6 +668,8 @@ get_members_1(Ver) ->
     end.
 
 
+%% @doc Update the member by node
+%% @private
 update_member_by_node_1(Node, NodeState) ->
     update_member_by_node_1(Node, -1, NodeState).
 
@@ -662,15 +697,7 @@ update_member_by_node_1(Node, Clock, NodeState) ->
 %% @doc Export 'Ring' from a table
 %% @private
 dump_ring_tabs() ->
-    LogDir = case application:get_env(leo_redundant_manager, log_dir_ring) of
-                 undefined -> ?DEF_LOG_DIR_RING;
-                 {ok, Dir} ->
-                     case (string:len(Dir) == string:rstr(Dir, "/")) of
-                         true  -> Dir;
-                         false -> Dir ++ "/"
-                     end
-             end,
-
+    LogDir = ?log_dir(),
     _ = filelib:ensure_dir(LogDir),
     File_1 = LogDir ++ ?DUMP_FILE_RING_CUR  ++ integer_to_list(leo_date:now()),
     File_2 = LogDir ++ ?DUMP_FILE_RING_PREV ++ integer_to_list(leo_date:now()),
@@ -680,4 +707,3 @@ dump_ring_tabs() ->
     Res1 = leo_redundant_manager_chash:export(
              leo_redundant_manager_api:table_info(?VER_PREV), File_2),
     {Res0, Res1}.
-

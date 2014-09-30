@@ -57,7 +57,6 @@
 %%-----------------------------------------------------------------------
 %% External API
 %%-----------------------------------------------------------------------
-%% @spec (Params) -> ok
 %% @doc start link.
 %% @end
 start_link() ->
@@ -87,7 +86,7 @@ start_link(ServerType, Managers, MQStoragePath, Conf, MembershipCallback) ->
 
             %% Launch membership for local-cluster,
             %% then lunch mdc-tables sync
-            case start_link_3(ServerType, Managers, MembershipCallback) of
+            case start_link_3(ServerType_1, Managers, MembershipCallback) of
                 ok ->
                     ok = leo_membership_mq_client:start(ServerType_1, MQStoragePath),
                     ok = leo_membership_cluster_local:start_heartbeat(),
@@ -191,14 +190,14 @@ init([ServerType]) ->
                         {leo_redundant_manager,
                          {leo_redundant_manager, start_link, []},
                          permanent,
-                         2000,
+                         ?SHUTDOWN_WAITING_TIME,
                          worker,
                          [leo_redundant_manager]},
 
                         {leo_membership_cluster_remote,
                          {leo_membership_cluster_remote, start_link, []},
                          permanent,
-                         2000,
+                         ?SHUTDOWN_WAITING_TIME,
                          worker,
                          [leo_membership_cluster_remote]}
                        ];
@@ -207,23 +206,19 @@ init([ServerType]) ->
                         {leo_redundant_manager,
                          {leo_redundant_manager, start_link, []},
                          permanent,
-                         2000,
+                         ?SHUTDOWN_WAITING_TIME,
                          worker,
                          [leo_redundant_manager]}
                        ]
                end,
 
-    %% Redundant Manager Worker Pool
-    WorkerSpecs =
-        lists:map(
-          fun(Index) ->
-                  Id = list_to_atom(lists:append([?WORKER_POOL_NAME_PREFIX,
-                                                  integer_to_list(Index)])),
-                  {Id, {leo_redundant_manager_worker, start_link, [Id]},
-                   permanent, ?SHUTDOWN_WAITING_TIME, worker, [leo_redundant_manager_worker]}
-          end, lists:seq(0, (?RING_WORKER_POOL_SIZE -1))),
-
-    {ok, {_SupFlags = {one_for_one, 5, 60}, Children ++ WorkerSpecs}}.
+    WorkerSpec = {leo_redundant_manager_worker,
+                  {leo_redundant_manager_worker, start_link, []},
+                  permanent,
+                  ?SHUTDOWN_WAITING_TIME,
+                  worker,
+                  [leo_redundant_manager_worker]},
+    {ok, {_SupFlags = {one_for_one, 5, 60}, [WorkerSpec|Children]}}.
 
 
 %% ---------------------------------------------------------------------
