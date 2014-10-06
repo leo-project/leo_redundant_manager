@@ -22,7 +22,7 @@
 %% Leo Redundant Manager - Membership (REMOTE)
 %%
 %% @doc The membership operation with remote-cluster(s)
-%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_membership_cluster_remote.erl]
+%% @reference https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_membership_cluster_remote.erl
 %% @end
 %%======================================================================
 -module(leo_membership_cluster_remote).

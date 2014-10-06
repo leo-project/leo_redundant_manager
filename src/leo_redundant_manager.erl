@@ -22,7 +22,7 @@
 %% Leo Redundant Manageme - Server
 %%
 %% @doc leo_redaundant_manager's server
-%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_redundant_manager_api.erl]
+%% @reference https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_redundant_manager_api.erl
 %% @end
 %%======================================================================
 -module(leo_redundant_manager).

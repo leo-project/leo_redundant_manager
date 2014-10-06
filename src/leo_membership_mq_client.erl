@@ -22,7 +22,7 @@
 %% Leo Redundant Manager - Membership's MQ Client.
 %%
 %% @doc The membership operation's messsage-queues client
-%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_membership_mq_client.erl]
+%% @reference https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_membership_mq_client.erl
 %% @end
 %%======================================================================
 -module(leo_membership_mq_client).
