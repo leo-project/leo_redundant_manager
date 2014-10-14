@@ -19,7 +19,7 @@
 %% under the License.
 %%
 %% @doc The cluster conf table's operation
-%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_cluster_tbl_conf.erl]
+%% @reference https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_cluster_tbl_conf.erl
 %% @end
 %%======================================================================
 -module(leo_cluster_tbl_conf).

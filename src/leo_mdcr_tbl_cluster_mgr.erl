@@ -19,7 +19,7 @@
 %% under the License.
 %%
 %% @doc The multi-datacenter cluster manager talble's operation
-%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_mdcr_tbl_cluster_mgr.erl]
+%% @reference https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_mdcr_tbl_cluster_mgr.erl
 %% @end
 %%======================================================================
 -module(leo_mdcr_tbl_cluster_mgr).

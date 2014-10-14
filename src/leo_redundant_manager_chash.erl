@@ -22,7 +22,7 @@
 %% Leo Redundant Manager - Consistent Hashing
 %%
 %% @doc The consistent-hashing implementation
-%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_redundant_manager_chash.erl]
+%% @reference https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_redundant_manager_chash.erl
 %% @end
 %%======================================================================
 -module(leo_redundant_manager_chash).

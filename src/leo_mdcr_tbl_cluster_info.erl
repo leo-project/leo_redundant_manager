@@ -19,7 +19,7 @@
 %% under the License.
 %%
 %% @doc The multi-datacenter cluster info table's operation
-%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_mdcr_tbl_cluster_info.erl]
+%% @reference https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_mdcr_tbl_cluster_info.erl
 %% @end
 %%======================================================================
 -module(leo_mdcr_tbl_cluster_info).

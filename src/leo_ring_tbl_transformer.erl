@@ -19,7 +19,7 @@
 %% under the License.
 %%
 %% @doc The ring table's record transformer
-%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_ring_tbl_transformer.erl]
+%% @reference https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_ring_tbl_transformer.erl
 %% @end
 %%======================================================================
 -module(leo_ring_tbl_transformer).

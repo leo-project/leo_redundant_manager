@@ -19,7 +19,7 @@
 %% under the License.
 %%
 %% @doc The redundant manager's worker process
-%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_redundant_manager_worker.erl]
+%% @reference https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_redundant_manager_worker.erl
 %% @end
 %%======================================================================
 -module(leo_redundant_manager_worker).

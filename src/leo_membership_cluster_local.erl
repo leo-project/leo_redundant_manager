@@ -22,7 +22,7 @@
 %% Leo Redundant Manager - Membership (LOCAL)
 %%
 %% @doc The membership operation in the local-cluster
-%% @reference [https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_membership_cluster_local.erl]
+%% @reference https://github.com/leo-project/leo_redundant_manager/blob/master/src/leo_membership_cluster_local.erl
 %% @end
 %%======================================================================
 -module(leo_membership_cluster_local).
