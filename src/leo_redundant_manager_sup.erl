@@ -79,7 +79,8 @@ start_link(ServerType, Managers, MQStoragePath, Conf, MembershipCallback) ->
             ServerType_1 = server_type(ServerType),
             ok = leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ServerType_1),
             case (Conf == []) of
-                true  -> void;
+                true  ->
+                    void;
                 false ->
                     ok = leo_redundant_manager_api:set_options(Conf)
             end,

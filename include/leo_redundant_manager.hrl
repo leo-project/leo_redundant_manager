@@ -35,6 +35,7 @@
 -define(ERROR_COULD_NOT_UPDATE_RING,      "Could not update ring").
 -define(ERROR_COULD_NOT_GET_REDUNDANCIES, "Could not get redundancies").
 -define(ERROR_COULD_NOT_GET_MEMBERS,      "Could not get members").
+-define(ERROR_INVALID_CONF,               "Invalid configuration").
 
 -define(ERR_TYPE_INCONSISTENT_HASH, inconsistent_hash).
 -define(ERR_TYPE_NODE_DOWN,         nodedown).
@@ -244,7 +245,7 @@
 %% Configure of Redundancies and Consistency Level
 -record(system_conf, {
           version = 0         :: non_neg_integer(),
-          n       = 1         :: non_neg_integer(),
+          n       = 0         :: non_neg_integer(),
           r       = 1         :: non_neg_integer(),
           w       = 1         :: non_neg_integer(),
           d       = 1         :: non_neg_integer(),

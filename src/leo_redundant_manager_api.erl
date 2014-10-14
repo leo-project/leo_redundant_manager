@@ -35,7 +35,7 @@
 
 %% Ring-related
 -export([create/0, create/1, create/2, create/3,
-         set_options/1, get_options/0,
+         set_options/1, get_options/0, get_option/1,
          attach/1, attach/2, attach/3, attach/4, attach/5,
          reserve/3, reserve/5, reserve/6,
          detach/1, detach/2,
@@ -109,23 +109,30 @@ create() ->
                                  HashValues::[{atom(), integer()}]).
 create(Ver) when Ver == ?VER_CUR;
                  Ver == ?VER_PREV ->
-    case leo_redundant_manager:create(Ver) of
-        ok ->
-            case leo_cluster_tbl_member:find_all(?member_table(Ver)) of
-                {ok, Members} ->
-                    spawn(fun() ->
-                                  ok = leo_redundant_manager_worker:force_sync(?ring_table(Ver))
-                          end),
-                    {ok, HashRing} = checksum(?CHECKSUM_RING),
-                    ok = leo_misc:set_env(?APP, ?PROP_RING_HASH, erlang:element(1, HashRing)),
-                    {ok, HashMember} = checksum(?CHECKSUM_MEMBER),
-                    {ok, Members, [{?CHECKSUM_RING,   HashRing},
-                                   {?CHECKSUM_MEMBER, HashMember}]};
+    case get_option('n') of
+        0 ->
+            {error, ?ERROR_INVALID_CONF};
+        _ ->
+            case leo_redundant_manager:create(Ver) of
+                ok ->
+                    case leo_cluster_tbl_member:find_all(?member_table(Ver)) of
+                        {ok, Members} ->
+                            spawn(
+                              fun() ->
+                                      ok = leo_redundant_manager_worker:force_sync(?ring_table(Ver))
+                              end),
+                            {ok, HashRing} = checksum(?CHECKSUM_RING),
+                            ok = leo_misc:set_env(?APP, ?PROP_RING_HASH,
+                                                  erlang:element(1, HashRing)),
+                            {ok, HashMember} = checksum(?CHECKSUM_MEMBER),
+                            {ok, Members, [{?CHECKSUM_RING,   HashRing},
+                                           {?CHECKSUM_MEMBER, HashMember}]};
+                        Error ->
+                            Error
+                    end;
                 Error ->
                     Error
-            end;
-        Error ->
-            Error
+            end
     end;
 create(_) ->
     {error, invlid_version}.
@@ -207,12 +214,22 @@ get_options() ->
                     ok = set_options(Options),
                     {ok, Options};
                 _ ->
-                    Options = record_to_tuplelist(#?SYSTEM_CONF{}),
+                    Options = record_to_tuplelist(
+                                #?SYSTEM_CONF{}),
                     {ok, Options}
             end;
         Ret ->
             Ret
     end.
+
+%% @doc get routing-table's options.
+%%
+-spec(get_option(Item) ->
+             Value when Item::atom(),
+                        Value::any()).
+get_option(Item) ->
+    {ok, Options} = get_options(),
+    leo_misc:get_value(Item, Options, 0).
 
 
 %% @doc record to tuple-list for converting system-conf
