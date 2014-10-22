@@ -52,8 +52,8 @@ setup() ->
     catch ets:delete_all_objects('leo_ring_prv'),
 
     leo_misc:init_env(),
-    leo_misc:set_env(leo_redundant_manager, 'server_type', 'gateway'),
-    {ok, Pid} = leo_redundant_manager_sup:start_link(gateway),
+    leo_misc:set_env(leo_redundant_manager, 'server_type', ?WORKER_NODE),
+    {ok, Pid} = leo_redundant_manager_sup:start_link(?WORKER_NODE),
     leo_redundant_manager_api:set_options(
       [{n, 3},{r, 1}, {w ,2},{d, 2},{bit_of_ring, 128},{level_2, 0}]),
     leo_redundant_manager_api:attach('node_0@127.0.0.1'),

@@ -76,8 +76,7 @@ start_link(ServerType, Managers, MQStoragePath, Conf, MembershipCallback) ->
     %% initialize
     case start_link_1(ServerType) of
         {ok, RefSup} ->
-            ServerType_1 = server_type(ServerType),
-            ok = leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ServerType_1),
+            ok = leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ServerType),
             case (Conf == []) of
                 true  ->
                     void;
@@ -87,9 +86,9 @@ start_link(ServerType, Managers, MQStoragePath, Conf, MembershipCallback) ->
 
             %% Launch membership for local-cluster,
             %% then lunch mdc-tables sync
-            case start_link_3(ServerType_1, Managers, MembershipCallback) of
+            case start_link_3(ServerType, Managers, MembershipCallback) of
                 ok ->
-                    ok = leo_membership_mq_client:start(ServerType_1, MQStoragePath),
+                    ok = leo_membership_mq_client:start(ServerType, MQStoragePath),
                     ok = leo_membership_cluster_local:start_heartbeat(),
                     {ok, RefSup};
                 Cause ->
@@ -185,7 +184,7 @@ init([]) ->
     init([undefined]);
 init([ServerType]) ->
     %% Define children
-    Children = case server_type(ServerType) of
+    Children = case ServerType of
                    ?MONITOR_NODE ->
                        [
                         {leo_redundant_manager,
@@ -247,13 +246,6 @@ after_proc(Error) ->
     Error.
 
 
-%% @doc Retrieve a server-type.
-%% @private
-server_type(master) -> ?MONITOR_NODE;
-server_type(slave)  -> ?MONITOR_NODE;
-server_type(Type)   -> Type.
-
-
 %% @doc Create members table.
 %% @private
 -ifdef(TEST).
@@ -266,9 +258,6 @@ init_tables(_)  ->
 -else.
 
 init_tables(?MONITOR_NODE) -> ok;
-init_tables(manager) -> ok;
-init_tables(master) -> ok;
-init_tables(slave)  -> ok;
 init_tables(_Other) ->
     catch leo_cluster_tbl_member:create_table(?MEMBER_TBL_CUR),
     catch leo_cluster_tbl_member:create_table(?MEMBER_TBL_PREV),
