@@ -264,11 +264,12 @@ init_tables(_)  ->
     catch ets:new(?RING_TBL_PREV,[named_table, ordered_set, public, {read_concurrency, true}]),
     ok.
 -else.
+
+init_tables(?MONITOR_NODE) -> ok;
 init_tables(manager) -> ok;
-init_tables(monitor) -> ok;
-init_tables(master)  -> ok;
-init_tables(slave)   -> ok;
-init_tables(_Other)  ->
+init_tables(master) -> ok;
+init_tables(slave)  -> ok;
+init_tables(_Other) ->
     catch leo_cluster_tbl_member:create_table(?MEMBER_TBL_CUR),
     catch leo_cluster_tbl_member:create_table(?MEMBER_TBL_PREV),
     catch ets:new(?RING_TBL_CUR, [named_table, ordered_set, public, {read_concurrency, true}]),

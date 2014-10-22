@@ -148,8 +148,8 @@ code_change(_OldVsn, State, _Extra) ->
 %% @private
 -spec(sync_tables(atom(), [atom()]) ->
              ok).
-sync_tables(gateway,_Managers) ->
-    ok;
+sync_tables(?MONITOR_NODE, Managers) ->
+    sync_tables(manager, Managers);
 sync_tables(master, Managers) ->
     sync_tables(manager, Managers);
 sync_tables(slave,  Managers) ->
