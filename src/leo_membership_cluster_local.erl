@@ -137,7 +137,7 @@ update_manager_nodes(Managers) ->
 %% GEN_SERVER CALLBACKS
 %%--------------------------------------------------------------------
 %% @doc Initiates the server
-init([?SERVER_MANAGER = ServerType, [Partner|_] = Managers, Callback, Interval]) ->
+init([?MONITOR_NODE = ServerType, [Partner|_] = Managers, Callback, Interval]) ->
     defer_heartbeat(Interval),
     {ok, #state{type      = ServerType,
                 interval  = Interval,
@@ -223,12 +223,12 @@ maybe_heartbeat(#state{type         = ServerType,
             void;
         false ->
             case ServerType of
-                ?SERVER_GATEWAY ->
+                ?WORKER_NODE ->
                     catch ProcAuditor:register_in_monitor(again),
                     catch exec(ServerType, Managers, Callback);
-                ?SERVER_MANAGER ->
+                ?MONITOR_NODE ->
                     catch exec(ServerType, Managers, Callback);
-                ?SERVER_STORAGE ->
+                ?PERSISTENT_NODE ->
                     case leo_redundant_manager_api:get_member_by_node(erlang:node()) of
                         {ok, #member{state = ?STATE_RUNNING}}  ->
                             catch exec(ServerType, Managers, Callback);
@@ -253,9 +253,9 @@ defer_heartbeat(Time) ->
 
 %% @doc Execute for manager-nodes.
 %% @private
--spec(exec(?SERVER_MANAGER | ?SERVER_STORAGE | ?SERVER_GATEWAY, list(), function()) ->
+-spec(exec(?MONITOR_NODE | ?PERSISTENT_NODE | ?WORKER_NODE, list(), function()) ->
              ok | {error, any()}).
-exec(?SERVER_MANAGER = ServerType, Managers, Callback) ->
+exec(?MONITOR_NODE = ServerType, Managers, Callback) ->
     ClusterNodes =
         case leo_cluster_tbl_member:find_all() of
             {ok, Members} ->
@@ -282,7 +282,7 @@ exec(ServerType, Managers, Callback) ->
              ok | {error, any()}).
 exec_1(_,_,[],_) ->
     ok;
-exec_1(?SERVER_MANAGER = ServerType, Managers, [{Node, State}|T], Callback) ->
+exec_1(?MONITOR_NODE = ServerType, Managers, [{Node, State}|T], Callback) ->
     SleepTime = erlang:phash2(leo_date:clock(), ?DEF_MAX_INTERVAL),
     SleepTime_1 = case SleepTime < ?DEF_MIN_INTERVAL of
                       true  -> ?DEF_MIN_INTERVAL;
@@ -359,7 +359,7 @@ compare_manager_with_remote_chksum( Node, Managers, [HashType|T]) ->
                     end,
 
             Ret = compare_with_remote_chksum_1(Node, HashType, LocalChksum),
-            ok  = inspect_result(Ret, [?SERVER_MANAGER, Managers, Node, State]),
+            ok  = inspect_result(Ret, [?MONITOR_NODE, Managers, Node, State]),
             compare_manager_with_remote_chksum(Node, Managers, T);
         Error ->
             Error

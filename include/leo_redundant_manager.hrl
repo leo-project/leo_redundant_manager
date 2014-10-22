@@ -211,9 +211,12 @@
                           undefined).
 
 %% Server Type
--define(SERVER_MANAGER, 'manager').
--define(SERVER_GATEWAY, 'gateway').
--define(SERVER_STORAGE, 'storage').
+-define(MONITOR_NODE,    'monitor_node').
+-define(PERSISTENT_NODE, 'persistent_node').
+-define(WORKER_NODE,     'worker_node').
+-type(node_type() :: ?MONITOR_NODE |
+                     ?PERSISTENT_NODE |
+                     ?WORKER_NODE).
 
 %% Mnesia Tables
 -define(TBL_SYSTEM_CONF,    'leo_system_conf').

@@ -39,12 +39,10 @@
 -export([start/2, publish/3]).
 -export([init/0, handle_call/1, handle_call/3]).
 
--define(MQ_INSTANCE_ID_MANAGER, 'membership_manager').
--define(MQ_INSTANCE_ID_GATEWAY, 'membership_gateway').
--define(MQ_INSTANCE_ID_STORAGE, 'membership_storage').
+-define(MQ_MONITOR_NODE,    'mq_monitor_node').
+-define(MQ_WORKER_NODE,     'mq_worker_node').
+-define(MQ_PERSISTENT_NODE, 'mq_persistent_node').
 -define(MQ_DB_PATH,             "membership").
-
--type(type_of_server() :: manager | gateway | storage).
 
 -record(message, {node             :: atom(),
                   error            :: any(),
@@ -70,15 +68,15 @@
 %% @doc create queues and launch mq-servers.
 %%
 -spec(start(ServerType, RootPath) ->
-             ok | {error, any()} when ServerType::type_of_server(),
+             ok | {error, any()} when ServerType::node_type()|atom(),
                                       RootPath::string()).
-start(?SERVER_MANAGER, RootPath) ->
-    start1(?MQ_INSTANCE_ID_MANAGER, RootPath);
-start(?SERVER_GATEWAY, RootPath) ->
-    start1(?MQ_INSTANCE_ID_GATEWAY, RootPath);
-start(?SERVER_STORAGE, RootPath) ->
-    start1(?MQ_INSTANCE_ID_STORAGE, RootPath);
-start(_, _) ->
+start(?MONITOR_NODE, RootPath) ->
+    start1(?MQ_MONITOR_NODE, RootPath);
+start(?PERSISTENT_NODE, RootPath) ->
+    start1(?MQ_PERSISTENT_NODE, RootPath);
+start(?WORKER_NODE, RootPath) ->
+    start1(?MQ_WORKER_NODE, RootPath);
+start(_,_) ->
     {error, badarg}.
 
 start1(InstanceId, RootPath0) ->
@@ -124,17 +122,17 @@ publish(ServerType, Node, Error, Times) ->
 %% @doc Publish a message into the queue.
 %%
 -spec(publish(ServerType, KeyAndMessage) ->
-             ok | {error, any()} when ServerType::atom(),
+             ok | {error, any()} when ServerType::node_type(),
                                       KeyAndMessage::{binary(),binary()}).
-publish(manager, {KeyBin, MessageBin}) ->
-    leo_mq_api:publish(?MQ_INSTANCE_ID_MANAGER, KeyBin, MessageBin);
-publish(gateway, {KeyBin, MessageBin}) ->
-    leo_mq_api:publish(?MQ_INSTANCE_ID_GATEWAY, KeyBin, MessageBin);
-publish(storage, {KeyBin, MessageBin}) ->
-    leo_mq_api:publish(?MQ_INSTANCE_ID_STORAGE, KeyBin, MessageBin);
-publish(InstanceId, {KeyBin, MessageBin}) when InstanceId == ?MQ_INSTANCE_ID_MANAGER;
-                                               InstanceId == ?MQ_INSTANCE_ID_GATEWAY;
-                                               InstanceId == ?MQ_INSTANCE_ID_STORAGE ->
+publish(?MONITOR_NODE, {KeyBin, MessageBin}) ->
+    leo_mq_api:publish(?MQ_MONITOR_NODE, KeyBin, MessageBin);
+publish(?PERSISTENT_NODE, {KeyBin, MessageBin}) ->
+    leo_mq_api:publish(?MQ_PERSISTENT_NODE, KeyBin, MessageBin);
+publish(?WORKER_NODE, {KeyBin, MessageBin}) ->
+    leo_mq_api:publish(?MQ_WORKER_NODE, KeyBin, MessageBin);
+publish(InstanceId, {KeyBin, MessageBin}) when InstanceId == ?MQ_MONITOR_NODE;
+                                               InstanceId == ?MQ_WORKER_NODE;
+                                               InstanceId == ?MQ_PERSISTENT_NODE ->
     leo_mq_api:publish(InstanceId, KeyBin, MessageBin);
 publish(_,_) ->
     {error, badarg}.
@@ -200,8 +198,8 @@ handle_call(_,_,_) ->
 %%--------------------------------------------------------------------
 %% INNTERNAL FUNCTIONS
 %%--------------------------------------------------------------------
-notify_error_to_manager(Id, RemoteNode, Error) when Id == ?MQ_INSTANCE_ID_GATEWAY;
-                                                    Id == ?MQ_INSTANCE_ID_STORAGE ->
+notify_error_to_manager(Id, RemoteNode, Error) when Id == ?MQ_WORKER_NODE;
+                                                    Id == ?MQ_PERSISTENT_NODE ->
     {ok, Managers}   = application:get_env(?APP, ?PROP_MANAGERS),
     {ok, [Mod, Method]} = ?env_notify_mod_and_method(),
 
@@ -216,7 +214,7 @@ notify_error_to_manager(Id, RemoteNode, Error) when Id == ?MQ_INSTANCE_ID_GATEWA
                         end
                 end, false, Managers),
     ok;
-notify_error_to_manager(?MQ_INSTANCE_ID_MANAGER, RemoteNode, Error) ->
+notify_error_to_manager(?MQ_MONITOR_NODE, RemoteNode, Error) ->
     {ok, [Mod, Method]} = ?env_notify_mod_and_method(),
     catch erlang:apply(Mod, Method, [error, RemoteNode, node(), Error]);
 

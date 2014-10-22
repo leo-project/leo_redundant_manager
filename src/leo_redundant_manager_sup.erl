@@ -186,7 +186,7 @@ init([]) ->
 init([ServerType]) ->
     %% Define children
     Children = case server_type(ServerType) of
-                   ?SERVER_MANAGER ->
+                   ?MONITOR_NODE ->
                        [
                         {leo_redundant_manager,
                          {leo_redundant_manager, start_link, []},
@@ -249,8 +249,8 @@ after_proc(Error) ->
 
 %% @doc Retrieve a server-type.
 %% @private
-server_type(master) -> ?SERVER_MANAGER;
-server_type(slave)  -> ?SERVER_MANAGER;
+server_type(master) -> ?MONITOR_NODE;
+server_type(slave)  -> ?MONITOR_NODE;
 server_type(Type)   -> Type.
 
 
@@ -265,6 +265,7 @@ init_tables(_)  ->
     ok.
 -else.
 init_tables(manager) -> ok;
+init_tables(monitor) -> ok;
 init_tables(master)  -> ok;
 init_tables(slave)   -> ok;
 init_tables(_Other)  ->

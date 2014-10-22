@@ -127,7 +127,7 @@ setup() ->
     catch ets:delete_all_objects(?RING_TBL_PREV),
 
     leo_misc:init_env(),
-    leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
+    leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?MONITOR_NODE),
     leo_cluster_tbl_member:create_table(?MEMBER_TBL_CUR),
     leo_cluster_tbl_member:create_table(?MEMBER_TBL_PREV),
     {Hostname}.
@@ -746,7 +746,7 @@ redundant(true) ->
     {ok, Hostname} = inet:gethostname(),
 
     leo_misc:init_env(),
-    leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
+    leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?MONITOR_NODE),
     leo_cluster_tbl_member:create_table(?MEMBER_TBL_CUR),
     leo_cluster_tbl_member:create_table(?MEMBER_TBL_PREV),
 
