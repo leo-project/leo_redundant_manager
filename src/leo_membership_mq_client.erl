@@ -200,7 +200,7 @@ handle_call(_,_,_) ->
 %%--------------------------------------------------------------------
 notify_error_to_manager(Id, RemoteNode, Error) when Id == ?MQ_WORKER_NODE;
                                                     Id == ?MQ_PERSISTENT_NODE ->
-    {ok, Managers}   = application:get_env(?APP, ?PROP_MANAGERS),
+    {ok, Monitors}   = application:get_env(?APP, ?PROP_MONITORS),
     {ok, [Mod, Method]} = ?env_notify_mod_and_method(),
 
     lists:foldl(fun(_, true ) ->
@@ -212,7 +212,7 @@ notify_error_to_manager(Id, RemoteNode, Error) when Id == ?MQ_WORKER_NODE;
                             {_, _Cause} -> false;
                             timeout     -> false
                         end
-                end, false, Managers),
+                end, false, Monitors),
     ok;
 notify_error_to_manager(?MQ_MONITOR_NODE, RemoteNode, Error) ->
     {ok, [Mod, Method]} = ?env_notify_mod_and_method(),

@@ -139,7 +139,7 @@
 %% Property
 %%
 -define(PROP_SERVER_TYPE,   'server_type').
--define(PROP_MANAGERS,      'managers').
+-define(PROP_MONITORS,      'monitors').
 -define(PROP_NOTIFY_MF,     'notify_mf').
 -define(PROP_SYNC_MF,       'sync_mf').
 -define(PROP_OPTIONS,       'options').

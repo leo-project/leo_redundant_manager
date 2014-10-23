@@ -41,8 +41,8 @@
 
 -ifdef(TEST).
 %% -define(MNESIA_TYPE_COPIES, 'ram_copies').
--define(MODULE_SET_ENV_1(), application:set_env(?APP, 'notify_mf', [leo_manager_api, notify])).
--define(MODULE_SET_ENV_2(), application:set_env(?APP, 'sync_mf',   [leo_manager_api, synchronize])).
+-define(MODULE_SET_ENV_1(), application:set_env(?APP, ?PROP_NOTIFY_MF, [leo_manager_api, notify])).
+-define(MODULE_SET_ENV_2(), application:set_env(?APP, ?PROP_SYNC_MF,   [leo_manager_api, synchronize])).
 -else.
 %% -define(MNESIA_TYPE_COPIES, 'disc_copies').
 -define(MODULE_SET_ENV_1(), void).
@@ -66,13 +66,13 @@ start_link() ->
 start_link(ServerType) ->
     start_link_1(ServerType).
 
-start_link(ServerType, Managers, MQStoragePath) ->
-    start_link(ServerType, Managers, MQStoragePath, [], undefined).
+start_link(ServerType, Monitors, MQStoragePath) ->
+    start_link(ServerType, Monitors, MQStoragePath, [], undefined).
 
-start_link(ServerType, Managers, MQStoragePath, Conf) ->
-    start_link(ServerType, Managers, MQStoragePath, Conf, undefined).
+start_link(ServerType, Monitors, MQStoragePath, Conf) ->
+    start_link(ServerType, Monitors, MQStoragePath, Conf, undefined).
 
-start_link(ServerType, Managers, MQStoragePath, Conf, MembershipCallback) ->
+start_link(ServerType, Monitors, MQStoragePath, Conf, MembershipCallback) ->
     %% initialize
     case start_link_1(ServerType) of
         {ok, RefSup} ->
@@ -86,7 +86,7 @@ start_link(ServerType, Managers, MQStoragePath, Conf, MembershipCallback) ->
 
             %% Launch membership for local-cluster,
             %% then lunch mdc-tables sync
-            case start_link_3(ServerType, Managers, MembershipCallback) of
+            case start_link_3(ServerType, Monitors, MembershipCallback) of
                 ok ->
                     ok = leo_membership_mq_client:start(ServerType, MQStoragePath),
                     ok = leo_membership_cluster_local:start_heartbeat(),
@@ -132,12 +132,12 @@ start_link_2(Error,_ServerType) ->
     Error.
 
 %% @private
-start_link_3(ServerType, Managers, MembershipCallback) ->
+start_link_3(ServerType, Monitors, MembershipCallback) ->
     case supervisor:start_child(leo_redundant_manager_sup,
                                 {leo_membership_cluster_local,
                                  {leo_membership_cluster_local,
                                   start_link,
-                                  [ServerType, Managers, MembershipCallback]},
+                                  [ServerType, Monitors, MembershipCallback]},
                                  permanent, 2000, worker,
                                  [leo_membership_cluster_local]}) of
         {ok,_} ->
@@ -145,7 +145,7 @@ start_link_3(ServerType, Managers, MembershipCallback) ->
                                         {leo_mdcr_tbl_sync,
                                          {leo_mdcr_tbl_sync,
                                           start_link,
-                                          [ServerType, Managers]},
+                                          [ServerType, Monitors]},
                                          permanent, 2000, worker,
                                          [leo_mdcr_tbl_sync]}) of
                 {ok,_} ->

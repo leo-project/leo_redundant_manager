@@ -46,7 +46,7 @@
 
 -record(state, {
           server_type :: atom(),
-          managers = []    :: [atom()],
+          monitors = []    :: [atom()],
           interval = 30000 :: integer()
          }).
 
@@ -69,9 +69,9 @@
 %% API
 %%--------------------------------------------------------------------
 %% @doc Start the server
-start_link(ServerType, Managers) ->
+start_link(ServerType, Monitors) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE,
-                          [ServerType, Managers, ?DEF_MEMBERSHIP_INTERVAL], []).
+                          [ServerType, Monitors, ?DEF_MEMBERSHIP_INTERVAL], []).
 
 %% @doc Stop the server
 stop() ->
@@ -86,18 +86,18 @@ force_sync() ->
 %% GEN_SERVER CALLBACKS
 %%--------------------------------------------------------------------
 %% @doc Initiates the server
-init([ServerType, Managers, Interval]) ->
+init([ServerType, Monitors, Interval]) ->
     {ok, #state{
             server_type = ServerType,
-            managers = Managers,
+            monitors = Monitors,
             interval = Interval}, Interval}.
 
 %% @doc gen_server callback - Module:handle_call(Request, From, State) -> Result
 handle_call(stop,_From,State) ->
     {stop, normal, ok, State};
 
-handle_call(force_sync,_From, #state{managers = Managers} = State) ->
-    ok = sync_tables_with_manager(Managers),
+handle_call(force_sync,_From, #state{monitors = Monitors} = State) ->
+    ok = sync_tables_with_manager(Monitors),
     {reply, ok, State}.
 
 
@@ -114,14 +114,14 @@ handle_cast(_, #state{interval = Interval} = State) ->
 %% gen_server callback - Module:handle_info(Info, State) -> Result.
 %% </p>
 handle_info(timeout, #state{server_type = ServerType,
-                            managers = Managers,
+                            monitors = Monitors,
                             interval = Interval} = State) ->
     Delay = 250,
     timer:sleep(erlang:phash2(leo_date:clock(), Delay) + Delay),
 
     %% Synchronize mdcr-related tables
     spawn(fun() ->
-                  sync_tables(ServerType, Managers)
+                  sync_tables(ServerType, Monitors)
           end),
     {noreply, State, Interval};
 
@@ -148,13 +148,13 @@ code_change(_OldVsn, State, _Extra) ->
 %% @private
 -spec(sync_tables(atom(), [atom()]) ->
              ok).
-sync_tables(?MONITOR_NODE, Managers) ->
-    sync_tables(manager, Managers);
-sync_tables(master, Managers) ->
-    sync_tables(manager, Managers);
-sync_tables(slave,  Managers) ->
-    sync_tables(manager, Managers);
-sync_tables(manager,_Managers) ->
+sync_tables(?MONITOR_NODE, Monitors) ->
+    sync_tables(manager, Monitors);
+sync_tables(master, Monitors) ->
+    sync_tables(manager, Monitors);
+sync_tables(slave,  Monitors) ->
+    sync_tables(manager, Monitors);
+sync_tables(manager,_Monitors) ->
     Redundancies = ?rnd_nodes_from_ring(),
     case sync_tables_1(Redundancies) of
         ok ->
