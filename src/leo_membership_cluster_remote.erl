@@ -83,11 +83,11 @@ heartbeat() ->
     gen_server:cast(?MODULE, heartbeat).
 
 %% @doc Force the info to synchronize with the remote-cluster(s)
--spec(force_sync(ClusterId, RemoteManagers) ->
+-spec(force_sync(ClusterId, RemoteMonitors) ->
              ok when ClusterId::atom(),
-                     RemoteManagers::[atom()]).
-force_sync(ClusterId, RemoteManagers) ->
-    gen_server:call(?MODULE, {force_sync, ClusterId, RemoteManagers}).
+                     RemoteMonitors::[atom()]).
+force_sync(ClusterId, RemoteMonitors) ->
+    gen_server:call(?MODULE, {force_sync, ClusterId, RemoteMonitors}).
 
 
 %%--------------------------------------------------------------------
@@ -103,10 +103,10 @@ init([Interval]) ->
 handle_call(stop,_From,State) ->
     {stop, normal, ok, State};
 
-handle_call({force_sync, ClusterId, RemoteManagers},_From, State) ->
+handle_call({force_sync, ClusterId, RemoteMonitors},_From, State) ->
     Mgrs = [#cluster_manager{node = N,
                              cluster_id = ClusterId}
-            || N <- RemoteManagers],
+            || N <- RemoteMonitors],
     ok = exec(Mgrs),
     {reply, ok, State}.
 
@@ -175,8 +175,8 @@ defer_heartbeat(Time) ->
 %% @private
 sync() ->
     case leo_mdcr_tbl_cluster_mgr:all() of
-        {ok, Managers} ->
-            ok = exec(Managers);
+        {ok, Monitors} ->
+            ok = exec(Monitors);
         not_found ->
             void;
         {error,_Cause} ->

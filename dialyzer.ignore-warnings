@@ -2,3 +2,5 @@ The pattern 'true' can never match the type 'false'
 The pattern [ClusterInfo = {'cluster_info_1', ClusterId, DCId, _, _, _, _, _, _, _, _} | Rest] can never match since previous clauses completely covered the type [#cluster_info_1{cluster_id::atom(),dc_id::atom(),n::non_neg_integer(),r::non_neg_integer(),w::non_neg_integer(),d::non_neg_integer(),bit_of_ring::non_neg_integer(),num_of_dc_replicas::non_neg_integer(),num_of_rack_replicas::non_neg_integer(),max_mdc_targets::non_neg_integer()}]
 The pattern [{'cluster_stat_1', ClusterId, _, _, _} | Rest] can never match since previous clauses completely covered the type [#cluster_stat_1{cluster_id::atom(),state::'attached' | 'detached' | 'null' | 'reserved' | 'restarted' | 'running' | 'stop' | 'suspend',checksum::non_neg_integer(),updated_at::non_neg_integer()}]
 Guard test Node_1::none() == Node_2::atom() can never succeed
+The call leo_mq_api:new
+The pattern 'ok' can never match the type {'error','badarg'}

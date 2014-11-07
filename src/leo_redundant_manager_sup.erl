@@ -41,8 +41,8 @@
 
 -ifdef(TEST).
 %% -define(MNESIA_TYPE_COPIES, 'ram_copies').
--define(MODULE_SET_ENV_1(), application:set_env(?APP, 'notify_mf', [leo_manager_api, notify])).
--define(MODULE_SET_ENV_2(), application:set_env(?APP, 'sync_mf',   [leo_manager_api, synchronize])).
+-define(MODULE_SET_ENV_1(), application:set_env(?APP, ?PROP_NOTIFY_MF, [leo_manager_api, notify])).
+-define(MODULE_SET_ENV_2(), application:set_env(?APP, ?PROP_SYNC_MF,   [leo_manager_api, synchronize])).
 -else.
 %% -define(MNESIA_TYPE_COPIES, 'disc_copies').
 -define(MODULE_SET_ENV_1(), void).
@@ -66,18 +66,17 @@ start_link() ->
 start_link(ServerType) ->
     start_link_1(ServerType).
 
-start_link(ServerType, Managers, MQStoragePath) ->
-    start_link(ServerType, Managers, MQStoragePath, [], undefined).
+start_link(ServerType, Monitors, MQStoragePath) ->
+    start_link(ServerType, Monitors, MQStoragePath, [], undefined).
 
-start_link(ServerType, Managers, MQStoragePath, Conf) ->
-    start_link(ServerType, Managers, MQStoragePath, Conf, undefined).
+start_link(ServerType, Monitors, MQStoragePath, Conf) ->
+    start_link(ServerType, Monitors, MQStoragePath, Conf, undefined).
 
-start_link(ServerType, Managers, MQStoragePath, Conf, MembershipCallback) ->
+start_link(ServerType, Monitors, MQStoragePath, Conf, MembershipCallback) ->
     %% initialize
     case start_link_1(ServerType) of
         {ok, RefSup} ->
-            ServerType_1 = server_type(ServerType),
-            ok = leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ServerType_1),
+            ok = leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ServerType),
             case (Conf == []) of
                 true  ->
                     void;
@@ -87,9 +86,9 @@ start_link(ServerType, Managers, MQStoragePath, Conf, MembershipCallback) ->
 
             %% Launch membership for local-cluster,
             %% then lunch mdc-tables sync
-            case start_link_3(ServerType_1, Managers, MembershipCallback) of
+            case start_link_3(ServerType, Monitors, MembershipCallback) of
                 ok ->
-                    ok = leo_membership_mq_client:start(ServerType_1, MQStoragePath),
+                    ok = leo_membership_mq_client:start(ServerType, MQStoragePath),
                     ok = leo_membership_cluster_local:start_heartbeat(),
                     {ok, RefSup};
                 Cause ->
@@ -133,12 +132,12 @@ start_link_2(Error,_ServerType) ->
     Error.
 
 %% @private
-start_link_3(ServerType, Managers, MembershipCallback) ->
+start_link_3(ServerType, Monitors, MembershipCallback) ->
     case supervisor:start_child(leo_redundant_manager_sup,
                                 {leo_membership_cluster_local,
                                  {leo_membership_cluster_local,
                                   start_link,
-                                  [ServerType, Managers, MembershipCallback]},
+                                  [ServerType, Monitors, MembershipCallback]},
                                  permanent, 2000, worker,
                                  [leo_membership_cluster_local]}) of
         {ok,_} ->
@@ -146,7 +145,7 @@ start_link_3(ServerType, Managers, MembershipCallback) ->
                                         {leo_mdcr_tbl_sync,
                                          {leo_mdcr_tbl_sync,
                                           start_link,
-                                          [ServerType, Managers]},
+                                          [ServerType, Monitors]},
                                          permanent, 2000, worker,
                                          [leo_mdcr_tbl_sync]}) of
                 {ok,_} ->
@@ -185,8 +184,8 @@ init([]) ->
     init([undefined]);
 init([ServerType]) ->
     %% Define children
-    Children = case server_type(ServerType) of
-                   ?SERVER_MANAGER ->
+    Children = case ServerType of
+                   ?MONITOR_NODE ->
                        [
                         {leo_redundant_manager,
                          {leo_redundant_manager, start_link, []},
@@ -247,13 +246,6 @@ after_proc(Error) ->
     Error.
 
 
-%% @doc Retrieve a server-type.
-%% @private
-server_type(master) -> ?SERVER_MANAGER;
-server_type(slave)  -> ?SERVER_MANAGER;
-server_type(Type)   -> Type.
-
-
 %% @doc Create members table.
 %% @private
 -ifdef(TEST).
@@ -264,10 +256,9 @@ init_tables(_)  ->
     catch ets:new(?RING_TBL_PREV,[named_table, ordered_set, public, {read_concurrency, true}]),
     ok.
 -else.
-init_tables(manager) -> ok;
-init_tables(master)  -> ok;
-init_tables(slave)   -> ok;
-init_tables(_Other)  ->
+
+init_tables(?MONITOR_NODE) -> ok;
+init_tables(_Other) ->
     catch leo_cluster_tbl_member:create_table(?MEMBER_TBL_CUR),
     catch leo_cluster_tbl_member:create_table(?MEMBER_TBL_PREV),
     catch ets:new(?RING_TBL_CUR, [named_table, ordered_set, public, {read_concurrency, true}]),

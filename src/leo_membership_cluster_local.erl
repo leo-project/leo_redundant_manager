@@ -53,7 +53,7 @@
 -record(state, {type              :: atom(),
                 interval  = 0     :: non_neg_integer(),
                 timestamp = 0     :: non_neg_integer(),
-                managers = []     :: [atom()],
+                monitors = []     :: [atom()],
                 partner_manager   :: atom(),
                 proc_auditor      :: atom(),
                 callback          :: undefined|function()
@@ -79,22 +79,22 @@
 %% API
 %%--------------------------------------------------------------------
 %% @doc Start the server
--spec(start_link(ServerType, Managers) ->
+-spec(start_link(ServerType, Monitors) ->
              {ok, pid()} | {error, any()} when ServerType::atom(),
-                                               Managers::[atom()]).
-start_link(ServerType, Managers) ->
+                                               Monitors::[atom()]).
+start_link(ServerType, Monitors) ->
     Fun =  fun()-> ok end,
-    start_link(ServerType, Managers, Fun).
+    start_link(ServerType, Monitors, Fun).
 
--spec(start_link(ServerType, Managers, Callback) ->
+-spec(start_link(ServerType, Monitors, Callback) ->
              {ok, pid()} | {error, any()} when ServerType::atom(),
-                                               Managers::[atom()],
+                                               Monitors::[atom()],
                                                Callback::function()
                                                          ).
-start_link(ServerType, Managers, Callback) ->
-    ok = application:set_env(?APP, ?PROP_MANAGERS, Managers),
+start_link(ServerType, Monitors, Callback) ->
+    ok = application:set_env(?APP, ?PROP_MONITORS, Monitors),
     gen_server:start_link({local, ?MODULE}, ?MODULE,
-                          [ServerType, Managers, Callback, ?DEF_MEMBERSHIP_INTERVAL], []).
+                          [ServerType, Monitors, Callback, ?DEF_MEMBERSHIP_INTERVAL], []).
 
 %% @doc Stop the server
 stop() ->
@@ -127,33 +127,33 @@ set_proc_auditor(ProcAuditor) ->
 
 
 %% @doc Update the manager nodes
--spec(update_manager_nodes(Managers) ->
-             ok | {error, any()} when Managers::[atom()]).
-update_manager_nodes(Managers) ->
-    gen_server:cast(?MODULE, {update_manager_nodes, Managers}).
+-spec(update_manager_nodes(Monitors) ->
+             ok | {error, any()} when Monitors::[atom()]).
+update_manager_nodes(Monitors) ->
+    gen_server:cast(?MODULE, {update_manager_nodes, Monitors}).
 
 
 %%--------------------------------------------------------------------
 %% GEN_SERVER CALLBACKS
 %%--------------------------------------------------------------------
 %% @doc Initiates the server
-init([?SERVER_MANAGER = ServerType, [Partner|_] = Managers, Callback, Interval]) ->
+init([?MONITOR_NODE = ServerType, [Partner|_] = Monitors, Callback, Interval]) ->
     defer_heartbeat(Interval),
     {ok, #state{type      = ServerType,
                 interval  = Interval,
                 timestamp = 0,
                 partner_manager = Partner,
-                managers  = Managers,
+                monitors  = Monitors,
                 callback  = Callback
                }};
 
-init([ServerType, Managers,_Callback, Interval]) ->
+init([ServerType, Monitors,_Callback, Interval]) ->
     defer_heartbeat(Interval),
     Callback = fun()-> ok end,
     {ok, #state{type      = ServerType,
                 interval  = Interval,
                 timestamp = 0,
-                managers  = Managers,
+                monitors  = Monitors,
                 callback  = Callback
                }}.
 
@@ -178,9 +178,9 @@ handle_cast({start_heartbeat}, State) ->
 handle_cast({set_proc_auditor, ProcAuditor}, State) ->
     {noreply, State#state{proc_auditor = ProcAuditor}};
 
-handle_cast({update_manager_nodes, Managers}, State) ->
-    ok = application:set_env(?APP, ?PROP_MANAGERS, Managers),
-    {noreply, State#state{managers  = Managers}};
+handle_cast({update_manager_nodes, Monitors}, State) ->
+    ok = application:set_env(?APP, ?PROP_MONITORS, Monitors),
+    {noreply, State#state{monitors  = Monitors}};
 
 handle_cast({stop_heartbeat}, State) ->
     {noreply, State}.
@@ -214,7 +214,7 @@ code_change(_OldVsn, State, _Extra) ->
 maybe_heartbeat(#state{type         = ServerType,
                        interval     = Interval,
                        timestamp    = Timestamp,
-                       managers     = Managers,
+                       monitors     = Monitors,
                        proc_auditor = ProcAuditor,
                        callback     = Callback} = State) ->
     ThisTime = leo_date:now() * 1000,
@@ -223,15 +223,15 @@ maybe_heartbeat(#state{type         = ServerType,
             void;
         false ->
             case ServerType of
-                ?SERVER_GATEWAY ->
+                ?WORKER_NODE ->
                     catch ProcAuditor:register_in_monitor(again),
-                    catch exec(ServerType, Managers, Callback);
-                ?SERVER_MANAGER ->
-                    catch exec(ServerType, Managers, Callback);
-                ?SERVER_STORAGE ->
+                    catch exec(ServerType, Monitors, Callback);
+                ?MONITOR_NODE ->
+                    catch exec(ServerType, Monitors, Callback);
+                ?PERSISTENT_NODE ->
                     case leo_redundant_manager_api:get_member_by_node(erlang:node()) of
                         {ok, #member{state = ?STATE_RUNNING}}  ->
-                            catch exec(ServerType, Managers, Callback);
+                            catch exec(ServerType, Monitors, Callback);
                         _ ->
                             void
                     end;
@@ -253,9 +253,9 @@ defer_heartbeat(Time) ->
 
 %% @doc Execute for manager-nodes.
 %% @private
--spec(exec(?SERVER_MANAGER | ?SERVER_STORAGE | ?SERVER_GATEWAY, list(), function()) ->
+-spec(exec(?MONITOR_NODE | ?PERSISTENT_NODE | ?WORKER_NODE, list(), function()) ->
              ok | {error, any()}).
-exec(?SERVER_MANAGER = ServerType, Managers, Callback) ->
+exec(?MONITOR_NODE = ServerType, Monitors, Callback) ->
     ClusterNodes =
         case leo_cluster_tbl_member:find_all() of
             {ok, Members} ->
@@ -264,16 +264,16 @@ exec(?SERVER_MANAGER = ServerType, Managers, Callback) ->
             _ ->
                 []
         end,
-    exec_1(ServerType, Managers, ClusterNodes, Callback);
+    exec_1(ServerType, Monitors, ClusterNodes, Callback);
 
-%% @doc Execute for gateway and storage nodes.
+%% @doc Execute for worker-node and persistent-nodes.
 %% @private
-exec(ServerType, Managers, Callback) ->
+exec(ServerType, Monitors, Callback) ->
     Redundancies  = ?rnd_nodes_from_ring(),
     NodesAndState = [{Node, State} ||
                         #redundant_node{node = Node,
                                         available = State} <- Redundancies],
-    exec_1(ServerType, Managers, NodesAndState, Callback).
+    exec_1(ServerType, Monitors, NodesAndState, Callback).
 
 
 %% @doc Execute for manager-nodes.
@@ -282,7 +282,7 @@ exec(ServerType, Managers, Callback) ->
              ok | {error, any()}).
 exec_1(_,_,[],_) ->
     ok;
-exec_1(?SERVER_MANAGER = ServerType, Managers, [{Node, State}|T], Callback) ->
+exec_1(?MONITOR_NODE = ServerType, Monitors, [{Node, State}|T], Callback) ->
     SleepTime = erlang:phash2(leo_date:clock(), ?DEF_MAX_INTERVAL),
     SleepTime_1 = case SleepTime < ?DEF_MIN_INTERVAL of
                       true  -> ?DEF_MIN_INTERVAL;
@@ -297,24 +297,24 @@ exec_1(?SERVER_MANAGER = ServerType, Managers, [{Node, State}|T], Callback) ->
                 false ->
                     void
             end,
-            _ = compare_manager_with_remote_chksum(Node, Managers);
+            _ = compare_manager_with_remote_chksum(Node, Monitors);
         _ ->
             void
     end,
-    exec_1(ServerType, Managers, T, Callback);
+    exec_1(ServerType, Monitors, T, Callback);
 
-%% @doc Execute for gateway-nodes and storage-nodes.
-%%      Storage and Gateway does not use the parameter of "callback"
+%% @doc Execute for worker-nodes and persistent-nodes.
+%%      they does not use the parameter of "callback"
 %% @private
-exec_1(ServerType, Managers, [{Node, State}|T], Callback) ->
+exec_1(ServerType, Monitors, [{Node, State}|T], Callback) ->
     case (erlang:node() == Node) of
         true ->
             void;
         false ->
             Ret = compare_with_remote_chksum(Node),
-            ok  = inspect_result(Ret, [ServerType, Managers, Node, State])
+            ok  = inspect_result(Ret, [ServerType, Monitors, Node, State])
     end,
-    exec_1(ServerType, Managers, T, Callback).
+    exec_1(ServerType, Monitors, T, Callback).
 
 
 %% @doc Inspect result value
@@ -325,8 +325,8 @@ inspect_result(ok, [ServerType, _, Node, false]) ->
     leo_membership_mq_client:publish(ServerType, Node, ?ERR_TYPE_NODE_DOWN);
 inspect_result(ok, _) ->
     ok;
-inspect_result({error, {HashType, ?ERR_TYPE_INCONSISTENT_HASH, NodesWithChksum}}, [_, Managers, _, _]) ->
-    notify_error_to_manager(Managers, HashType, NodesWithChksum);
+inspect_result({error, {HashType, ?ERR_TYPE_INCONSISTENT_HASH, NodesWithChksum}}, [_, Monitors, _, _]) ->
+    notify_error_to_manager(Monitors, HashType, NodesWithChksum);
 inspect_result({error, ?ERR_TYPE_NODE_DOWN}, [ServerType,_,Node,_]) ->
     leo_membership_mq_client:publish(ServerType, Node, ?ERR_TYPE_NODE_DOWN);
 inspect_result(Error, _) ->
@@ -341,16 +341,16 @@ inspect_result(Error, _) ->
 %% @private
 -spec(compare_manager_with_remote_chksum(atom(), list()) ->
              ok).
-compare_manager_with_remote_chksum(Node, Managers) ->
+compare_manager_with_remote_chksum(Node, Monitors) ->
     compare_manager_with_remote_chksum(
-      Node, Managers, [?CHECKSUM_RING,
+      Node, Monitors, [?CHECKSUM_RING,
                        ?CHECKSUM_MEMBER,
                        ?CHECKSUM_WORKER
                       ]).
 
-compare_manager_with_remote_chksum(_Node,_Managers, []) ->
+compare_manager_with_remote_chksum(_Node,_Monitors, []) ->
     ok;
-compare_manager_with_remote_chksum( Node, Managers, [HashType|T]) ->
+compare_manager_with_remote_chksum( Node, Monitors, [HashType|T]) ->
     case  leo_redundant_manager_api:checksum(HashType) of
         {ok, LocalChksum} ->
             State = case leo_redundant_manager_api:get_member_by_node(Node) of
@@ -359,8 +359,8 @@ compare_manager_with_remote_chksum( Node, Managers, [HashType|T]) ->
                     end,
 
             Ret = compare_with_remote_chksum_1(Node, HashType, LocalChksum),
-            ok  = inspect_result(Ret, [?SERVER_MANAGER, Managers, Node, State]),
-            compare_manager_with_remote_chksum(Node, Managers, T);
+            ok  = inspect_result(Ret, [?MONITOR_NODE, Monitors, Node, State]),
+            compare_manager_with_remote_chksum(Node, Monitors, T);
         Error ->
             Error
     end.
@@ -421,7 +421,7 @@ compare_with_remote_chksum_1(Node, HashType, LocalChksum) ->
                               ?CHECKSUM_RING | ?CHECKSUM_MEMBER,
                               [tuple()]) ->
              ok).
-notify_error_to_manager(Managers, HashType, NodesWithChksum) ->
+notify_error_to_manager(Monitors, HashType, NodesWithChksum) ->
     lists:foldl(
       fun(Node0, false) ->
               {ok, [Mod, Method]} = application:get_env(?APP, ?PROP_SYNC_MF),
@@ -442,5 +442,5 @@ notify_error_to_manager(Managers, HashType, NodesWithChksum) ->
               end;
          (_, true) ->
               ok
-      end, false, Managers),
+      end, false, Monitors),
     ok.

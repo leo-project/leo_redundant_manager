@@ -52,9 +52,9 @@
 -define(table_type(), ?DB_ETS).
 -else.
 -define(table_type(), case leo_misc:get_env(?APP, ?PROP_SERVER_TYPE) of
-                          {ok, Value} when Value == ?SERVER_MANAGER -> ?DB_MNESIA;
-                          {ok, Value} when Value == ?SERVER_STORAGE -> ?DB_ETS;
-                          {ok, Value} when Value == ?SERVER_GATEWAY -> ?DB_ETS;
+                          {ok, Value} when Value == ?MONITOR_NODE -> ?DB_MNESIA;
+                          {ok, Value} when Value == ?PERSISTENT_NODE -> ?DB_ETS;
+                          {ok, Value} when Value == ?WORKER_NODE -> ?DB_ETS;
                           _Error ->
                               undefined
                       end).

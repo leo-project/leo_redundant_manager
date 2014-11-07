@@ -1065,7 +1065,7 @@ table_info(?VER_PREV) -> {ets, ?RING_TBL_PREV}.
 -else.
 table_info(?VER_CUR) ->
     case leo_misc:get_env(?APP, ?PROP_SERVER_TYPE) of
-        {ok, ?SERVER_MANAGER} ->
+        {ok, ?MONITOR_NODE} ->
             {mnesia, ?RING_TBL_CUR};
         _ ->
             {ets, ?RING_TBL_CUR}
@@ -1073,7 +1073,7 @@ table_info(?VER_CUR) ->
 
 table_info(?VER_PREV) ->
     case leo_misc:get_env(?APP, ?PROP_SERVER_TYPE) of
-        {ok, ?SERVER_MANAGER} ->
+        {ok, ?MONITOR_NODE} ->
             {mnesia, ?RING_TBL_PREV};
         _ ->
             {ets, ?RING_TBL_PREV}

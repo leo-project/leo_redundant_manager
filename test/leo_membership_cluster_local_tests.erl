@@ -67,7 +67,7 @@ setup() ->
 
     %% start applications
     leo_misc:init_env(),
-    leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?SERVER_MANAGER),
+    leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?MONITOR_NODE),
 
     application:start(mnesia),
     leo_cluster_tbl_member:create_table(ram_copies, [node()], ?MEMBER_TBL_CUR),
@@ -116,7 +116,8 @@ membership_manager_({Hostname, _, _, Node0, Node1, Node2}) ->
                                         end]),
 
     Path = filename:absname("") ++ "db/queue",
-    leo_redundant_manager_sup:start_link(manager, [list_to_atom("test_manager@" ++ Hostname)], Path),
+    leo_redundant_manager_sup:start_link(
+      ?MONITOR_NODE, [list_to_atom("test_manager@" ++ Hostname)], Path),
     leo_redundant_manager_api:set_options([{n, 3},
                                            {r, 1},
                                            {w ,1},
@@ -166,8 +167,10 @@ membership_storage_({Hostname, Mgr0, Mgr1, Node0, Node1, Node2}) ->
                                        end]),
 
     Path = filename:absname("") ++ "db/queue",
-    leo_redundant_manager_sup:start_link(storage, [list_to_atom("manager_master@" ++ Hostname),
-                                                   list_to_atom("manager_slave@"  ++ Hostname)], Path),
+    leo_redundant_manager_sup:start_link(
+      ?PERSISTENT_NODE,
+      [list_to_atom("manager_master@" ++ Hostname),
+       list_to_atom("manager_slave@"  ++ Hostname)], Path),
     leo_redundant_manager_api:set_options([{n, 3},
                                            {r, 1},
                                            {w ,1},
