@@ -51,7 +51,8 @@
         ]).
 %% Member-related
 -export([has_member/1, has_charge_of_node/2,
-         get_members/0, get_members/1, get_member_by_node/1, get_members_count/0,
+         get_members/0, get_members/1, get_all_ver_members/0,
+         get_member_by_node/1, get_members_count/0,
          get_members_by_status/1, get_members_by_status/2,
          update_member/1, update_members/1, update_member_by_node/2, update_member_by_node/3,
          delete_member_by_node/1, is_alive/0, table_info/1,
@@ -958,8 +959,10 @@ has_charge_of_node(Key, NumOfReplica) ->
 get_members() ->
     get_members(?VER_CUR).
 
--spec(get_members(?VER_CUR | ?VER_PREV) ->
-             {ok, list()} | {error, any()}).
+-spec(get_members(Ver) ->
+             {ok, Members} | {error, Cause} when Ver::?VER_CUR | ?VER_PREV,
+                                                 Members::[#member{}],
+                                                 Cause::any()).
 get_members(Ver) when Ver == ?VER_CUR;
                       Ver == ?VER_PREV ->
     leo_redundant_manager:get_members(Ver);
@@ -967,11 +970,34 @@ get_members(_) ->
     {error, invalid_version}.
 
 
+%% @doc get all version members
+-spec(get_all_ver_members() ->
+             {ok, {CurMembers, PrevMembers}} |
+             {error, Cause} when CurMembers::[#member{}],
+                                 PrevMembers::[#member{}],
+                                 Cause::any()).
+get_all_ver_members() ->
+    case get_members(?VER_CUR) of
+        {ok, CurMembers} ->
+            case get_members(?VER_PREV) of
+                {ok, PrevMembers} ->
+                    {ok, {CurMembers, PrevMembers}};
+                {error, not_found} ->
+                    {ok, {CurMembers, CurMembers}};
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end.
+
+
 %% @doc get a member by node-name.
 %%
 -spec(get_member_by_node(Node) ->
-             {ok, #member{}} |
-             {error, any()} when Node::atom()).
+             {ok, Member} |
+             {error, any()} when Node::atom(),
+                                 Member::#member{}).
 get_member_by_node(Node) ->
     leo_redundant_manager:get_member_by_node(Node).
 
@@ -987,15 +1013,18 @@ get_members_count() ->
 %% @doc get members by status
 %%
 -spec(get_members_by_status(Status) ->
-             {ok, [#member{}]} |
-             {error, any()} when Status::atom()).
+             {ok, Members} |
+             {error, any()} when Status::atom(),
+                                 Members::[#member{}]
+                                          ).
 get_members_by_status(Status) ->
     get_members_by_status(?VER_CUR, Status).
 
 -spec(get_members_by_status(Ver, Status) ->
-             {ok, [#member{}]} |
+             {ok, Members} |
              {error, any()} when Ver::?VER_CUR | ?VER_PREV,
-                                 Status::atom()).
+                                 Status::atom(),
+                                 Members::[#member{}]).
 get_members_by_status(Ver, Status) ->
     leo_redundant_manager:get_members_by_status(Ver, Status).
 

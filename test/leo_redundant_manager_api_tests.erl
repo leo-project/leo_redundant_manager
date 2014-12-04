@@ -596,8 +596,11 @@ prepare(Hostname, ServerType, NumOfNodes) ->
 inspect_0(Hostname, NumOfIteration) ->
     %% member-related.
     {ok, Members0} = leo_redundant_manager_api:get_members(),
+    {ok, {MembersCur, MembersPrev}} = leo_redundant_manager_api:get_all_ver_members(),
 
     ?assertEqual(8, length(Members0)),
+    ?assertEqual(8, length(MembersCur)),
+    ?assertEqual(8, length(MembersPrev)),
     ?assertEqual(true,  leo_redundant_manager_api:has_member(list_to_atom("node_3@" ++ Hostname))),
     ?assertEqual(false, leo_redundant_manager_api:has_member(list_to_atom("node_8@" ++ Hostname))),
 
