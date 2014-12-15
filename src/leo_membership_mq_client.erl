@@ -88,6 +88,7 @@ start1(InstanceId, RootPath0) ->
 
     leo_mq_api:new(RefSup, InstanceId, [{?MQ_PROP_MOD, ?MODULE},
                                         {?MQ_PROP_DB_PROCS, 1},
+                                        {?MQ_PROP_DB_NAME,  ?DEF_BACKEND_DB},
                                         {?MQ_PROP_ROOT_PATH, RootPath1 ++ ?MQ_DB_PATH},
                                         {?MQ_PROP_INTERVAL_MAX,    ?DEF_CONSUME_MAX_INTERVAL},
                                         {?MQ_PROP_INTERVAL_MIN,    ?DEF_CONSUME_MIN_INTERVAL},
