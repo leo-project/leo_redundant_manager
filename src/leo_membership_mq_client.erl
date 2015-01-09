@@ -156,16 +156,10 @@ init() ->
     ok.
 
 
-%% @doc Publish callback function
-%%
--spec(handle_call({publish | consume, Id, Reply}) ->
+%% @doc Subscribe callback function
+-spec(handle_call({consume, Id, Reply}) ->
              ok when Id::any(),
                      Reply::any()).
-handle_call({publish, _Id, _Reply}) ->
-    ok;
-
-%% @doc Subscribe callback function
-%%
 handle_call({consume, Id, MessageBin}) ->
     Message = binary_to_term(MessageBin),
     #message{node  = RemoteNode,
