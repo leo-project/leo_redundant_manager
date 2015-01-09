@@ -312,7 +312,7 @@ exec_1(ServerType, Monitors, [{Node, State}|T], Callback) ->
             void;
         false ->
             Ret = compare_with_remote_chksum(Node),
-            ok  = inspect_result(Ret, [ServerType, Monitors, Node, State])
+            _ = inspect_result(Ret, [ServerType, Monitors, Node, State])
     end,
     exec_1(ServerType, Monitors, T, Callback).
 
