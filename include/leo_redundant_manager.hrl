@@ -90,13 +90,14 @@
 
 
 %% Checksum
--define(CHECKSUM_RING,   'ring').
--define(CHECKSUM_MEMBER, 'member').
--define(CHECKSUM_WORKER, 'worker').
-
+-define(CHECKSUM_RING,     'ring').
+-define(CHECKSUM_MEMBER,   'member').
+-define(CHECKSUM_WORKER,   'worker').
+-define(CHECKSUM_SYS_CONF, 'system_conf').
 -type(checksum_type() :: ?CHECKSUM_RING |
                          ?CHECKSUM_MEMBER |
-                         ?CHECKSUM_WORKER).
+                         ?CHECKSUM_WORKER |
+                         ?CHECKSUM_SYS_CONF).
 
 
 %% Default
@@ -269,13 +270,13 @@
           num_of_rack_replicas = 0 :: non_neg_integer()
          }).
 -record(system_conf_2, {
-          version = 0         :: non_neg_integer(), %% version
+          version = 1         :: non_neg_integer(), %% version
           cluster_id          :: atom(),            %% cluster-id
           dc_id               :: atom(),            %% dc-id
-          n       = 1         :: non_neg_integer(), %% # of replicas
-          r       = 1         :: non_neg_integer(), %% # of replicas needed for a successful READ operation
-          w       = 1         :: non_neg_integer(), %% # of replicas needed for a successful WRITE operation
-          d       = 1         :: non_neg_integer(), %% # of replicas needed for a successful DELETE operation
+          n       = 0         :: integer(), %% # of replicas
+          r       = 0         :: integer(), %% # of replicas needed for a successful READ operation
+          w       = 0         :: integer(), %% # of replicas needed for a successful WRITE operation
+          d       = 0         :: integer(), %% # of replicas needed for a successful DELETE operation
           bit_of_ring = 128   :: non_neg_integer(), %% # of bits for the hash-ring (fixed 128bit)
           num_of_dc_replicas   = 0 :: non_neg_integer(), %% # of destination of nodes a cluster for MDC-replication
           num_of_rack_replicas = 0 :: non_neg_integer(), %% # of Rack-awareness replicas
@@ -299,10 +300,10 @@
 -record(cluster_info_1, {
           cluster_id          :: atom(), %% cluster-id
           dc_id               :: atom(), %% dc-id
-          n       = 1         :: non_neg_integer(), %% # of replicas
-          r       = 1         :: non_neg_integer(), %% # of replicas needed for a successful READ operation
-          w       = 1         :: non_neg_integer(), %% # of replicas needed for a successful WRITE operation
-          d       = 1         :: non_neg_integer(), %% # of replicas needed for a successful DELETE operation
+          n       = 0         :: integer(), %% # of replicas
+          r       = 0         :: integer(), %% # of replicas needed for a successful READ operation
+          w       = 0         :: integer(), %% # of replicas needed for a successful WRITE operation
+          d       = 0         :: integer(), %% # of replicas needed for a successful DELETE operation
           bit_of_ring = 128   :: non_neg_integer(), %% # of bits for the hash-ring (fixed 128bit)
           num_of_dc_replicas   = 0 :: non_neg_integer(), %% # of replicas a DC for MDC-replication
           num_of_rack_replicas = 0 :: non_neg_integer(), %% # of Rack-awareness replicas

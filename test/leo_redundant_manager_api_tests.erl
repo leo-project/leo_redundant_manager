@@ -446,7 +446,6 @@ rack_aware_1() ->
     ok = leo_redundant_manager_worker:force_sync(?RING_TBL_PREV),
     ?debugVal(leo_redundant_manager_worker:checksum()),
 
-
     lists:foreach(
       fun(N) ->
               {ok, #redundancies{nodes = Nodes}} =
@@ -614,11 +613,13 @@ inspect_0(Hostname, NumOfIteration) ->
     ?assertEqual('suspend', Node7#member.state),
 
     %% create routing-table > confirmations.
+    ?debugVal(leo_redundant_manager_api:get_options()),
     {ok, Members1, Chksums} = leo_redundant_manager_api:create(),
-    timer:sleep(1000),
+    timer:sleep(3000),
 
     {ok, {Chksum0, _Chksum1}} = leo_redundant_manager_api:checksum(?CHECKSUM_RING),
     ?debugVal({Chksum0, _Chksum1}),
+    ?debugVal(leo_redundant_manager_worker:checksum()),
     %% ?assertEqual(true, (Chksum0 > -1)),
 
     ?assertEqual(8, length(Members1)),
@@ -678,22 +679,24 @@ inspect_0(Hostname, NumOfIteration) ->
 inspect_redundancies_1(0) ->
     ok;
 inspect_redundancies_1(Counter) ->
-    {ok, #redundancies{id = _Id0,
-                       vnode_id_to = _VNodeId0,
-                       nodes = Nodes0,
-                       n = 3,
-                       r = 1,
-                       w = 2,
-                       d = 2}} =
-        leo_redundant_manager_api:get_redundancies_by_key(
-          integer_to_list(Counter)),
-    lists:foreach(fun(A) ->
-                          Nodes0a = lists:delete(A, Nodes0),
-                          lists:foreach(fun(B) ->
-                                                ?assertEqual(false, (A == B))
-                                        end, Nodes0a)
-                  end, Nodes0),
-    ?assertEqual(3, length(Nodes0)),
+    case leo_redundant_manager_api:get_redundancies_by_key(integer_to_list(Counter)) of
+        {ok, #redundancies{id = _Id0,
+                           vnode_id_to = _VNodeId0,
+                           nodes = Nodes0,
+                           n = 3,
+                           r = 1,
+                           w = 2,
+                           d = 2}} ->
+            lists:foreach(fun(A) ->
+                                  Nodes0a = lists:delete(A, Nodes0),
+                                  lists:foreach(fun(B) ->
+                                                        ?assertEqual(false, (A == B))
+                                                end, Nodes0a)
+                          end, Nodes0),
+            ?assertEqual(3, length(Nodes0));
+        _Other ->
+            ?debugVal(_Other)
+    end,
     inspect_redundancies_1(Counter - 1).
 
 inspect_redundancies_2(0) ->

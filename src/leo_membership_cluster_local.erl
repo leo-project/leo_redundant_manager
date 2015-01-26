@@ -266,8 +266,7 @@ exec(?MONITOR_NODE = ServerType, Monitors, Callback) ->
         end,
     exec_1(ServerType, Monitors, ClusterNodes, Callback);
 
-%% @doc Execute for worker-node and persistent-nodes.
-%% @private
+%% @doc Execute for worker-node and persistent-nodes
 exec(ServerType, Monitors, Callback) ->
     Redundancies  = ?rnd_nodes_from_ring(),
     NodesAndState = [{Node, State} ||
@@ -345,7 +344,8 @@ compare_manager_with_remote_chksum(Node, Monitors) ->
     compare_manager_with_remote_chksum(
       Node, Monitors, [?CHECKSUM_RING,
                        ?CHECKSUM_MEMBER,
-                       ?CHECKSUM_WORKER
+                       ?CHECKSUM_WORKER,
+                       ?CHECKSUM_SYS_CONF
                       ]).
 
 compare_manager_with_remote_chksum(_Node,_Monitors, []) ->
@@ -373,7 +373,8 @@ compare_manager_with_remote_chksum( Node, Monitors, [HashType|T]) ->
 compare_with_remote_chksum(Node) ->
     compare_with_remote_chksum(Node, [?CHECKSUM_RING,
                                       ?CHECKSUM_MEMBER,
-                                      ?CHECKSUM_WORKER
+                                      ?CHECKSUM_WORKER,
+                                      ?CHECKSUM_SYS_CONF
                                      ]).
 
 compare_with_remote_chksum(_,[]) ->
