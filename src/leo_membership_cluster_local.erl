@@ -138,24 +138,22 @@ update_manager_nodes(Monitors) ->
 %%--------------------------------------------------------------------
 %% @doc Initiates the server
 init([?MONITOR_NODE = ServerType, [Partner|_] = Monitors, Callback, Interval]) ->
-    defer_heartbeat(Interval),
     {ok, #state{type      = ServerType,
                 interval  = Interval,
                 timestamp = 0,
                 partner_manager = Partner,
                 monitors  = Monitors,
                 callback  = Callback
-               }};
+               }, Interval};
 
 init([ServerType, Monitors,_Callback, Interval]) ->
-    defer_heartbeat(Interval),
     Callback = fun()-> ok end,
     {ok, #state{type      = ServerType,
                 interval  = Interval,
                 timestamp = 0,
                 monitors  = Monitors,
                 callback  = Callback
-               }}.
+               }, Interval}.
 
 
 %% @doc gen_server callback - Module:handle_call(Request, From, State) -> Result
@@ -167,20 +165,15 @@ handle_call(stop,_From,State) ->
 %% <p>
 %% gen_server callback - Module:handle_cast(Request, State) -> Result.
 %% </p>
-handle_cast({start_heartbeat}, State) ->
-    case catch maybe_heartbeat(State) of
-        {'EXIT', _Reason} ->
-            {noreply, State};
-        NewState ->
-            {noreply, NewState}
-    end;
+handle_cast({start_heartbeat}, #state{interval = Interval} = State) ->
+    {noreply, State, Interval};
 
-handle_cast({set_proc_auditor, ProcAuditor}, State) ->
-    {noreply, State#state{proc_auditor = ProcAuditor}};
+handle_cast({set_proc_auditor, ProcAuditor}, #state{interval = Interval} = State) ->
+    {noreply, State#state{proc_auditor = ProcAuditor}, Interval};
 
-handle_cast({update_manager_nodes, Monitors}, State) ->
+handle_cast({update_manager_nodes, Monitors}, #state{interval = Interval} = State) ->
     ok = application:set_env(?APP, ?PROP_MONITORS, Monitors),
-    {noreply, State#state{monitors  = Monitors}};
+    {noreply, State#state{monitors  = Monitors}, Interval};
 
 handle_cast({stop_heartbeat}, State) ->
     {noreply, State}.
@@ -190,8 +183,15 @@ handle_cast({stop_heartbeat}, State) ->
 %% <p>
 %% gen_server callback - Module:handle_info(Info, State) -> Result.
 %% </p>
-handle_info(_Info, State) ->
-    {noreply, State}.
+handle_info(timeout, #state{interval = Interval} = State) ->
+    case catch heartbeat_fun(State) of
+        {'EXIT', _Reason} ->
+            {noreply, State, Interval};
+        NewState ->
+            {noreply, NewState, Interval}
+    end;
+handle_info(_Info, #state{interval = Interval} = State) ->
+    {noreply, State, Interval}.
 
 %% @doc This function is called by a gen_server when it is about to
 %%      terminate. It should be the opposite of Module:init/1 and do any necessary
@@ -209,14 +209,14 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% @doc Heatbeat
 %% @private
--spec(maybe_heartbeat(#state{}) ->
+-spec(heartbeat_fun(#state{}) ->
              #state{}).
-maybe_heartbeat(#state{type         = ServerType,
-                       interval     = Interval,
-                       timestamp    = Timestamp,
-                       monitors     = Monitors,
-                       proc_auditor = ProcAuditor,
-                       callback     = Callback} = State) ->
+heartbeat_fun(#state{type         = ServerType,
+                     interval     = Interval,
+                     timestamp    = Timestamp,
+                     monitors     = Monitors,
+                     proc_auditor = ProcAuditor,
+                     callback     = Callback} = State) ->
     ThisTime = leo_date:now() * 1000,
     case ((ThisTime - Timestamp) < Interval) of
         true ->
@@ -239,16 +239,7 @@ maybe_heartbeat(#state{type         = ServerType,
                     void
             end
     end,
-    defer_heartbeat(Interval),
     State#state{timestamp = leo_date:now() * 1000}.
-
-
-%% @doc Heartbeat
-%% @private
--spec(defer_heartbeat(integer()) ->
-             ok | any()).
-defer_heartbeat(Time) ->
-    catch timer:apply_after(Time, ?MODULE, start_heartbeat, []).
 
 
 %% @doc Execute for manager-nodes.

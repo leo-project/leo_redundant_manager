@@ -95,40 +95,41 @@ force_sync(ClusterId, RemoteMonitors) ->
 %%--------------------------------------------------------------------
 %% @doc Initiates the server
 init([Interval]) ->
-    defer_heartbeat(Interval),
     {ok, #state{interval  = Interval,
-                timestamp = 0}}.
+                timestamp = 0}, Interval}.
 
 %% @doc gen_server callback - Module:handle_call(Request, From, State) -> Result
 handle_call(stop,_From,State) ->
     {stop, normal, ok, State};
 
-handle_call({force_sync, ClusterId, RemoteMonitors},_From, State) ->
+handle_call({force_sync, ClusterId, RemoteMonitors},_From, #state{interval = Interval} = State) ->
     Mgrs = [#cluster_manager{node = N,
                              cluster_id = ClusterId}
             || N <- RemoteMonitors],
     ok = exec(Mgrs),
-    {reply, ok, State}.
+    {reply, ok, State, Interval}.
 
 
 %% @doc Handling cast message
 %% <p>
 %% gen_server callback - Module:handle_cast(Request, State) -> Result.
 %% </p>
-handle_cast(heartbeat, State) ->
-    case catch maybe_heartbeat(State) of
-        {'EXIT', _Reason} ->
-            {noreply, State};
-        NewState ->
-            {noreply, NewState}
-    end.
+handle_cast(heartbeat, #state{interval = Interval} = State) ->
+    {noreply, State, Interval}.
 
 %% @doc Handling all non call/cast messages
 %% <p>
 %% gen_server callback - Module:handle_info(Info, State) -> Result.
 %% </p>
-handle_info(_Info, State) ->
-    {noreply, State}.
+handle_info(timeout, #state{interval = Interval} = State) ->
+    case catch heartbeat_fun(State) of
+        {'EXIT', _Reason} ->
+            {noreply, State, Interval};
+        NewState ->
+            {noreply, NewState, Interval}
+    end;
+handle_info(_Info, #state{interval = Interval} = State) ->
+    {noreply, State, Interval}.
 
 %% @doc This function is called by a gen_server when it is about to
 %%      terminate. It should be the opposite of Module:init/1 and do any necessary
@@ -146,10 +147,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% @doc Heatbeat
 %% @private
--spec(maybe_heartbeat(#state{}) ->
+-spec(heartbeat_fun(#state{}) ->
              #state{}).
-maybe_heartbeat(#state{interval  = Interval,
-                       timestamp = Timestamp} = State) ->
+heartbeat_fun(#state{interval  = Interval,
+                     timestamp = Timestamp} = State) ->
     ThisTime = leo_date:now() * 1000,
 
     case ((ThisTime - Timestamp) < Interval) of
@@ -158,17 +159,7 @@ maybe_heartbeat(#state{interval  = Interval,
         false ->
             sync()
     end,
-
-    defer_heartbeat(Interval),
     State#state{timestamp = leo_date:now() * 1000}.
-
-
-%% @doc Heartbeat
-%% @private
--spec(defer_heartbeat(integer()) ->
-             ok | any()).
-defer_heartbeat(Time) ->
-    catch timer:apply_after(Time, ?MODULE, heartbeat, []).
 
 
 %% @doc Synchronize remote-cluster's status/configurations

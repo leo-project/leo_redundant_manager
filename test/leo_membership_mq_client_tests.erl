@@ -91,7 +91,7 @@ pubsub_manager_0_({Mgr0, _Node0, Path}) ->
 
     ok = leo_membership_mq_client:publish(
            ?MONITOR_NODE, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
-    timer:sleep(2000),
+    timer:sleep(1500),
 
     History0 = meck:history(leo_cluster_tbl_member),
     ?assertEqual(true, erlang:length(History0) > 0),
@@ -104,7 +104,7 @@ pubsub_manager_1_({Mgr0, _, Path}) ->
 
     ok = leo_membership_mq_client:publish(
            ?MONITOR_NODE, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
-    timer:sleep(250),
+    timer:sleep(1500),
 
     History0 = meck:history(leo_cluster_tbl_member),
     ?assertEqual(true, erlang:length(History0) > 0),
@@ -123,7 +123,7 @@ pubsub_storage_({Mgr0, _, Path}) ->
       ?PERSISTENT_NODE, [Mgr0], Path),
     ok = leo_membership_mq_client:publish(
            ?PERSISTENT_NODE, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
-    timer:sleep(1000),
+    timer:sleep(1500),
 
     History0 = meck:history(leo_cluster_tbl_member),
     ?assertEqual(true, erlang:length(History0) > 0),
@@ -145,7 +145,7 @@ pubsub_gateway_0_({Mgr0, _, Path}) ->
       ?WORKER_NODE, [Mgr0], Path),
     ok = leo_membership_mq_client:publish(
            ?WORKER_NODE, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
-    timer:sleep(1000),
+    timer:sleep(1500),
 
     History0 = meck:history(leo_cluster_tbl_member),
     ?assertEqual(true, erlang:length(History0) > 0),
@@ -167,7 +167,7 @@ pubsub_gateway_1_({Mgr0, _, Path}) ->
       ?WORKER_NODE, [Mgr0], Path),
     ok = leo_membership_mq_client:publish(
            ?WORKER_NODE, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
-    timer:sleep(1000),
+    timer:sleep(1500),
 
     History0 = meck:history(leo_cluster_tbl_member),
     ?assertEqual(true, erlang:length(History0) > 0),
