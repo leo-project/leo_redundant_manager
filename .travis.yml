@@ -4,4 +4,4 @@ notifications:
   email: false
 otp_release:
   - R16B03-1
-  - 17
+  - 17.1
