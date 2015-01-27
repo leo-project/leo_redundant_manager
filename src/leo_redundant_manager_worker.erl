@@ -381,10 +381,15 @@ maybe_sync_2(RingVer, Hash_Now, Hash_Old, State) ->
 
     case leo_cluster_tbl_member:find_all(Tbl) of
         {ok, Members} ->
+            Members_1 = lists:foldl(fun(#member{state = ?STATE_ATTACHED}, Acc) ->
+                                            Acc;
+                                       (Member, Acc) ->
+                                            Acc ++ [Member]
+                                    end, [], Members),
             SyncInfo = #sync_info{target = Target,
                                   org_checksum = Hash_Now,
                                   cur_checksum = Hash_Old},
-            State_1 = State#state{cur = RingInfo_1#ring_info{members = Members}},
+            State_1 = State#state{cur = RingInfo_1#ring_info{members = Members_1}},
             maybe_sync_2_1(SyncInfo, State_1);
         _ ->
             State
