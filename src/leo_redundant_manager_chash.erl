@@ -224,13 +224,18 @@ rebalance_1_1(VNodeIdTo, SrcNode, [DestNode|Rest], Acc) ->
 -spec(checksum(TableInfo) ->
              {ok, integer()} when TableInfo::table_info()).
 checksum(TableInfo) ->
+    {_, Tbl} = TableInfo,
     case catch leo_cluster_tbl_ring:tab2list(TableInfo) of
         {'EXIT', _Cause} ->
             {ok, -1};
         [] ->
             {ok, -1};
-        List ->
-            {ok, erlang:crc32(term_to_binary(List))}
+        _List when Tbl == ?RING_TBL_CUR ->
+            {ok, {Checksum,_Old}} =leo_redundant_manager_worker:checksum(),
+            {ok, Checksum};
+        _List when Tbl == ?RING_TBL_PREV ->
+            {ok, {_Now, Checksum}} =leo_redundant_manager_worker:checksum(),
+            {ok, Checksum}
     end.
 
 

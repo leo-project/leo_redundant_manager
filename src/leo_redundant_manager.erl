@@ -541,7 +541,14 @@ create_2(Ver, Members) ->
                                      Members::[#member{}],
                                      Acc::[#member{}]).
 create_2(Ver,[], Acc) ->
-    create_3(Ver, Acc, []);
+    case create_3(Ver, Acc, []) of
+        ok ->
+            ok = leo_redundant_manager_worker:force_sync(?RING_TBL_CUR),
+            ok = leo_redundant_manager_worker:force_sync(?RING_TBL_PREV),
+            ok;
+        Other ->
+            Other
+    end;
 create_2( Ver, [#member{state = ?STATE_DETACHED}|Rest], Acc) ->
     create_2(Ver, Rest, Acc);
 create_2( Ver, [#member{state = ?STATE_RESERVED}|Rest], Acc) ->

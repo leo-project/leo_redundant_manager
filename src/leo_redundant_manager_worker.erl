@@ -221,6 +221,7 @@ handle_call({force_sync, Table},_From, State) ->
                      ?RING_TBL_CUR  -> ?SYNC_TARGET_RING_CUR;
                      ?RING_TBL_PREV -> ?SYNC_TARGET_RING_PREV
                  end,
+
     NewState = force_sync_fun(TargetRing, State),
     {reply, ok, NewState};
 
@@ -294,6 +295,26 @@ code_change(_OldVsn, State, _Extra) ->
 timestamp() ->
     leo_math:floor(leo_date:clock() / 1000).
 
+
+%% @doc Retrieve the number of replicas
+%% @private
+update_state(State) ->
+    case leo_redundant_manager_api:get_options() of
+        {ok, Options} ->
+            NumOfReplica = leo_misc:get_value(?PROP_N, Options, 0),
+            case (NumOfReplica > 0) of
+                true ->
+                    NumOfL2 = leo_misc:get_value(?PROP_L2, Options, 0),
+                    State#state{num_of_replicas = NumOfReplica,
+                                num_of_rack_awareness = NumOfL2};
+                false ->
+                    State
+            end;
+        _ ->
+            State
+    end.
+
+
 %% @doc Synchronize
 %% @private
 -spec(sync() ->
@@ -309,80 +330,78 @@ sync() ->
 %% @private
 -spec(maybe_sync(#state{}) ->
              #state{}).
-maybe_sync(#state{cur  = #ring_info{checksum = CurHash},
-                  prev = #ring_info{checksum = PrevHash},
-                  min_interval = MinInterval,
-                  timestamp    = Timestamp} = State) ->
-    State_1 = case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
-                  {ok, Options} ->
-                      NumOfReplica = leo_misc:get_value(?PROP_N,  Options),
-                      NumOfL2      = leo_misc:get_value(?PROP_L2, Options, 0),
-                      State#state{num_of_replicas = NumOfReplica,
-                                  num_of_rack_awareness = NumOfL2};
-                  _ ->
-                      State
-              end,
+maybe_sync(State) ->
+    case update_state(State) of
+        #state{num_of_replicas = NumOfReplica} = State_1 when NumOfReplica > 0 ->
+            maybe_sync_1(State_1);
+        _ ->
+            State
+    end.
+
+%% @private
+maybe_sync_1(#state{checksum = {PrevHash, CurHash},
+                    cur  = #ring_info{ring_group_list = CurRing},
+                    prev = #ring_info{ring_group_list = PrevRing},
+                    min_interval = MinInterval,
+                    timestamp    = Timestamp} = State) ->
     ThisTime = timestamp(),
     sync(),
 
     case ((ThisTime - Timestamp) < MinInterval) of
         true ->
-            State_1#state{timestamp = ThisTime};
+            State#state{timestamp = ThisTime};
         false ->
-            {ok, {R1, R2}} = leo_redundant_manager_api:checksum(?CHECKSUM_RING),
-            State_2 = case (R1 == -1 orelse R2 == -1) of
+            CurHash_Now  = erlang:crc32(term_to_binary(CurRing)),
+            PrevHash_Now = erlang:crc32(term_to_binary(PrevRing)),
+            State_3 = case (CurHash  /= CurHash_Now orelse
+                            PrevHash /= PrevHash_Now) of
                           true ->
-                              State_1;
-                          false when R1 == CurHash  andalso
-                                     R2 == PrevHash ->
-                              State_1;
+                              State_1 = maybe_sync_2(?RING_TBL_CUR,  CurHash_Now,  CurHash,  State),
+                              State_2 = maybe_sync_2(?RING_TBL_PREV, PrevHash_Now, PrevHash, State_1),
+                              State_2;
                           false ->
-                              maybe_sync_1(State_1, {R1, R2}, {CurHash, PrevHash})
+                              State
                       end,
-            State_2#state{timestamp = ThisTime}
+            State_3#state{timestamp = ThisTime}
     end.
 
-%% @doc Fix prev-ring or current-ring inconsistency
 %% @private
--spec(maybe_sync_1(#state{}, {integer(), integer()}, {integer(), integer()}) ->
-             #state{}).
-maybe_sync_1(State, {R1, R2}, {CurHash, PrevHash}) ->
-    case leo_cluster_tbl_member:find_all(?MEMBER_TBL_CUR) of
-        {ok, MembersCur} ->
-            case leo_cluster_tbl_member:find_all(?MEMBER_TBL_PREV) of
-                {ok, MembersPrev} ->
-                    CurSyncInfo  = #sync_info{target = ?SYNC_TARGET_RING_CUR,
-                                              org_checksum = R1,
-                                              cur_checksum = CurHash},
-                    PrevSyncInfo = #sync_info{target = ?SYNC_TARGET_RING_PREV,
-                                              org_checksum = R2,
-                                              cur_checksum = case (R1 == CurHash) of
-                                                                 true  -> PrevHash;
-                                                                 false -> -1
-                                                             end},
-                    #state{cur  = CurRingInfo,
-                           prev = PrevRingInfo} = State,
-                    State_1 = State#state{cur  = CurRingInfo#ring_info{members = MembersCur},
-                                          prev = PrevRingInfo#ring_info{members = MembersPrev}},
-                    State_2 = maybe_sync_1_1(CurSyncInfo,  State_1),
-                    State_3 = maybe_sync_1_1(PrevSyncInfo, State_2),
-                    State_3;
-                _ ->
-                    State
-            end;
+maybe_sync_2(_, Hash, Hash, State) ->
+    State;
+maybe_sync_2(RingVer, Hash_Now, Hash_Old, State) ->
+    {Tbl, Target, RingInfo_1} =
+        case RingVer of
+            ?RING_TBL_CUR ->
+                #state{cur = RingInfo} = State,
+                {?MEMBER_TBL_CUR, ?SYNC_TARGET_RING_CUR, RingInfo};
+            ?RING_TBL_PREV ->
+                #state{prev = RingInfo} = State,
+                {?MEMBER_TBL_PREV, ?SYNC_TARGET_RING_PREV, RingInfo}
+        end,
+
+    case leo_cluster_tbl_member:find_all(Tbl) of
+        {ok, Members} ->
+            Members_1 = lists:foldl(fun(#member{state = ?STATE_ATTACHED}, Acc) ->
+                                            Acc;
+                                       (Member, Acc) ->
+                                            Acc ++ [Member]
+                                    end, [], Members),
+            SyncInfo = #sync_info{target = Target,
+                                  org_checksum = Hash_Now,
+                                  cur_checksum = Hash_Old},
+            State_1 = State#state{cur = RingInfo_1#ring_info{members = Members_1}},
+            maybe_sync_2_1(SyncInfo, State_1);
         _ ->
             State
     end.
 
-
--spec(maybe_sync_1_1(#sync_info{}, #state{}) ->
+%% @private
+-spec(maybe_sync_2_1(#sync_info{}, #state{}) ->
              #state{}).
-maybe_sync_1_1(#sync_info{org_checksum = OrgChecksum,
-                          cur_checksum = CurChecksum},
-               State) when OrgChecksum == CurChecksum ->
+maybe_sync_2_1(#sync_info{org_checksum = OrgChecksum,
+                          cur_checksum = CurChecksum}, State) when OrgChecksum == CurChecksum ->
     State;
-maybe_sync_1_1(SyncInfo, #state{checksum = WorkerChecksum} = State) ->
-    TargetRing = SyncInfo#sync_info.target,
+maybe_sync_2_1(#sync_info{target = TargetRing} = SyncInfo, #state{checksum = WorkerChecksum} = State) ->
     case gen_routing_table(SyncInfo, State) of
         {ok, #ring_info{ring_group_list = RetL} = RingInfo} ->
             case TargetRing of
@@ -889,20 +908,31 @@ find_redundancies_by_addr_id_1([_|Rest], AddrId) ->
 -spec(force_sync_fun(?SYNC_TARGET_RING_CUR|?SYNC_TARGET_RING_PREV, #state{}) ->
              #state{}).
 force_sync_fun(TargetRing, State) ->
-    case leo_cluster_tbl_member:find_all(?MEMBER_TBL_CUR) of
-        {ok, MembersCur} ->
-            case leo_cluster_tbl_member:find_all(?MEMBER_TBL_PREV) of
-                {ok, MembersPrev} ->
-                    State_1 = State#state{cur  = #ring_info{members = MembersCur},
-                                          prev = #ring_info{members = MembersPrev}},
-                    Ret = gen_routing_table(#sync_info{target = TargetRing}, State_1),
-                    force_sync_fun_1(Ret, TargetRing, State);
-                _ ->
-                    State
+    case update_state(State) of
+        #state{num_of_replicas = NumOfReplica} = State_1 when NumOfReplica > 0 ->
+            Tbl = case TargetRing of
+                      ?SYNC_TARGET_RING_CUR ->
+                          ?MEMBER_TBL_CUR;
+                      ?SYNC_TARGET_RING_PREV ->
+                          ?MEMBER_TBL_PREV
+                  end,
+            case leo_cluster_tbl_member:find_all(Tbl) of
+                {ok, Members} ->
+                    State_2 = case TargetRing of
+                                  ?SYNC_TARGET_RING_CUR ->
+                                      State_1#state{cur = #ring_info{members = Members}};
+                                  ?SYNC_TARGET_RING_PREV ->
+                                      State_1#state{prev = #ring_info{members = Members}}
+                              end,
+                    Ret = gen_routing_table(#sync_info{target = TargetRing}, State_2),
+                    force_sync_fun_1(Ret, TargetRing, State_2);
+                _Other ->
+                    State_1
             end;
         _ ->
             State
     end.
+
 
 %% @private
 force_sync_fun_1({ok, #ring_info{ring_group_list = RetL} = RingInfo}, ?SYNC_TARGET_RING_CUR,

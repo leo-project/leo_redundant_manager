@@ -110,10 +110,10 @@ create() ->
                                  HashValues::[{atom(), integer()}]).
 create(Ver) when Ver == ?VER_CUR;
                  Ver == ?VER_PREV ->
-    case get_option('n') of
+    case get_option(?PROP_N) of
         0 ->
             {error, ?ERROR_INVALID_CONF};
-        _ ->
+        _N ->
             case leo_redundant_manager:create(Ver) of
                 ok ->
                     case leo_cluster_tbl_member:find_all(?member_table(Ver)) of
@@ -364,7 +364,7 @@ suspend(Node, Clock) ->
 -spec(checksum(Type) ->
              {ok, integer()} |
              {ok, {integer(), integer()}} |
-             {error, any()} when Type::?CHECKSUM_RING |?CHECKSUM_MEMBER|_).
+             {error, any()} when Type::checksum_type()).
 checksum(?CHECKSUM_MEMBER = Type) ->
     leo_redundant_manager:checksum(Type);
 checksum(?CHECKSUM_RING) ->
@@ -375,6 +375,13 @@ checksum(?CHECKSUM_RING) ->
     {ok, {RingHashCur, RingHashPrev}};
 checksum(?CHECKSUM_WORKER) ->
     leo_redundant_manager_worker:checksum();
+checksum(?CHECKSUM_SYS_CONF) ->
+    case get_options() of
+        {ok, SysConf} ->
+            {ok, erlang:crc32(term_to_binary(SysConf))};
+        _ ->
+            {ok, -1}
+    end;
 checksum(_) ->
     {error, invalid_type}.
 
@@ -581,7 +588,7 @@ get_redundancies_by_key(Key) ->
              {error, any()} when Method::method(),
                                  Key::binary()).
 get_redundancies_by_key(Method, Key) ->
-    case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
+    case get_options() of
         {ok, Options} ->
             BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
             AddrId    = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
@@ -603,7 +610,7 @@ get_redundancies_by_addr_id(AddrId) ->
              {ok, #redundancies{}} |
              {error, any()} when Method::method(), AddrId::integer()).
 get_redundancies_by_addr_id(Method, AddrId) ->
-    Options_1 = case leo_misc:get_env(?APP, ?PROP_OPTIONS) of
+    Options_1 = case get_options() of
                     {ok, Options} ->
                         Options;
                     _ ->
