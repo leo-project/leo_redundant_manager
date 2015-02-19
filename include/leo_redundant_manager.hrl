@@ -403,9 +403,9 @@
          }).
 
 -record(ring_group, {
-          index_from = 0     :: non_neg_integer(), %% group-index's from
-          index_to = 0       :: non_neg_integer(), %% group-index's to
-          vnodeid_nodes_list :: [#vnodeid_nodes{}] %% list of vnodeid(s)
+          index_from = 0 :: non_neg_integer(), %% group-index's from
+          index_to = 0   :: non_neg_integer(), %% group-index's to
+          vnodeid_nodes_list = [] :: [#vnodeid_nodes{}] %% list of vnodeid(s)
          }).
 
 -record(ring_info, {

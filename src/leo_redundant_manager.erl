@@ -40,7 +40,8 @@
 
 -export([create/1, checksum/1, has_member/1, get_members/0, get_members/1,
          get_member_by_node/1, get_members_by_status/2,
-         update_member/1, update_members/1,
+         update_member/1,
+         update_members/1, update_members/3,
          update_member_by_node/2, update_member_by_node/3,
          delete_member_by_node/1, dump/1]).
 
@@ -141,6 +142,13 @@ update_member(Member) ->
              ok | {error, any()} when Members::[#member{}]).
 update_members(Members) ->
     gen_server:call(?MODULE, {update_members, Members}, ?DEF_TIMEOUT).
+
+-spec(update_members(Table, OldMembers, NewMembers) ->
+             ok | {error, any()} when Table::atom(),
+                                      OldMembers::[#member{}],
+                                      NewMembers::[#member{}]).
+update_members(Table, OldMembers, NewMembers) ->
+    gen_server:call(?MODULE, {update_members, Table, OldMembers, NewMembers}, ?DEF_TIMEOUT).
 
 
 %% @doc Modify a member by node.
@@ -349,6 +357,10 @@ handle_call({update_members, Members}, _From, State) ->
                 Error ->
                     Error
             end,
+    {reply, Reply, State};
+
+handle_call({update_members, Table, OldMembers, NewMembers}, _From, State) ->
+    Reply = leo_cluster_tbl_member:replace(Table, OldMembers, NewMembers),
     {reply, Reply, State};
 
 handle_call({update_member_by_node, Node, NodeState}, _From, State) ->

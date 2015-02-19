@@ -36,7 +36,7 @@
 -export([lookup/2, first/1, last/1, force_sync/1,
          redundancies/3,
          checksum/0,
-         dump/0]).
+         dump/0, subscribe/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -167,6 +167,13 @@ dump() ->
     gen_server:call(?MODULE, dump, ?DEF_TIMEOUT).
 
 
+%% @doc Sucscrive changing records of the member-tables
+-spec(subscribe() ->
+             ok | {error, any()}).
+subscribe() ->
+    gen_server:call(?MODULE, subscribe, ?DEF_TIMEOUT).
+
+
 %%--------------------------------------------------------------------
 %% GEN_SERVER CALLBACKS
 %%--------------------------------------------------------------------
@@ -248,6 +255,11 @@ handle_call(dump,_From, #state{cur  = #ring_info{ring_group_list = CurRing },
     end,
     {reply, ok, State};
 
+handle_call(subscribe,_From, State) ->
+    mnesia:subscribe({table, ?MEMBER_TBL_CUR,  simple}),
+    mnesia:subscribe({table, ?MEMBER_TBL_PREV, simple}),
+    {reply, ok, State};
+
 handle_call(_Handle, _From, State) ->
     {reply, ok, State}.
 
@@ -271,7 +283,55 @@ handle_cast(_Msg, State) ->
 %% <p>
 %% gen_server callback - Module:handle_info(Info, State) -> Result.
 %% </p>
-handle_info(_Info, State) ->
+handle_info(Info, #state{cur  = #ring_info{ring_group_list = CurRing },
+                         prev = #ring_info{ring_group_list = PrevRing}} = State) ->
+    case Info of
+        {mnesia_table_event, {write, El,_}} ->
+            case erlang:element(8, El) of
+                ?STATE_RUNNING when CurRing  == [];
+                                    CurRing  == undefined;
+                                    PrevRing == [];
+                                    PrevRing == undefined ->
+                    timer:apply_after(100, leo_redundant_manager_api, create, []),
+                    ok;
+                ?STATE_RUNNING ->
+                    %% exists node in ring?
+                    VNodeList_1 =
+                        case erlang:element(1, El) of
+                            ?MEMBER_TBL_CUR ->
+                                [#ring_group{vnodeid_nodes_list = VNodeList}|_] = CurRing,
+                                VNodeList;
+                            ?MEMBER_TBL_PREV ->
+                                [#ring_group{vnodeid_nodes_list = VNodeList}|_] = PrevRing,
+                                VNodeList
+                        end,
+                    Node = erlang:element(2, El),
+                    case find_node_from_ring(VNodeList_1, Node) of
+                        ok ->
+                            void;
+                        not_found ->
+                            timer:apply_after(100, leo_redundant_manager_api, create, [])
+                    end;
+                _ ->
+                    void
+            end;
+        {mnesia_table_event, {delete,_El,_}} ->
+            case (CurRing  == [] orelse
+                  PrevRing == [] orelse
+                  CurRing  == undefined orelse
+                  PrevRing == undefined) of
+                true ->
+                    %% ?debugVal(El),
+                    %% ?debugVal({table, element(1, El)}),
+                    %% ?debugVal({node,  element(2, El)}),
+                    timer:apply_after(100, leo_redundant_manager_api, create, []),
+                    ok;
+                false ->
+                    void
+            end;
+        _ ->
+            void
+    end,
     {noreply, State}.
 
 %% @doc This function is called by a gen_server when it is about to
@@ -961,3 +1021,24 @@ ring_info(?RING_TBL_PREV, State) ->
     State#state.prev;
 ring_info(_,_) ->
     {error, invalid_table}.
+
+
+%% @doc Find the node from a part of the ring
+%% @private
+find_node_from_ring([],_Node) ->
+    not_found;
+find_node_from_ring([#vnodeid_nodes{nodes = Redundancies}|Rest], Node) ->
+    case find_node_from_ring_1(Redundancies, Node) of
+        not_found ->
+            find_node_from_ring(Rest, Node);
+        ok ->
+            ok
+    end.
+
+%% @private
+find_node_from_ring_1([],_Node) ->
+    not_found;
+find_node_from_ring_1([#redundant_node{node = Node}|_], Node) ->
+    ok;
+find_node_from_ring_1([_|Rest], Node) ->
+    find_node_from_ring_1(Rest, Node).
