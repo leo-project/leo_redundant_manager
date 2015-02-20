@@ -571,7 +571,7 @@ create_2( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
     Table = ?member_table(Ver),
     Ret_2 = case leo_cluster_tbl_member:lookup(Table, Node) of
                 {ok, Member_1} ->
-                    {ok, Member_1#member{state = ?STATE_RUNNING}};
+                    {ok, Member_1};
                 not_found ->
                     {ok, Member_0#member{state = ?STATE_RUNNING}};
                 {error, Cause} ->
