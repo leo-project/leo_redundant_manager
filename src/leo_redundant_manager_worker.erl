@@ -287,7 +287,8 @@ handle_info(Info, #state{cur  = #ring_info{ring_group_list = CurRing },
                          prev = #ring_info{ring_group_list = PrevRing}} = State) ->
     case Info of
         {mnesia_table_event, {write, El,_}} ->
-            case erlang:element(8, El) of
+            NodeStatus = erlang:element(8, El),
+            case NodeStatus of
                 ?STATE_RUNNING when CurRing  == [];
                                     CurRing  == undefined;
                                     PrevRing == [];
@@ -295,42 +296,41 @@ handle_info(Info, #state{cur  = #ring_info{ring_group_list = CurRing },
                     timer:apply_after(100, leo_redundant_manager_api, create, []),
                     ok;
                 ?STATE_RUNNING ->
-                    %% exists node in ring?
-                    VNodeList_1 =
-                        case erlang:element(1, El) of
-                            ?MEMBER_TBL_CUR ->
-                                [#ring_group{vnodeid_nodes_list = VNodeList}|_] = CurRing,
-                                VNodeList;
-                            ?MEMBER_TBL_PREV ->
-                                [#ring_group{vnodeid_nodes_list = VNodeList}|_] = PrevRing,
-                                VNodeList
-                        end,
-                    Node = erlang:element(2, El),
-                    case find_node_from_ring(VNodeList_1, Node) of
+                    %% exists an attached node in ring?
+                    Table = erlang:element(1, El),
+                    Node  = erlang:element(2, El),
+                    VNodeList = get_vnode_list(Table, CurRing, PrevRing),
+                    case find_node_from_ring(VNodeList, Node) of
                         ok ->
                             void;
                         not_found ->
                             timer:apply_after(100, leo_redundant_manager_api, create, [])
                     end;
                 _ ->
-                    void
+                    ok
             end;
-        {mnesia_table_event, {delete,_El,_}} ->
+        {mnesia_table_event, {delete, El,_}} ->
             case (CurRing  == [] orelse
                   PrevRing == [] orelse
                   CurRing  == undefined orelse
                   PrevRing == undefined) of
                 true ->
-                    %% ?debugVal(El),
-                    %% ?debugVal({table, element(1, El)}),
-                    %% ?debugVal({node,  element(2, El)}),
                     timer:apply_after(100, leo_redundant_manager_api, create, []),
                     ok;
                 false ->
-                    void
+                    %% exists a detached node in ring?
+                    Table = erlang:element(1, El),
+                    Node  = erlang:element(2, El),
+                    VNodeList = get_vnode_list(Table, CurRing, PrevRing),
+                    case find_node_from_ring(VNodeList, Node) of
+                        ok ->
+                            timer:apply_after(100, leo_redundant_manager_api, create, []);
+                        not_found ->
+                            ok
+                    end
             end;
         _ ->
-            void
+            ok
     end,
     {noreply, State}.
 
@@ -1021,6 +1021,25 @@ ring_info(?RING_TBL_PREV, State) ->
     State#state.prev;
 ring_info(_,_) ->
     {error, invalid_table}.
+
+
+
+%% @doc Retrieve vnode-list
+%% @private
+get_vnode_list(?MEMBER_TBL_CUR, undefined,_PrevRing) ->
+    [];
+get_vnode_list(?MEMBER_TBL_CUR, [],_PrevRing) ->
+    [];
+get_vnode_list(?MEMBER_TBL_CUR, CurRing,_PrevRing) ->
+    [#ring_group{vnodeid_nodes_list = VNodeList}|_] = CurRing,
+    VNodeList;
+get_vnode_list(?MEMBER_TBL_PREV,_CurRing, undefined) ->
+    [];
+get_vnode_list(?MEMBER_TBL_PREV,_CurRing, []) ->
+    [];
+get_vnode_list(?MEMBER_TBL_PREV,_CurRing, PrevRing) ->
+    [#ring_group{vnodeid_nodes_list = VNodeList}|_] = PrevRing,
+    VNodeList.
 
 
 %% @doc Find the node from a part of the ring
