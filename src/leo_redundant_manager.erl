@@ -343,14 +343,15 @@ handle_call({update_member, Member}, _From, State) ->
 handle_call({update_members, Members}, _From, State) ->
     Reply = case leo_cluster_tbl_member:find_all() of
                 {ok, CurMembers} ->
-                    CurMembersHash = erlang:crc32(term_to_binary(CurMembers)),
+                    CurMembers1 = lists:reverse(CurMembers),
+                    CurMembersHash = erlang:crc32(term_to_binary(CurMembers1)),
                     MembersHash    = erlang:crc32(term_to_binary(Members)),
 
                     case (MembersHash =:= CurMembersHash) of
                         true ->
                             ok;
                         false ->
-                            leo_cluster_tbl_member:replace(CurMembers, Members)
+                            leo_cluster_tbl_member:replace(CurMembers1, Members)
                     end;
                 not_found ->
                     leo_cluster_tbl_member:replace([], Members);
