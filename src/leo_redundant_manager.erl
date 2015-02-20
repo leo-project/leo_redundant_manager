@@ -566,10 +566,13 @@ create_2( Ver, [#member{state = ?STATE_DETACHED}|Rest], Acc) ->
     create_2(Ver, Rest, Acc);
 create_2( Ver, [#member{state = ?STATE_RESERVED}|Rest], Acc) ->
     create_2(Ver, Rest, Acc);
-create_2( Ver, [#member{node = Node} = Member_0|Rest], Acc) ->
+create_2( Ver, [#member{node = Node,
+                        state = State} = Member_0|Rest], Acc) ->
     %% Modify/Add a member into 'member-table'
     Table = ?member_table(Ver),
     Ret_2 = case leo_cluster_tbl_member:lookup(Table, Node) of
+                {ok, Member_1} when State == ?STATE_ATTACHED ->
+                    {ok, Member_1#member{state = ?STATE_RUNNING}};
                 {ok, Member_1} ->
                     {ok, Member_1};
                 not_found ->
