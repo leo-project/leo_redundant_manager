@@ -476,14 +476,9 @@ synchronize_1(?SYNC_TARGET_MEMBER, Ver, SyncData) ->
             Table = ?member_table(Ver),
             case leo_cluster_tbl_member:find_all(Table) of
                 {ok, OldMembers} ->
-                    ok = leo_cluster_tbl_member:replace(
-                           Table, OldMembers, NewMembers);
+                    leo_redundant_manager:update_members(Table, OldMembers, NewMembers);
                 not_found ->
-                    lists:foreach(
-                      fun(#member{node = Node} = Member) ->
-                              leo_cluster_tbl_member:insert(Table, {Node, Member})
-                      end, NewMembers),
-                    ok;
+                    leo_redundant_manager:update_members(Table, [], NewMembers);
                 Error ->
                     Error
             end
