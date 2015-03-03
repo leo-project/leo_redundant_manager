@@ -293,7 +293,6 @@ handle_info(Info, #state{cur  = #ring_info{ring_group_list = CurRing },
                                     CurRing  == undefined;
                                     PrevRing == [];
                                     PrevRing == undefined ->
-                    timer:apply_after(100, leo_redundant_manager_api, create, []),
                     ok;
                 ?STATE_RUNNING ->
                     %% exists an attached node in ring?
