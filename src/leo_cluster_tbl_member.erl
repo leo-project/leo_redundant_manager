@@ -450,18 +450,44 @@ insert(Table, {Node, Member}) ->
                                     Table::member_table(),
                                     Record::{atom(),
                                              #member{}}).
-insert(?DB_MNESIA, Table, {_, Member}) ->
-    Fun = fun() -> mnesia:write(Table, Member, write) end,
+
+insert(DBType, Table, {_Node, Member}) ->
+    #member{node  = Node,
+            state = State,
+            clock = Clock} = Member,
+    Ret = case lookup(DBType, Table, Node) of
+              {ok, #member{state = State,
+                           clock = Clock_1}} when Clock > Clock_1 ->
+                  ok;
+              {ok, #member{state = State,
+                           clock = Clock_1}} when Clock =< Clock_1 ->
+                  {error, ignore};
+              {ok,_} ->
+                  ok;
+              not_found ->
+                  ok;
+              {error, Cause} ->
+                  {error, Cause}
+          end,
+    insert(Ret, DBType, Table, {_Node, Member}).
+
+%% @private
+insert(ok, ?DB_MNESIA, Table, {_, Member}) ->
+    Fun = fun() ->
+                  mnesia:write(Table, Member, write)
+          end,
     leo_mnesia:write(Fun);
-insert(?DB_ETS, Table, {Node, Member}) ->
+insert(ok, ?DB_ETS, Table, {Node, Member}) ->
     case catch ets:insert(Table, {Node, Member}) of
         true ->
             ok;
         {'EXIT', Cause} ->
             {error, Cause}
     end;
-insert(_,_,_) ->
-    {error, invalid_db}.
+insert({error, ignore},_,_,_) ->
+    ok;
+insert({error, Cause},_,_,_) ->
+    {error, Cause}.
 
 
 %% @doc Remove a record from the table.
@@ -557,23 +583,33 @@ delete_all_1([#member{node = Node}|Rest], Table) ->
 %% @doc Replace members into the db.
 %%
 -spec(replace(OldMembers, NewMembers) ->
-             ok when OldMembers::[#member{}],
-                     NewMembers::[#member{}]).
+             ok | {error, any()} when OldMembers::[#member{}],
+                                      NewMembers::[#member{}]).
 replace(OldMembers, NewMembers) ->
     replace(?MEMBER_TBL_CUR, OldMembers, NewMembers).
 
 -spec(replace(Table, OldMembers, NewMembers) ->
-             ok when Table::member_table(),
-                     OldMembers::[#member{}],
-                     NewMembers::[#member{}]).
+             ok | {error, any()} when Table::member_table(),
+                                      OldMembers::[#member{}],
+                                      NewMembers::[#member{}]).
 replace(Table, OldMembers, NewMembers) ->
     replace(?table_type(), Table, OldMembers, NewMembers).
 
 -spec(replace(DBType, Table, OldMembers, NewMembers) ->
-             ok when DBType::?DB_ETS | ?DB_MNESIA,
-                             Table::member_table(),
-                     OldMembers::[#member{}],
-                     NewMembers::[#member{}]).
+             ok | {error, any()} when DBType::?DB_ETS | ?DB_MNESIA,
+                                      Table::member_table(),
+                                      OldMembers::[#member{}],
+                                      NewMembers::[#member{}]).
+replace(?DB_MNESIA, Table, OldMembers, NewMembers) ->
+    Fun = fun() ->
+                  lists:foreach(fun(Item_1) ->
+                                        mnesia:delete_object(Table, Item_1, write)
+                                end, OldMembers),
+                  lists:foreach(fun(Item_2) ->
+                                        mnesia:write(Table, Item_2, write)
+                                end, NewMembers)
+          end,
+    leo_mnesia:batch(Fun);
 replace(DBType, Table, OldMembers, NewMembers) ->
     lists:foreach(fun(Item) ->
                           delete(DBType, Table, Item#member.node)

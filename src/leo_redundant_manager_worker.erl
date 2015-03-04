@@ -256,8 +256,6 @@ handle_call(dump,_From, #state{cur  = #ring_info{ring_group_list = CurRing },
     {reply, ok, State};
 
 handle_call(subscribe,_From, State) ->
-    mnesia:subscribe({table, ?MEMBER_TBL_CUR,  simple}),
-    mnesia:subscribe({table, ?MEMBER_TBL_PREV, simple}),
     {reply, ok, State};
 
 handle_call(_Handle, _From, State) ->
@@ -283,55 +281,7 @@ handle_cast(_Msg, State) ->
 %% <p>
 %% gen_server callback - Module:handle_info(Info, State) -> Result.
 %% </p>
-handle_info(Info, #state{cur  = #ring_info{ring_group_list = CurRing },
-                         prev = #ring_info{ring_group_list = PrevRing}} = State) ->
-    case Info of
-        {mnesia_table_event, {write, El,_}} ->
-            NodeStatus = erlang:element(8, El),
-            case NodeStatus of
-                ?STATE_RUNNING when CurRing  == [];
-                                    CurRing  == undefined;
-                                    PrevRing == [];
-                                    PrevRing == undefined ->
-                    timer:apply_after(100, leo_redundant_manager_api, create, []),
-                    ok;
-                ?STATE_RUNNING ->
-                    %% exists an attached node in ring?
-                    Table = erlang:element(1, El),
-                    Node  = erlang:element(2, El),
-                    VNodeList = get_vnode_list(Table, CurRing, PrevRing),
-                    case find_node_from_ring(VNodeList, Node) of
-                        ok ->
-                            void;
-                        not_found ->
-                            timer:apply_after(100, leo_redundant_manager_api, create, [])
-                    end;
-                _ ->
-                    ok
-            end;
-        {mnesia_table_event, {delete, El,_}} ->
-            case (CurRing  == [] orelse
-                  PrevRing == [] orelse
-                  CurRing  == undefined orelse
-                  PrevRing == undefined) of
-                true ->
-                    timer:apply_after(100, leo_redundant_manager_api, create, []),
-                    ok;
-                false ->
-                    %% exists a detached node in ring?
-                    Table = erlang:element(1, El),
-                    Node  = erlang:element(2, El),
-                    VNodeList = get_vnode_list(Table, CurRing, PrevRing),
-                    case find_node_from_ring(VNodeList, Node) of
-                        ok ->
-                            timer:apply_after(100, leo_redundant_manager_api, create, []);
-                        not_found ->
-                            ok
-                    end
-            end;
-        _ ->
-            ok
-    end,
+handle_info(_Info, State) ->
     {noreply, State}.
 
 %% @doc This function is called by a gen_server when it is about to
@@ -1021,43 +971,3 @@ ring_info(?RING_TBL_PREV, State) ->
     State#state.prev;
 ring_info(_,_) ->
     {error, invalid_table}.
-
-
-
-%% @doc Retrieve vnode-list
-%% @private
-get_vnode_list(?MEMBER_TBL_CUR, undefined,_PrevRing) ->
-    [];
-get_vnode_list(?MEMBER_TBL_CUR, [],_PrevRing) ->
-    [];
-get_vnode_list(?MEMBER_TBL_CUR, CurRing,_PrevRing) ->
-    [#ring_group{vnodeid_nodes_list = VNodeList}|_] = CurRing,
-    VNodeList;
-get_vnode_list(?MEMBER_TBL_PREV,_CurRing, undefined) ->
-    [];
-get_vnode_list(?MEMBER_TBL_PREV,_CurRing, []) ->
-    [];
-get_vnode_list(?MEMBER_TBL_PREV,_CurRing, PrevRing) ->
-    [#ring_group{vnodeid_nodes_list = VNodeList}|_] = PrevRing,
-    VNodeList.
-
-
-%% @doc Find the node from a part of the ring
-%% @private
-find_node_from_ring([],_Node) ->
-    not_found;
-find_node_from_ring([#vnodeid_nodes{nodes = Redundancies}|Rest], Node) ->
-    case find_node_from_ring_1(Redundancies, Node) of
-        not_found ->
-            find_node_from_ring(Rest, Node);
-        ok ->
-            ok
-    end.
-
-%% @private
-find_node_from_ring_1([],_Node) ->
-    not_found;
-find_node_from_ring_1([#redundant_node{node = Node}|_], Node) ->
-    ok;
-find_node_from_ring_1([_|Rest], Node) ->
-    find_node_from_ring_1(Rest, Node).
