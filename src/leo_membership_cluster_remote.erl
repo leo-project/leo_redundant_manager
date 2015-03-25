@@ -205,7 +205,7 @@ exec([#cluster_manager{node = Node,
                         {ok, LocalClusterStat} ->
                             exec_1(Node, ClusterStat, LocalClusterStat);
                         not_found ->
-                            exec_1(Node, ClusterStat, #?CLUSTER_STAT{});
+                            exec_1(Node, #?CLUSTER_STAT{cluster_id = ClusterId}, undefined);
                         _ ->
                             ok
                     end;
@@ -221,19 +221,26 @@ exec([#cluster_manager{node = Node,
 %% @private
 -spec(exec_1(atom(), #?CLUSTER_STAT{}, #?CLUSTER_STAT{}) ->
              ok | {error, any()}).
-exec_1(Node, #?CLUSTER_STAT{checksum   = Checksum_1,
-                            cluster_id = ClusterId} = ClusterStat,
-       #?CLUSTER_STAT{checksum = Checksum_2}) ->
+exec_1(Node,
+       #?CLUSTER_STAT{checksum   = Checksum_1,
+                      cluster_id = ClusterId} = ClusterStat, ClusterStat_2) ->
+    Checksum_2 =
+        case ClusterStat_2 of
+            undefined ->
+                -1;
+            #?CLUSTER_STAT{checksum = _Checksum} ->
+                _Checksum
+        end,
+
     %% Retrieve new members and then store them
     case (Checksum_1 /= Checksum_2) of
         true ->
             %% Retrieve the remote members and then store them
             case exec_2(Node, ClusterId) of
-                {ok, Checksum} ->
-                    %% Update status
-                    ok = leo_mdcr_tbl_cluster_stat:update(
-                           ClusterStat#?CLUSTER_STAT{checksum = Checksum,
-                                                     updated_at = leo_date:now()});
+                {ok, {State, Checksum}} ->
+                    leo_mdcr_tbl_cluster_stat:update(
+                      ClusterStat#?CLUSTER_STAT{state = State,
+                                                checksum = Checksum});
                 {error, Cause} ->
                     {error, Cause}
             end;
@@ -243,7 +250,7 @@ exec_1(Node, #?CLUSTER_STAT{checksum   = Checksum_1,
 
 %% @private
 -spec(exec_2(atom(), atom()) ->
-             {ok, integer()} | {error, any()}).
+             {ok, {node_state() ,integer()}} | {error, any()}).
 exec_2(Node, ClusterId) ->
     case catch leo_rpc:call(Node, leo_redundant_manager_api,
                             get_members, []) of
@@ -251,7 +258,15 @@ exec_2(Node, ClusterId) ->
             Checksum = erlang:crc32(term_to_binary(lists:sort(Members))),
             case exec_3(Members, ClusterId) of
                 ok ->
-                    {ok, Checksum};
+                    State = case [N ||
+                                     #member{node = N,
+                                             state = ?STATE_RUNNING} <- Members] of
+                                [] ->
+                                    ?STATE_STOP;
+                                _ ->
+                                    ?STATE_RUNNING
+                            end,
+                    {ok, {State, Checksum}};
                 {error, Cause} ->
                     {error, Cause}
             end;
