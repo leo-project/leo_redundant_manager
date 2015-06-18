@@ -91,13 +91,9 @@ start1(InstanceId, RootPath0) ->
                                         {?MQ_PROP_DB_NAME,  ?DEF_BACKEND_DB},
                                         {?MQ_PROP_ROOT_PATH, RootPath1 ++ ?MQ_DB_PATH},
                                         {?MQ_PROP_INTERVAL_MAX,    ?DEF_CONSUME_MAX_INTERVAL},
-                                        {?MQ_PROP_INTERVAL_MIN,    ?DEF_CONSUME_MIN_INTERVAL},
                                         {?MQ_PROP_INTERVAL_REG,    ?DEF_CONSUME_REG_INTERVAL},
-                                        {?MQ_PROP_INTERVAL_STEP,   ?DEF_CONSUME_STEP_INTERVAL},
                                         {?MQ_PROP_BATCH_MSGS_MAX,  ?DEF_CONSUME_MAX_BATCH_MSGS},
-                                        {?MQ_PROP_BATCH_MSGS_MIN,  ?DEF_CONSUME_MIN_BATCH_MSGS},
-                                        {?MQ_PROP_BATCH_MSGS_REG,  ?DEF_CONSUME_REG_BATCH_MSGS},
-                                        {?MQ_PROP_BATCH_MSGS_STEP, ?DEF_CONSUME_STEP_BATCH_MSGS}
+                                        {?MQ_PROP_BATCH_MSGS_REG,  ?DEF_CONSUME_REG_BATCH_MSGS}
                                        ]),
     ok.
 
