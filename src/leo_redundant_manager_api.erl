@@ -376,12 +376,8 @@ checksum(?CHECKSUM_RING) ->
 checksum(?CHECKSUM_WORKER) ->
     leo_redundant_manager_worker:checksum();
 checksum(?CHECKSUM_SYS_CONF) ->
-    case get_options() of
-        {ok, SysConf} ->
-            {ok, erlang:crc32(term_to_binary(SysConf))};
-        _ ->
-            {ok, -1}
-    end;
+    {ok, SysConf} = get_options(),
+    {ok, erlang:crc32(term_to_binary(SysConf))};
 checksum(_) ->
     {error, invalid_type}.
 
@@ -583,14 +579,10 @@ get_redundancies_by_key(Key) ->
              {error, any()} when Method::method(),
                                  Key::binary()).
 get_redundancies_by_key(Method, Key) ->
-    case get_options() of
-        {ok, Options} ->
-            BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
-            AddrId    = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
-            get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options);
-        _ ->
-            {error, not_found}
-    end.
+    {ok, Options} = get_options(),
+    BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
+    AddrId    = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
+    get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options).
 
 
 %% @doc Retrieve redundancies from the ring-table.
@@ -605,15 +597,8 @@ get_redundancies_by_addr_id(AddrId) ->
              {ok, #redundancies{}} |
              {error, any()} when Method::method(), AddrId::integer()).
 get_redundancies_by_addr_id(Method, AddrId) ->
-    Options_1 = case get_options() of
-                    {ok, Options} ->
-                        Options;
-                    _ ->
-                        {ok, Options} = get_options(),
-                        ok = set_options(Options),
-                        Options
-                end,
-    get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options_1).
+    {ok, Options} = get_options(),
+    get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options).
 
 %% @private
 -spec(get_redundancies_by_addr_id_1({_,atom()}, integer(), [_]) ->

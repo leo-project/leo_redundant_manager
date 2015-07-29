@@ -219,7 +219,7 @@ exec([#cluster_manager{node = Node,
 
 
 %% @private
--spec(exec_1(atom(), #?CLUSTER_STAT{}, #?CLUSTER_STAT{}) ->
+-spec(exec_1(atom(), #?CLUSTER_STAT{}, #?CLUSTER_STAT{}|undefined) ->
              ok | {error, any()}).
 exec_1(Node,
        #?CLUSTER_STAT{checksum   = Checksum_1,
