@@ -309,18 +309,14 @@ timestamp() ->
 %% @doc Retrieve the number of replicas
 %% @private
 update_state(State) ->
-    case leo_redundant_manager_api:get_options() of
-        {ok, Options} ->
-            NumOfReplica = leo_misc:get_value(?PROP_N, Options, 0),
-            case (NumOfReplica > 0) of
-                true ->
-                    NumOfL2 = leo_misc:get_value(?PROP_L2, Options, 0),
-                    State#state{num_of_replicas = NumOfReplica,
-                                num_of_rack_awareness = NumOfL2};
-                false ->
-                    State
-            end;
-        _ ->
+    {ok, Options} = leo_redundant_manager_api:get_options(),
+    NumOfReplica = leo_misc:get_value(?PROP_N, Options, 0),
+    case (NumOfReplica > 0) of
+        true ->
+            NumOfL2 = leo_misc:get_value(?PROP_L2, Options, 0),
+            State#state{num_of_replicas = NumOfReplica,
+                        num_of_rack_awareness = NumOfL2};
+        false ->
             State
     end.
 

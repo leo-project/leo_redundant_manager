@@ -100,12 +100,12 @@ has_member(Node) ->
 %% @doc Retrieve all members.
 %%
 -spec(get_members() ->
-             {ok, [#member{}]}).
+             {ok, [#member{}]} | {error, any()}).
 get_members() ->
     gen_server:call(?MODULE, {get_members, ?VER_CUR}, ?DEF_TIMEOUT).
 
 -spec(get_members(Ver) ->
-             {ok, [#member{}]} when Ver::?VER_CUR|?VER_PREV).
+             {ok, [#member{}]} | {error, any()} when Ver::?VER_CUR|?VER_PREV).
 get_members(Ver) ->
     gen_server:call(?MODULE, {get_members, Ver}, ?DEF_TIMEOUT).
 
