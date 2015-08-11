@@ -186,6 +186,11 @@
             ?VER_PREV -> ?RING_TBL_PREV
         end).
 
+-define(table_to_sync_target(_Table),
+        case _Table of
+            ?RING_TBL_CUR  -> ?SYNC_TARGET_RING_CUR;
+            ?RING_TBL_PREV -> ?SYNC_TARGET_RING_PREV
+        end).
 
 
 %% Synchronization
