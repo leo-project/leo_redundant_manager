@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2014 Rakuten, Inc.
+%% Copyright (c) 2012-2015 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -35,6 +35,7 @@
 -export([start_link/0, stop/0]).
 -export([lookup/2, first/1, last/1, force_sync/1,
          redundancies/3,
+         collect/2,
          checksum/0,
          dump/0, subscribe/0]).
 
@@ -148,8 +149,18 @@ force_sync(Table) ->
              not_found when TableInfo::ring_table_info(),
                             AddrId::non_neg_integer(),
                             Members::[#member{}]).
-redundancies(Table, AddrId, Members) ->
-    gen_server:call(?MODULE, {redundancies, Table, AddrId, Members}, ?DEF_TIMEOUT).
+redundancies(TableInfo, AddrId, Members) ->
+    gen_server:call(?MODULE, {redundancies, TableInfo, AddrId, Members}, ?DEF_TIMEOUT).
+
+
+%% @doc Collect redundancies
+-spec(collect(Table, AddrIdAndKeyL) ->
+             {ok, KeyWithRedundanciesL} |
+             not_found when Table::atom(),
+                            AddrIdAndKeyL::[{pos_integer(), binary()}],
+                            KeyWithRedundanciesL::[{binary(), #redundancies{}}]).
+collect(Table, AddrIdAndKeyL) ->
+    gen_server:call(?MODULE, {collect, Table, AddrIdAndKeyL}, ?DEF_TIMEOUT).
 
 
 %% @doc Retrieve the checksums
@@ -193,10 +204,9 @@ handle_call({lookup, Tbl,_AddrId},_From, State) when Tbl /= ?RING_TBL_CUR,
     {reply, {error, invalid_table}, State};
 
 handle_call({lookup, Tbl, AddrId},_From, State) ->
-    #ring_info{
-       ring_group_list = RingGroupList,
-       first_vnode_id  = FirstVNodeId,
-       last_vnode_id   = LastVNodeId} = ring_info(Tbl, State),
+    #ring_info{ring_group_list = RingGroupList,
+               first_vnode_id  = FirstVNodeId,
+               last_vnode_id   = LastVNodeId} = ring_info(Tbl, State),
     Reply = lookup_fun(RingGroupList, FirstVNodeId,
                        LastVNodeId, AddrId, State),
     {reply, Reply, State};
@@ -224,17 +234,19 @@ handle_call({force_sync, Tbl},_From, State) when Tbl /= ?RING_TBL_CUR,
     {reply, {error, invalid_table}, State};
 
 handle_call({force_sync, Table},_From, State) ->
-    TargetRing = case Table of
-                     ?RING_TBL_CUR  -> ?SYNC_TARGET_RING_CUR;
-                     ?RING_TBL_PREV -> ?SYNC_TARGET_RING_PREV
-                 end,
-
+    TargetRing = ?table_to_sync_target(Table),
     NewState = force_sync_fun(TargetRing, State),
     {reply, ok, NewState};
 
-handle_call({redundancies, Table, AddrId, Members},_From, #state{num_of_replicas = N,
-                                                                 num_of_rack_awareness = L2} = State) ->
-    Reply = redundancies(Table, AddrId, N, L2, Members),
+handle_call({redundancies, TableInfo, AddrId, Members},_From,
+            #state{num_of_replicas = N,
+                   num_of_rack_awareness = L2} = State) ->
+    Reply = redundancies(TableInfo, AddrId, N, L2, Members),
+    {reply, Reply, State};
+
+handle_call({collect, Tbl, AddrIdAndKeyL},_From, State) ->
+    RingInfo = ring_info(Tbl, State),
+    Reply = collect_fun(RingInfo, AddrIdAndKeyL, State, []),
     {reply, Reply, State};
 
 handle_call(checksum,_From, #state{checksum = Checksum} = State) ->
@@ -939,7 +951,6 @@ force_sync_fun(TargetRing, State) ->
             State
     end.
 
-
 %% @private
 force_sync_fun_1({ok, #ring_info{ring_group_list = RetL} = RingInfo}, ?SYNC_TARGET_RING_CUR,
                  #state{checksum = Checksum} = State) ->
@@ -955,6 +966,27 @@ force_sync_fun_1({ok, #ring_info{ring_group_list = RetL} = RingInfo}, ?SYNC_TARG
                 checksum = {PrevHash, CurHash}};
 force_sync_fun_1(_,_,State) ->
     State.
+
+
+%% @doc Coolect redundancies of the keys
+%% @private
+-spec(collect_fun(RingInfo, AddrIdAndKeyL, State, Acc) ->
+             not_found | {ok, Acc} when RingInfo::#ring_info{},
+                                        AddrIdAndKeyL::[{non_neg_integer(), binary()}],
+                                        State::#state{},
+                                        Acc::[{binary(), #redundancies{}}]).
+collect_fun(_,[],_,Acc) ->
+    {ok, lists:reverse(Acc)};
+collect_fun(#ring_info{ring_group_list = RingGroupList,
+                       first_vnode_id = FirstVNodeId,
+                       last_vnode_id = LastVNodeId} = RingInfo, [{AddrId, Key}|Rest], State, Acc) ->
+    case lookup_fun(RingGroupList, FirstVNodeId,
+                       LastVNodeId, AddrId, State) of
+        not_found ->
+            not_found;
+        {ok, Redundancies} ->
+            collect_fun(RingInfo, Rest, State, [{Key, Redundancies}|Acc])
+    end.
 
 
 %% @doc Retrieve ring-info

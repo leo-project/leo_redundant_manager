@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2014 Rakuten, Inc.
+%% Copyright (c) 2012-2015 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -46,6 +46,7 @@
 %% Redundancy-related
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
          get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2,
+         collect_redundancies_by_keys/1,
          range_of_vnodes/1, rebalance/0,
          get_alias/2, get_alias/3, get_alias/4
         ]).
@@ -581,7 +582,7 @@ get_redundancies_by_key(Key) ->
 get_redundancies_by_key(Method, Key) ->
     {ok, Options} = get_options(),
     BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
-    AddrId    = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
+    AddrId = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
     get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options).
 
 
@@ -603,13 +604,13 @@ get_redundancies_by_addr_id(Method, AddrId) ->
 %% @private
 -spec(get_redundancies_by_addr_id_1({_,atom()}, integer(), [_]) ->
              {ok, #redundancies{}} | {error, any()}).
-get_redundancies_by_addr_id_1(TblInfo, AddrId, Options) ->
+get_redundancies_by_addr_id_1({_,Tbl}, AddrId, Options) ->
     N = leo_misc:get_value(?PROP_N, Options),
     R = leo_misc:get_value(?PROP_R, Options),
     W = leo_misc:get_value(?PROP_W, Options),
     D = leo_misc:get_value(?PROP_D, Options),
 
-    case leo_redundant_manager_chash:redundancies(TblInfo, AddrId) of
+    case leo_redundant_manager_worker:lookup(Tbl, AddrId) of
         {ok, Redundancies} ->
             CurRingHash =
                 case leo_misc:get_env(?APP, ?PROP_RING_HASH) of
@@ -628,6 +629,32 @@ get_redundancies_by_addr_id_1(TblInfo, AddrId, Options) ->
         not_found = Cause ->
             {error, Cause}
     end.
+
+
+%% @doc Collect
+-spec(collect_redundancies_by_keys(Keys) ->
+             {ok, KeyWithRedundanciesL}|{error, any()}
+                 when Keys::[binary()],
+                      KeyWithRedundanciesL::[{binary(), #redundancies{}}]).
+collect_redundancies_by_keys(Keys) ->
+    {_, Table} = ring_table(default),
+    {ok, Options} = get_options(),
+    BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
+    AddrIdAndKeyL = collect_redundancies_by_keys_1(Keys, BitOfRing, []),
+
+    case leo_redundant_manager_worker:collect(Table, AddrIdAndKeyL) of
+        {ok, KeyWithRedundanciesL} ->
+            {ok, KeyWithRedundanciesL};
+        not_found = Cause ->
+            {error, Cause}
+    end.
+
+%% @private
+collect_redundancies_by_keys_1([],_,Acc) ->
+    lists:reverse(Acc);
+collect_redundancies_by_keys_1([Key|Rest], BitOfRing, Acc) ->
+    AddrId = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
+    collect_redundancies_by_keys_1(Rest, BitOfRing, [{AddrId, Key}|Acc]).
 
 
 %% @doc Retrieve range of vnodes.

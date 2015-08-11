@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2014 Rakuten, Inc.
+%% Copyright (c) 2012-2015 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -34,7 +34,7 @@
 
 -export([add/2, add_from_list/2,
          remove/2, remove_from_list/2,
-         redundancies/2, range_of_vnodes/2, rebalance/1,
+         range_of_vnodes/2, rebalance/1,
          checksum/1, vnode_id/1, vnode_id/2]).
 -export([export/2]).
 
@@ -107,15 +107,6 @@ remove_from_list_1([], Acc) ->
 remove_from_list_1([Member|Rest], Acc) ->
     {ok, Acc_1} = remove_1(0, Member, Acc),
     remove_from_list_1(Rest, Acc_1).
-
-
-%% @doc Retrieve redundancies by vnode-id.
-%%
--spec(redundancies(TableInfo, VNodeId) ->
-             {ok, #redundancies{}} | not_found when TableInfo::table_info(),
-                                                    VNodeId::integer()).
-redundancies({_,Table}, VNodeId) ->
-    leo_redundant_manager_worker:lookup(Table, VNodeId).
 
 
 %% @doc Execute rebalance
