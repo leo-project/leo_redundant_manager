@@ -137,6 +137,27 @@
                       ?STATE_RESTARTED |
                       ?STATE_RESERVED).
 
+-define(is_correct_state(_State),
+        case _State of
+            ?STATE_ATTACHED ->
+                true;
+            ?STATE_DETACHED ->
+                true;
+            ?STATE_SUSPEND ->
+                true;
+            ?STATE_RUNNING ->
+                true;
+            ?STATE_STOP ->
+                true;
+            ?STATE_RESTARTED ->
+                true;
+            ?STATE_RESERVED ->
+                true;
+            _ ->
+                false
+        end).
+
+
 %% Property
 %%
 -define(PROP_SERVER_TYPE,   'server_type').
