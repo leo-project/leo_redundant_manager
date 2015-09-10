@@ -137,6 +137,27 @@
                       ?STATE_RESTARTED |
                       ?STATE_RESERVED).
 
+-define(is_correct_state(_State),
+        case _State of
+            ?STATE_ATTACHED ->
+                true;
+            ?STATE_DETACHED ->
+                true;
+            ?STATE_SUSPEND ->
+                true;
+            ?STATE_RUNNING ->
+                true;
+            ?STATE_STOP ->
+                true;
+            ?STATE_RESTARTED ->
+                true;
+            ?STATE_RESERVED ->
+                true;
+            _ ->
+                false
+        end).
+
+
 %% Property
 %%
 -define(PROP_SERVER_TYPE,   'server_type').
@@ -186,6 +207,11 @@
             ?VER_PREV -> ?RING_TBL_PREV
         end).
 
+-define(table_to_sync_target(_Table),
+        case _Table of
+            ?RING_TBL_CUR  -> ?SYNC_TARGET_RING_CUR;
+            ?RING_TBL_PREV -> ?SYNC_TARGET_RING_PREV
+        end).
 
 
 %% Synchronization

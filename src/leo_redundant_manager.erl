@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2014 Rakuten, Inc.
+%% Copyright (c) 2012-2015 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -336,8 +336,13 @@ handle_call({get_members_by_status, Ver, Status}, _From, State) ->
             end,
     {reply, Reply, State};
 
-handle_call({update_member, Member}, _From, State) ->
-    Reply = leo_cluster_tbl_member:insert({Member#member.node, Member}),
+handle_call({update_member, #member{state = MemberState} = Member}, _From, State) ->
+    Reply = case ?is_correct_state(MemberState) of
+                true ->
+                    leo_cluster_tbl_member:insert({Member#member.node, Member});
+                false ->
+                    ok
+            end,
     {reply, Reply, State};
 
 handle_call({update_members, Members}, _From, State) ->
@@ -365,11 +370,21 @@ handle_call({update_members, Table, OldMembers, NewMembers}, _From, State) ->
     {reply, Reply, State};
 
 handle_call({update_member_by_node, Node, NodeState}, _From, State) ->
-    Reply = update_member_by_node_1(Node, NodeState),
+    Reply = case ?is_correct_state(NodeState) of
+                true ->
+                    update_member_by_node_1(Node, NodeState);
+                false ->
+                    {error, incorrect_node_state}
+            end,
     {reply, Reply, State};
 
 handle_call({update_member_by_node, Node, Clock, NodeState}, _From, State) ->
-    Reply = update_member_by_node_1(Node, Clock, NodeState),
+    Reply = case ?is_correct_state(NodeState) of
+                true ->
+                    update_member_by_node_1(Node, Clock, NodeState);
+                false ->
+                    {error, incorrect_node_state}
+            end,
     {reply, Reply, State};
 
 handle_call({delete_member_by_node, Node}, _From, State) ->
@@ -562,8 +577,6 @@ create_2(Ver,[], Acc) ->
         Other ->
             Other
     end;
-create_2( Ver, [#member{state = ?STATE_DETACHED}|Rest], Acc) ->
-    create_2(Ver, Rest, Acc);
 create_2( Ver, [#member{state = ?STATE_RESERVED}|Rest], Acc) ->
     create_2(Ver, Rest, Acc);
 create_2( Ver, [#member{node = Node,
