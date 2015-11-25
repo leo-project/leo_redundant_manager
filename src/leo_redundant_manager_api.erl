@@ -633,8 +633,9 @@ get_redundancies_by_addr_id_1({_,Tbl}, AddrId, Options) ->
 
 %% @doc Collect
 -spec(collect_redundancies_by_key(Key) ->
-             {ok, RedundanciesL}|{error, any()}
+             {ok, {Options, RedundanciesL}}|{error, any()}
                  when Key::binary(),
+                      Options::[{atom(), any()}],
                       RedundanciesL::[#redundancies{}]).
 collect_redundancies_by_key(Key) ->
     {ok, Options} = get_options(),
@@ -655,7 +656,7 @@ collect_redundancies_by_key(Key, NumOfReplicas) ->
     case leo_redundant_manager_worker:collect(
            Table, {AddrId, Key}, NumOfReplicas) of
         {ok, RedundanciesL} ->
-            {ok, RedundanciesL};
+            {ok, {Options, RedundanciesL}};
         not_found = Cause ->
             {error, Cause};
         Others ->

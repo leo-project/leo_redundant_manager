@@ -976,24 +976,17 @@ force_sync_fun_1(_,_,State) ->
                                         State::#state{},
                                         Acc::[#redundancies{}]).
 collect_fun(NumOfReplicas,_RingInfo,_AddrIdAndKey,_State, Acc) when NumOfReplicas =< length(Acc) ->
-    {ok, lists:reverse(Acc)};
+    Acc_1 = lists:sublist(lists:reverse(Acc), NumOfReplicas),
+    {ok, Acc_1};
 collect_fun(NumOfReplicas, #ring_info{ring_group_list = RingGroupList,
                                       first_vnode_id = FirstVNodeId,
                                       last_vnode_id = LastVNodeId} = RingInfo, {AddrId, Key}, State, Acc) ->
     case lookup_fun(RingGroupList, FirstVNodeId,
                     LastVNodeId, AddrId, State) of
         {ok, #redundancies{vnode_id_to = VNodeIdTo,
-                           n = N,
                            nodes = RedundantNodeL}} ->
-            N_1 = case (N < 1) of
-                      true ->
-                          1;
-                      false ->
-                          N
-                  end,
-            RedundantNodeL_1 = lists:sublist(RedundantNodeL, N_1),
             collect_fun(NumOfReplicas, RingInfo,
-                        {VNodeIdTo + 1, Key}, State, lists:flatten([RedundantNodeL_1|Acc]));
+                        {VNodeIdTo + 1, Key}, State, lists:flatten([RedundantNodeL|Acc]));
         Other ->
             Other
     end.

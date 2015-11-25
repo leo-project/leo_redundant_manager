@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2014 Rakuten, Inc.
+%% Copyright (c) 2012-2015 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -671,11 +671,13 @@ inspect_0(Hostname, NumOfIteration) ->
     {ok, Res4} = leo_redundant_manager_api:range_of_vnodes(Max1),
     ?assertEqual(2, length(Res4)),
 
-    {ok, Res5} = leo_redundant_manager_api:collect_redundancies_by_key(<<"air_on_the_g_string_1">>),
+    {ok, {_Options, Res5}} =
+        leo_redundant_manager_api:collect_redundancies_by_key(<<"air_on_the_g_string_1">>),
     ?debugVal(Res5),
     ?assertEqual(3, length(Res5)),
 
-    {ok, Res6} = leo_redundant_manager_api:collect_redundancies_by_key(<<"air_on_the_g_string_2">>, 5),
+    {ok, {_Options, Res6}} =
+        leo_redundant_manager_api:collect_redundancies_by_key(<<"air_on_the_g_string_2">>, 5),
     ?debugVal(Res6),
     ?assertEqual(5, length(Res6)),
 
