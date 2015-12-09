@@ -983,10 +983,13 @@ collect_fun(NumOfReplicas, #ring_info{ring_group_list = RingGroupList,
                                       last_vnode_id = LastVNodeId} = RingInfo, {AddrId, Key}, State, Acc) ->
     case lookup_fun(RingGroupList, FirstVNodeId,
                     LastVNodeId, AddrId, State) of
-        {ok, #redundancies{vnode_id_to = VNodeIdTo,
-                           nodes = RedundantNodeL}} ->
+        {ok, #redundancies{nodes = RedundantNodeL}} ->
+            ChildId = erlang:length(Acc) + 1,
+            ChildIdBin = list_to_binary(integer_to_list(ChildId)),
+            Key_1 = << Key/binary, "\n", ChildIdBin/binary >>,
+            AddrId_1 = leo_redundant_manager_chash:vnode_id(Key_1),
             collect_fun(NumOfReplicas, RingInfo,
-                        {VNodeIdTo + 1, Key}, State,
+                        {AddrId_1, Key}, State,
                         lists:append([Acc, RedundantNodeL]));
         Other ->
             Other
