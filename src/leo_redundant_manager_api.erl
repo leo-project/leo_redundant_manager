@@ -47,6 +47,7 @@
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
          get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2,
          collect_redundancies_by_key/1, collect_redundancies_by_key/2,
+         part_of_collect_redundancies_by_key/3,
          range_of_vnodes/1, rebalance/0,
          get_alias/2, get_alias/3, get_alias/4
         ]).
@@ -633,20 +634,21 @@ get_redundancies_by_addr_id_1({_,Tbl}, AddrId, Options) ->
 
 %% @doc Collect
 -spec(collect_redundancies_by_key(Key) ->
-             {ok, {Options, RedundanciesL}}|{error, any()}
+             {ok, {Options, RedundantNodeL}}|{error, any()}
                  when Key::binary(),
                       Options::[{atom(), any()}],
-                      RedundanciesL::[#redundancies{}]).
+                      RedundantNodeL::[#redundant_node{}]).
 collect_redundancies_by_key(Key) ->
     {ok, Options} = get_options(),
     NumOfReplicas = leo_misc:get_value(?PROP_N, Options),
     collect_redundancies_by_key(Key, NumOfReplicas).
 
 -spec(collect_redundancies_by_key(Key, NumOfReplicas) ->
-             {ok, RedundanciesL}|{error, any()}
+             {ok, {Options, RedundantNodeL}}|{error, any()}
                  when Key::binary(),
                       NumOfReplicas::pos_integer(),
-                      RedundanciesL::[#redundancies{}]).
+                      Options::[{atom(), any()}],
+                      RedundantNodeL::[#redundancies{}]).
 collect_redundancies_by_key(Key, NumOfReplicas) ->
     {_, Table} = ring_table(default),
     {ok, Options} = get_options(),
@@ -655,12 +657,36 @@ collect_redundancies_by_key(Key, NumOfReplicas) ->
 
     case leo_redundant_manager_worker:collect(
            Table, {AddrId, Key}, NumOfReplicas) of
-        {ok, RedundanciesL} ->
-            {ok, {Options, RedundanciesL}};
+        {ok, RedundantNodeL} ->
+            {ok, {Options, RedundantNodeL}};
         not_found = Cause ->
             {error, Cause};
         Others ->
             Others
+    end.
+
+
+-spec(part_of_collect_redundancies_by_key(Index, ChildKey, NumOfReplicas) ->
+             {ok, RedundantNode}|{error, any()}
+                 when Index::pos_integer(),
+                      ChildKey::binary(),
+                      NumOfReplicas::pos_integer(),
+                      RedundantNode::#redundant_node{}).
+part_of_collect_redundancies_by_key(Index, ChildKey, NumOfReplicas) ->
+    ParentKey = begin
+                    case binary:matches(ChildKey, [<<"\n">>], []) of
+                        [] ->
+                            ChildKey;
+                        [{Pos,_}|_] ->
+                            binary:part(ChildKey, 0, Pos)
+                    end
+                end,
+    case collect_redundancies_by_key(ParentKey, NumOfReplicas) of
+        {ok, {_Options, RedundantNodeL}}
+          when erlang:length(RedundantNodeL) >= NumOfReplicas ->
+            {ok, lists:nth(Index, RedundantNodeL)};
+        Other ->
+            Other
     end.
 
 

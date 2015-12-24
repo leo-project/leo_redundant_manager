@@ -681,6 +681,12 @@ inspect_0(Hostname, NumOfIteration) ->
     ?debugVal(Res6),
     ?assertEqual(5, length(Res6)),
 
+    {ok, Res7} =
+        leo_redundant_manager_api:part_of_collect_redundancies_by_key(
+          3, <<"air_on_the_g_string_2\n3">>, 5),
+    Res7_1 = lists:nth(3, Res6),
+    ?assertEqual(Res7, Res7_1),
+
     ok = leo_redundant_manager_api:dump(work),
     ok.
 
