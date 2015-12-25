@@ -671,19 +671,15 @@ inspect_0(Hostname, NumOfIteration) ->
     {ok, Res4} = leo_redundant_manager_api:range_of_vnodes(Max1),
     ?assertEqual(2, length(Res4)),
 
-    {ok, {_Options, Res5}} =
-        leo_redundant_manager_api:collect_redundancies_by_key(<<"air_on_the_g_string_1">>),
-    ?debugVal(Res5),
-    ?assertEqual(3, length(Res5)),
-
     {ok, {_Options, Res6}} =
-        leo_redundant_manager_api:collect_redundancies_by_key(<<"air_on_the_g_string_2">>, 5),
+        leo_redundant_manager_api:collect_redundancies_by_key(<<"air_on_the_g_string_2">>, 6, 3),
     ?debugVal(Res6),
-    ?assertEqual(5, length(Res6)),
+    ?assertEqual(6, length(Res6)),
 
     {ok, Res7} =
         leo_redundant_manager_api:part_of_collect_redundancies_by_key(
-          3, <<"air_on_the_g_string_2\n3">>, 5),
+          3, <<"air_on_the_g_string_2\n3">>, 6, 3),
+    ?debugVal(Res7),
     Res7_1 = lists:nth(3, Res6),
     ?assertEqual(Res7, Res7_1),
 
