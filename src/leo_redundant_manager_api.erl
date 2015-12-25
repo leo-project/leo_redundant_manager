@@ -677,7 +677,8 @@ part_of_collect_redundancies_by_key(Index, ChildKey, NumOfReplicas) ->
                     case binary:matches(ChildKey, [<<"\n">>], []) of
                         [] ->
                             ChildKey;
-                        [{Pos,_}|_] ->
+                        PosL ->
+                            {Pos,_} = lists:last(PosL),
                             binary:part(ChildKey, 0, Pos)
                     end
                 end,
