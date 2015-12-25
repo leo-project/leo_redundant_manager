@@ -35,7 +35,7 @@
 -export([start_link/0, stop/0]).
 -export([lookup/2, first/1, last/1, force_sync/1,
          redundancies/3,
-         collect/2,
+         collect/4,
          checksum/0,
          dump/0, subscribe/0]).
 
@@ -44,7 +44,7 @@
          handle_call/3,
          handle_cast/2,
          handle_info/2,
-	       terminate/2,
+         terminate/2,
          code_change/3]).
 
 -undef(DEF_TIMEOUT).
@@ -154,13 +154,16 @@ redundancies(TableInfo, AddrId, Members) ->
 
 
 %% @doc Collect redundancies
--spec(collect(Table, AddrIdAndKeyL) ->
-             {ok, KeyWithRedundanciesL} |
+-spec(collect(Table, AddrIdAndKey, NumOfReplicas, MaxNumOfDuplicate) ->
+             {ok, RedundanciesL} |
              not_found when Table::atom(),
-                            AddrIdAndKeyL::[{pos_integer(), binary()}],
-                            KeyWithRedundanciesL::[{binary(), #redundancies{}}]).
-collect(Table, AddrIdAndKeyL) ->
-    gen_server:call(?MODULE, {collect, Table, AddrIdAndKeyL}, ?DEF_TIMEOUT).
+                            AddrIdAndKey::{pos_integer(), binary()},
+                            NumOfReplicas::pos_integer(),
+                            MaxNumOfDuplicate::pos_integer(),
+                            RedundanciesL::[#redundancies{}]).
+collect(Table, AddrIdAndKey, NumOfReplicas, MaxNumOfDuplicate) ->
+    gen_server:call(?MODULE, {collect, Table, AddrIdAndKey,
+                              NumOfReplicas, MaxNumOfDuplicate}, ?DEF_TIMEOUT).
 
 
 %% @doc Retrieve the checksums
@@ -244,9 +247,15 @@ handle_call({redundancies, TableInfo, AddrId, Members},_From,
     Reply = redundancies(TableInfo, AddrId, N, L2, Members),
     {reply, Reply, State};
 
-handle_call({collect, Tbl, AddrIdAndKeyL},_From, State) ->
-    RingInfo = ring_info(Tbl, State),
-    Reply = collect_fun(RingInfo, AddrIdAndKeyL, State, []),
+handle_call({collect, Table, AddrIdAndKey, NumOfReplicas, MaxNumOfDuplicate},_From, State) ->
+    RingInfo = ring_info(Table, State),
+    Reply = case leo_redundant_manager_api:get_members() of
+                {ok, Members} ->
+                    collect_fun(NumOfReplicas, RingInfo,
+                                AddrIdAndKey, Members, MaxNumOfDuplicate, State, []);
+                Error ->
+                    Error
+            end,
     {reply, Reply, State};
 
 handle_call(checksum,_From, #state{checksum = Checksum} = State) ->
@@ -968,23 +977,65 @@ force_sync_fun_1(_,_,State) ->
 
 %% @doc Coolect redundancies of the keys
 %% @private
--spec(collect_fun(RingInfo, AddrIdAndKeyL, State, Acc) ->
-             not_found | {ok, Acc} when RingInfo::#ring_info{},
-                                        AddrIdAndKeyL::[{non_neg_integer(), binary()}],
+-spec(collect_fun(NumOfReplicas, RingInfo, AddrIdAndKey, Members, MaxNumOfDuplicate, State, Acc) ->
+             not_found | {ok, Acc} when NumOfReplicas::pos_integer(),
+                                        RingInfo::#ring_info{},
+                                        AddrIdAndKey::{non_neg_integer(), binary()},
+                                        Members::[#member{}],
+                                        MaxNumOfDuplicate::pos_integer(),
                                         State::#state{},
-                                        Acc::[{binary(), #redundancies{}}]).
-collect_fun(_,[],_,Acc) ->
-    {ok, lists:reverse(Acc)};
-collect_fun(#ring_info{ring_group_list = RingGroupList,
-                       first_vnode_id = FirstVNodeId,
-                       last_vnode_id = LastVNodeId} = RingInfo, [{AddrId, Key}|Rest], State, Acc) ->
-    case lookup_fun(RingGroupList, FirstVNodeId,
-                       LastVNodeId, AddrId, State) of
-        not_found ->
-            not_found;
-        {ok, Redundancies} ->
-            collect_fun(RingInfo, Rest, State, [{Key, Redundancies}|Acc])
+                                        Acc::[#redundancies{}]).
+collect_fun(NumOfReplicas, #ring_info{ring_group_list = RingGroupList,
+                                      first_vnode_id = FirstVNodeId,
+                                      last_vnode_id = LastVNodeId} = RingInfo,
+            {AddrId, Key}, Members, MaxNumOfDuplicate, State, Acc) ->
+    LenRetNodeL = erlang:length(Acc),
+    case (LenRetNodeL >= NumOfReplicas) of
+        true ->
+            Acc_1 = lists:sublist(Acc, NumOfReplicas),
+            {ok, Acc_1};
+        false ->
+            case lookup_fun(RingGroupList, FirstVNodeId,
+                            LastVNodeId, AddrId, State) of
+                {ok, #redundancies{nodes = RedundantNodeL}} ->
+                    ChildId = LenRetNodeL + 1,
+                    ChildIdBin = list_to_binary(integer_to_list(ChildId)),
+                    Key_1 = << Key/binary, "\n", ChildIdBin/binary >>,
+                    AddrId_1 = leo_redundant_manager_chash:vnode_id(Key_1),
+                    CanAppend = case Acc of
+                                    [] ->
+                                        true;
+                                    _ ->
+                                        lists:foldl(
+                                          fun(Node_1, true) ->
+                                                  MaxNumOfDuplicate >= count_node(Acc, Node_1, 0);
+                                             (_, false) ->
+                                                  false
+                                          end, true, [Node || #redundant_node{
+                                                                 node = Node} <- RedundantNodeL])
+                                end,
+                    case (CanAppend == true orelse (CanAppend == false andalso
+                                                    erlang:length(Members) =< MaxNumOfDuplicate)) of
+                        true ->
+                            NewAcc = lists:append([Acc, RedundantNodeL]),
+                            collect_fun(NumOfReplicas, RingInfo, {AddrId_1, Key},
+                                        Members, MaxNumOfDuplicate, State, NewAcc);
+                        false ->
+                            collect_fun(NumOfReplicas, RingInfo, {AddrId_1, Key},
+                                        Members, MaxNumOfDuplicate, State, Acc)
+                    end;
+                Other ->
+                    Other
+            end
     end.
+
+%% @private
+count_node([],_Node, Count) ->
+    Count;
+count_node([#redundant_node{node = Node}|Rest], Node, Count) ->
+    count_node(Rest, Node, Count + 1);
+count_node([_|Rest], Node, Count) ->
+    count_node(Rest, Node, Count).
 
 
 %% @doc Retrieve ring-info

@@ -46,7 +46,8 @@
 %% Redundancy-related
 -export([get_redundancies_by_key/1, get_redundancies_by_key/2,
          get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2,
-         collect_redundancies_by_keys/1,
+         collect_redundancies_by_key/3,
+         part_of_collect_redundancies_by_key/4,
          range_of_vnodes/1, rebalance/0,
          get_alias/2, get_alias/3, get_alias/4
         ]).
@@ -631,30 +632,55 @@ get_redundancies_by_addr_id_1({_,Tbl}, AddrId, Options) ->
     end.
 
 
-%% @doc Collect
--spec(collect_redundancies_by_keys(Keys) ->
-             {ok, KeyWithRedundanciesL}|{error, any()}
-                 when Keys::[binary()],
-                      KeyWithRedundanciesL::[{binary(), #redundancies{}}]).
-collect_redundancies_by_keys(Keys) ->
+%% @doc Collect redundant nodes for LeoFS' erasure-coding
+-spec(collect_redundancies_by_key(Key, NumOfReplicas, MaxNumOfDuplicate) ->
+             {ok, {Options, RedundantNodeL}}|{error, any()}
+                 when Key::binary(),
+                      NumOfReplicas::pos_integer(),
+                      MaxNumOfDuplicate::pos_integer(),
+                      Options::[{atom(), any()}],
+                      RedundantNodeL::[#redundancies{}]).
+collect_redundancies_by_key(Key, NumOfReplicas, MaxNumOfDuplicate) ->
     {_, Table} = ring_table(default),
     {ok, Options} = get_options(),
     BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
-    AddrIdAndKeyL = collect_redundancies_by_keys_1(Keys, BitOfRing, []),
+    AddrId = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
 
-    case leo_redundant_manager_worker:collect(Table, AddrIdAndKeyL) of
-        {ok, KeyWithRedundanciesL} ->
-            {ok, KeyWithRedundanciesL};
+    case leo_redundant_manager_worker:collect(
+           Table, {AddrId, Key}, NumOfReplicas, MaxNumOfDuplicate) of
+        {ok, RedundantNodeL} ->
+            {ok, {Options, RedundantNodeL}};
         not_found = Cause ->
-            {error, Cause}
+            {error, Cause};
+        Others ->
+            Others
     end.
 
-%% @private
-collect_redundancies_by_keys_1([],_,Acc) ->
-    lists:reverse(Acc);
-collect_redundancies_by_keys_1([Key|Rest], BitOfRing, Acc) ->
-    AddrId = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
-    collect_redundancies_by_keys_1(Rest, BitOfRing, [{AddrId, Key}|Acc]).
+
+-spec(part_of_collect_redundancies_by_key(Index, ChildKey, NumOfReplicas, MaxNumOfDuplicate) ->
+             {ok, RedundantNode}|{error, any()}
+                 when Index::pos_integer(),
+                      ChildKey::binary(),
+                      NumOfReplicas::pos_integer(),
+                      MaxNumOfDuplicate::pos_integer(),
+                      RedundantNode::#redundant_node{}).
+part_of_collect_redundancies_by_key(Index, ChildKey, NumOfReplicas, MaxNumOfDuplicate) ->
+    ParentKey = begin
+                    case binary:matches(ChildKey, [<<"\n">>], []) of
+                        [] ->
+                            ChildKey;
+                        PosL ->
+                            {Pos,_} = lists:last(PosL),
+                            binary:part(ChildKey, 0, Pos)
+                    end
+                end,
+    case collect_redundancies_by_key(ParentKey, NumOfReplicas, MaxNumOfDuplicate) of
+        {ok, {_Options, RedundantNodeL}}
+          when erlang:length(RedundantNodeL) >= NumOfReplicas ->
+            {ok, lists:nth(Index, RedundantNodeL)};
+        Other ->
+            Other
+    end.
 
 
 %% @doc Retrieve range of vnodes.
