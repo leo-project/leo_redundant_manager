@@ -252,7 +252,8 @@ handle_call({collect, Table, AddrIdAndKey, NumOfReplicas, MaxNumOfDuplicate},_Fr
     Reply = case leo_redundant_manager_api:get_members() of
                 {ok, Members} ->
                     collect_fun(NumOfReplicas, RingInfo,
-                                AddrIdAndKey, Members, MaxNumOfDuplicate, State, []);
+                                AddrIdAndKey, erlang:length(Members),
+                                MaxNumOfDuplicate, State, []);
                 Error ->
                     Error
             end,
@@ -977,57 +978,55 @@ force_sync_fun_1(_,_,State) ->
 
 %% @doc Coolect redundancies of the keys
 %% @private
--spec(collect_fun(NumOfReplicas, RingInfo, AddrIdAndKey, Members, MaxNumOfDuplicate, State, Acc) ->
+-spec(collect_fun(NumOfReplicas, RingInfo, AddrIdAndKey, TotalMembers, MaxNumOfDuplicate, State, Acc) ->
              not_found | {ok, Acc} when NumOfReplicas::pos_integer(),
                                         RingInfo::#ring_info{},
                                         AddrIdAndKey::{non_neg_integer(), binary()},
-                                        Members::[#member{}],
+                                        TotalMembers::pos_integer(),
                                         MaxNumOfDuplicate::pos_integer(),
                                         State::#state{},
                                         Acc::[#redundancies{}]).
+collect_fun(NumOfReplicas,_RingInfo, _AddrIdAndKey,_TotalMembers,
+            _MaxNumOfDuplicate,_State, Acc) when NumOfReplicas =< erlang:length(Acc)->
+    Acc_1 = lists:sublist(Acc, NumOfReplicas),
+    {ok, Acc_1};
 collect_fun(NumOfReplicas, #ring_info{ring_group_list = RingGroupList,
                                       first_vnode_id = FirstVNodeId,
                                       last_vnode_id = LastVNodeId} = RingInfo,
-            {AddrId, Key}, Members, MaxNumOfDuplicate, State, Acc) ->
-    LenRetNodeL = erlang:length(Acc),
-    case (LenRetNodeL >= NumOfReplicas) of
-        true ->
-            Acc_1 = lists:sublist(Acc, NumOfReplicas),
-            {ok, Acc_1};
-        false ->
-            case lookup_fun(RingGroupList, FirstVNodeId,
-                            LastVNodeId, AddrId, State) of
-                {ok, #redundancies{nodes = RedundantNodeL}} ->
-                    ChildId = LenRetNodeL + 1,
-                    ChildIdBin = list_to_binary(integer_to_list(ChildId)),
-                    Key_1 = << Key/binary, "\n", ChildIdBin/binary >>,
-                    AddrId_1 = leo_redundant_manager_chash:vnode_id(Key_1),
-                    CanAppend = case Acc of
-                                    [] ->
-                                        true;
-                                    _ ->
-                                        lists:foldl(
-                                          fun(Node_1, true) ->
-                                                  MaxNumOfDuplicate >= count_node(Acc, Node_1, 0);
-                                             (_, false) ->
-                                                  false
-                                          end, true, [Node || #redundant_node{
-                                                                 node = Node} <- RedundantNodeL])
-                                end,
-                    case (CanAppend == true orelse (CanAppend == false andalso
-                                                    erlang:length(Members) =< MaxNumOfDuplicate)) of
-                        true ->
-                            NewAcc = lists:append([Acc, RedundantNodeL]),
-                            collect_fun(NumOfReplicas, RingInfo, {AddrId_1, Key},
-                                        Members, MaxNumOfDuplicate, State, NewAcc);
-                        false ->
-                            collect_fun(NumOfReplicas, RingInfo, {AddrId_1, Key},
-                                        Members, MaxNumOfDuplicate, State, Acc)
-                    end;
-                Other ->
-                    Other
-            end
+            {AddrId, Key}, TotalMembers, MaxNumOfDuplicate, State, Acc) ->
+    case lookup_fun(RingGroupList, FirstVNodeId,
+                    LastVNodeId, AddrId, State) of
+        {ok, #redundancies{nodes = RedundantNodeL}} ->
+            ChildId = erlang:length(Acc) + 1,
+            ChildIdBin = list_to_binary(integer_to_list(ChildId)),
+            Key_1 = << Key/binary, "\n", ChildIdBin/binary >>,
+            AddrId_1 = leo_redundant_manager_chash:vnode_id(Key_1),
+            CanAppend = case Acc of
+                            [] ->
+                                true;
+                            _ ->
+                                lists:foldl(
+                                  fun(Node_1, true) ->
+                                          MaxNumOfDuplicate >= count_node(Acc, Node_1, 0);
+                                     (_, false) ->
+                                          false
+                                  end, true, [Node || #redundant_node{
+                                                         node = Node} <- RedundantNodeL])
+                        end,
+            case (CanAppend == true orelse (CanAppend == false andalso
+                                            TotalMembers =< MaxNumOfDuplicate)) of
+                true ->
+                    NewAcc = lists:append([Acc, RedundantNodeL]),
+                    collect_fun(NumOfReplicas, RingInfo, {AddrId_1, Key},
+                                TotalMembers, MaxNumOfDuplicate, State, NewAcc);
+                false ->
+                    collect_fun(NumOfReplicas, RingInfo, {AddrId_1, Key},
+                                TotalMembers, MaxNumOfDuplicate, State, Acc)
+            end;
+        Other ->
+            Other
     end.
+
 
 %% @private
 count_node([],_Node, Count) ->
