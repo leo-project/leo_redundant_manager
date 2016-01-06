@@ -23,7 +23,6 @@
 
 -author('Yosuke Hara').
 
-
 %% handle call (after found a new cluster)
 -callback(handle_call(ClusterId::atom()) ->
                  ok | {error, any()}).

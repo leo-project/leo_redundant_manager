@@ -50,17 +50,17 @@
          code_change/3]).
 
 -record(state, {interval = 30000 :: integer(),
-                timestamp = 0    :: integer()
+                timestamp = 0 :: integer()
                }).
 
 -ifdef(TEST).
--define(CURRENT_TIME,            65432100000).
+-define(CURRENT_TIME, 65432100000).
 -define(DEF_MEMBERSHIP_INTERVAL, 1000).
--define(DEF_TIMEOUT,             1000).
+-define(DEF_TIMEOUT, 1000).
 -else.
--define(CURRENT_TIME,            leo_date:now()).
+-define(CURRENT_TIME, leo_date:now()).
 -define(DEF_MEMBERSHIP_INTERVAL, 20000).
--define(DEF_TIMEOUT,             30000).
+-define(DEF_TIMEOUT, 30000).
 -endif.
 
 
@@ -194,12 +194,12 @@ exec([#cluster_manager{node = Node,
             %% then compare its status in the local with the retrieved data
             case catch leo_rpc:call(Node, leo_redundant_manager_api,
                                     get_cluster_status, []) of
-                {ok, #?CLUSTER_STAT{state    = Status_1,
+                {ok, #?CLUSTER_STAT{state = Status_1,
                                     checksum = Checksum_1} = ClusterStat} ->
                     case leo_mdcr_tbl_cluster_stat:get(ClusterId) of
-                        {ok, #?CLUSTER_STAT{state    = Status_2,
+                        {ok, #?CLUSTER_STAT{state = Status_2,
                                             checksum = Checksum_2}}
-                          when Status_1   == Status_2,
+                          when Status_1 == Status_2,
                                Checksum_1 == Checksum_2 ->
                             ok;
                         {ok, LocalClusterStat} ->
@@ -222,7 +222,7 @@ exec([#cluster_manager{node = Node,
 -spec(exec_1(atom(), #?CLUSTER_STAT{}, #?CLUSTER_STAT{}|undefined) ->
              ok | {error, any()}).
 exec_1(Node,
-       #?CLUSTER_STAT{checksum   = Checksum_1,
+       #?CLUSTER_STAT{checksum = Checksum_1,
                       cluster_id = ClusterId} = ClusterStat, ClusterStat_2) ->
     Checksum_2 =
         case ClusterStat_2 of
@@ -286,8 +286,8 @@ exec_3([], _) ->
 exec_3([#member{node = Node,
                 alias = Alias,
                 ip = IP,
-                port  = Port,
-                inet  = Inet,
+                port = Port,
+                inet = Inet,
                 clock = Clock,
                 state = State,
                 num_of_vnodes = NumOfVNodes}|Rest], ClusterId) ->
@@ -295,9 +295,9 @@ exec_3([#member{node = Node,
            #?CLUSTER_MEMBER{node = Node,
                             cluster_id = ClusterId,
                             alias = Alias,
-                            ip    = IP,
-                            port  = Port,
-                            inet  = Inet,
+                            ip = IP,
+                            port = Port,
+                            inet = Inet,
                             clock = Clock,
                             num_of_vnodes = NumOfVNodes,
                             state = State}) of

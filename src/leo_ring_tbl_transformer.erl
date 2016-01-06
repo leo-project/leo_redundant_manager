@@ -54,10 +54,10 @@ transform() ->
 transform(#?RING{} = Ring) ->
     Ring;
 transform(#ring{vnode_id = VNodeId,
-                node     = Node}) ->
+                node = Node}) ->
     #ring_0_16_8{vnode_id = VNodeId,
-                 node     = Node,
-                 clock    = 0}.
+                 node = Node,
+                 clock = 0}.
 
 
 %% @doc Migrate ring's data

@@ -306,13 +306,13 @@ transform() ->
 transform(#?CLUSTER_INFO{} = ClusterInfo) ->
     ClusterInfo;
 transform(#cluster_info{cluster_id = ClusterId,
-                        dc_id   = DCId,
-                        n       = N,
-                        r       = R,
-                        w       = W,
-                        d       = D,
+                        dc_id = DCId,
+                        n = N,
+                        r = R,
+                        w = W,
+                        d = D,
                         bit_of_ring = BitOfRing,
-                        num_of_dc_replicas   = Level1,
+                        num_of_dc_replicas = Level1,
                         num_of_rack_replicas = Level2}) ->
     #?CLUSTER_INFO{cluster_id = ClusterId,
                    dc_id = DCId,
@@ -351,7 +351,7 @@ transform_3([#?CLUSTER_INFO{cluster_id = ClusterId,
                  false -> list_to_atom(DCId)
              end,
     NewClusterInfo = ClusterInfo#?CLUSTER_INFO{cluster_id = ClusterId_1,
-                                               dc_id      = DCId_1},
+                                               dc_id = DCId_1},
     case update(NewClusterInfo) of
         ok ->
             void;

@@ -251,10 +251,10 @@ transform() ->
 transform(#?SYSTEM_CONF{} = SystemConf) ->
     SystemConf;
 transform(#system_conf{version = Vsn,
-                       n       = N,
-                       r       = R,
-                       w       = W,
-                       d       = D,
+                       n = N,
+                       r = R,
+                       w = W,
+                       d = D,
                        bit_of_ring = BitOfRing,
                        level_1 = Level1,
                        level_2 = Level2}) ->
@@ -272,11 +272,11 @@ transform(#system_conf{version = Vsn,
                  };
 transform(#system_conf_1{version = Vsn,
                          cluster_id = ClusterId,
-                         dc_id   = DCId,
-                         n       = N,
-                         r       = R,
-                         w       = W,
-                         d       = D,
+                         dc_id = DCId,
+                         n = N,
+                         r = R,
+                         w = W,
+                         d = D,
                          bit_of_ring = BitOfRing,
                          num_of_dc_replicas   = Level1,
                          num_of_rack_replicas = Level2}) ->

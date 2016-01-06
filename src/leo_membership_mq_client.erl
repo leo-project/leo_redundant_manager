@@ -39,26 +39,26 @@
 -export([start/2, publish/3]).
 -export([init/0, handle_call/1, handle_call/3]).
 
--define(MQ_MONITOR_NODE,    'mq_monitor_node').
--define(MQ_WORKER_NODE,     'mq_worker_node').
+-define(MQ_MONITOR_NODE, 'mq_monitor_node').
+-define(MQ_WORKER_NODE, 'mq_worker_node').
 -define(MQ_PERSISTENT_NODE, 'mq_persistent_node').
--define(MQ_DB_PATH,             "membership").
+-define(MQ_DB_PATH, "membership").
 
--record(message, {node             :: atom(),
-                  error            :: any(),
-                  times = 0        :: integer(),
+-record(message, {node :: atom(),
+                  error :: any(),
+                  times = 0 :: integer(),
                   published_at = 0 :: integer()}).
 
 -ifdef(TEST).
 -define(DEF_RETRY_TIMES, 3).
--define(DEF_TIMEOUT,     1000).
+-define(DEF_TIMEOUT, 1000).
 -define(DEF_MAX_INTERVAL, 100).
--define(DEF_MIN_INTERVAL,  50).
+-define(DEF_MIN_INTERVAL, 50).
 
 -else.
 -define(DEF_RETRY_TIMES, 3).
--define(DEF_TIMEOUT,     30000).
--define(DEF_MAX_INTERVAL,15000).
+-define(DEF_TIMEOUT, 30000).
+-define(DEF_MAX_INTERVAL, 15000).
 -define(DEF_MIN_INTERVAL, 7500).
 -endif.
 
@@ -88,12 +88,12 @@ start1(InstanceId, RootPath0) ->
 
     leo_mq_api:new(RefSup, InstanceId, [{?MQ_PROP_MOD, ?MODULE},
                                         {?MQ_PROP_DB_PROCS, 1},
-                                        {?MQ_PROP_DB_NAME,  ?DEF_BACKEND_DB},
+                                        {?MQ_PROP_DB_NAME, ?DEF_BACKEND_DB},
                                         {?MQ_PROP_ROOT_PATH, RootPath1 ++ ?MQ_DB_PATH},
-                                        {?MQ_PROP_INTERVAL_MAX,    ?DEF_CONSUME_MAX_INTERVAL},
-                                        {?MQ_PROP_INTERVAL_REG,    ?DEF_CONSUME_REG_INTERVAL},
-                                        {?MQ_PROP_BATCH_MSGS_MAX,  ?DEF_CONSUME_MAX_BATCH_MSGS},
-                                        {?MQ_PROP_BATCH_MSGS_REG,  ?DEF_CONSUME_REG_BATCH_MSGS}
+                                        {?MQ_PROP_INTERVAL_MAX, ?DEF_CONSUME_MAX_INTERVAL},
+                                        {?MQ_PROP_INTERVAL_REG, ?DEF_CONSUME_REG_INTERVAL},
+                                        {?MQ_PROP_BATCH_MSGS_MAX, ?DEF_CONSUME_MAX_BATCH_MSGS},
+                                        {?MQ_PROP_BATCH_MSGS_REG, ?DEF_CONSUME_REG_BATCH_MSGS}
                                        ]),
     ok.
 

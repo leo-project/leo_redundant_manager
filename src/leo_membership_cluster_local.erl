@@ -50,28 +50,28 @@
 	       terminate/2,
          code_change/3]).
 
--record(state, {type              :: atom(),
-                interval  = 0     :: non_neg_integer(),
-                timestamp = 0     :: non_neg_integer(),
-                monitors = []     :: [atom()],
-                partner_manager   :: atom(),
-                proc_auditor      :: atom(),
-                callback          :: undefined|function()
+-record(state, {type :: atom(),
+                interval = 0 :: non_neg_integer(),
+                timestamp = 0 :: non_neg_integer(),
+                monitors = [] :: [atom()],
+                partner_manager :: atom(),
+                proc_auditor :: atom(),
+                callback :: undefined|function()
                }).
 
 -ifdef(TEST).
--define(CURRENT_TIME,            65432100000).
+-define(CURRENT_TIME, 65432100000).
 -define(DEF_MEMBERSHIP_INTERVAL, 1000).
--define(DEF_MIN_INTERVAL,         100).
--define(DEF_MAX_INTERVAL,         100).
--define(DEF_TIMEOUT,             1000).
+-define(DEF_MIN_INTERVAL, 100).
+-define(DEF_MAX_INTERVAL, 100).
+-define(DEF_TIMEOUT, 1000).
 
 -else.
--define(CURRENT_TIME,            leo_date:now()).
--define(DEF_MEMBERSHIP_INTERVAL,  5000).
--define(DEF_MIN_INTERVAL,          100).
--define(DEF_MAX_INTERVAL,          300).
--define(DEF_TIMEOUT,             30000).
+-define(CURRENT_TIME, leo_date:now()).
+-define(DEF_MEMBERSHIP_INTERVAL, 5000).
+-define(DEF_MIN_INTERVAL, 100).
+-define(DEF_MAX_INTERVAL, 300).
+-define(DEF_TIMEOUT, 30000).
 -endif.
 
 
@@ -138,21 +138,21 @@ update_manager_nodes(Monitors) ->
 %%--------------------------------------------------------------------
 %% @doc Initiates the server
 init([?MONITOR_NODE = ServerType, [Partner|_] = Monitors, Callback, Interval]) ->
-    {ok, #state{type      = ServerType,
-                interval  = Interval,
+    {ok, #state{type = ServerType,
+                interval = Interval,
                 timestamp = 0,
                 partner_manager = Partner,
-                monitors  = Monitors,
-                callback  = Callback
+                monitors = Monitors,
+                callback = Callback
                }, Interval};
 
 init([ServerType, Monitors,_Callback, Interval]) ->
     Callback = fun()-> ok end,
-    {ok, #state{type      = ServerType,
-                interval  = Interval,
+    {ok, #state{type = ServerType,
+                interval = Interval,
                 timestamp = 0,
-                monitors  = Monitors,
-                callback  = Callback
+                monitors = Monitors,
+                callback = Callback
                }, Interval}.
 
 
@@ -211,12 +211,12 @@ code_change(_OldVsn, State, _Extra) ->
 %% @private
 -spec(heartbeat_fun(#state{}) ->
              #state{}).
-heartbeat_fun(#state{type         = ServerType,
-                     interval     = Interval,
-                     timestamp    = Timestamp,
-                     monitors     = Monitors,
+heartbeat_fun(#state{type = ServerType,
+                     interval = Interval,
+                     timestamp = Timestamp,
+                     monitors = Monitors,
                      proc_auditor = ProcAuditor,
-                     callback     = Callback} = State) ->
+                     callback = Callback} = State) ->
     ThisTime = leo_date:now() * 1000,
     case ((ThisTime - Timestamp) < Interval) of
         true ->
