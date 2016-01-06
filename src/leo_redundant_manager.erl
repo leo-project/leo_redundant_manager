@@ -58,8 +58,8 @@
          code_change/3]).
 
 -undef(DEF_TIMEOUT).
--define(DEF_TIMEOUT,      30000).
--define(DEF_TIMEOUT_LONG, infinity).
+-define(DEF_TIMEOUT, timer:seconds(30)).
+-define(DEF_TIMEOUT_LONG, timer:seconds(120)).
 
 %%--------------------------------------------------------------------
 %% API
