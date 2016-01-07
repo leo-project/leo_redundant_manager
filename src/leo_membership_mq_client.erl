@@ -164,17 +164,21 @@ handle_call({consume, Id, MessageBin}) ->
 
     case leo_redundant_manager_api:get_member_by_node(RemoteNode) of
         {ok, #member{state = State}} ->
-            case leo_misc:node_existence(RemoteNode, (10 * 1000)) of
+            case leo_misc:node_existence(RemoteNode, timer:seconds(10)) of
                 true when State == ?STATE_STOP ->
                     notify_error_to_manager(Id, RemoteNode, Error);
                 true ->
                     ok;
                 false ->
                     case State of
-                        ?STATE_ATTACHED  -> void;
-                        ?STATE_SUSPEND   -> void;
-                        ?STATE_DETACHED  -> void;
-                        ?STATE_RESTARTED -> void;
+                        ?STATE_ATTACHED  ->
+                            ok;
+                        ?STATE_SUSPEND   ->
+                            ok;
+                        ?STATE_DETACHED  ->
+                            ok;
+                        ?STATE_RESTARTED ->
+                            ok;
                         _ ->
                             case (Times == ?DEF_RETRY_TIMES) of
                                 true ->
@@ -198,7 +202,7 @@ handle_call(_,_,_) ->
 %%--------------------------------------------------------------------
 notify_error_to_manager(Id, RemoteNode, Error) when Id == ?MQ_WORKER_NODE;
                                                     Id == ?MQ_PERSISTENT_NODE ->
-    {ok, Monitors}   = application:get_env(?APP, ?PROP_MONITORS),
+    {ok, Monitors} = application:get_env(?APP, ?PROP_MONITORS),
     {ok, [Mod, Method]} = ?env_notify_mod_and_method(),
 
     lists:foldl(fun(_, true ) ->
