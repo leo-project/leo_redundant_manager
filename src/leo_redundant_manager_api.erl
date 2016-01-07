@@ -1208,11 +1208,11 @@ get_cluster_tbl_checksums() ->
     Chksum_3 = leo_mdcr_tbl_cluster_mgr:checksum(),
     Chksum_4 = leo_mdcr_tbl_cluster_member:checksum(),
     Chksum_5 = leo_mdcr_tbl_cluster_stat:checksum(),
-    {ok, [{?CHKSUM_CLUSTER_CONF,    Chksum_1},
-          {?CHKSUM_CLUSTER_INFO,    Chksum_2},
-          {?CHKSUM_CLUSTER_MGR,     Chksum_3},
-          {?CHKSUM_CLUSTER_MEMBER,  Chksum_4},
-          {?CHKSUM_CLUSTER_STAT,    Chksum_5}
+    {ok, [{?CHKSUM_CLUSTER_CONF, Chksum_1},
+          {?CHKSUM_CLUSTER_INFO, Chksum_2},
+          {?CHKSUM_CLUSTER_MGR, Chksum_3},
+          {?CHKSUM_CLUSTER_MEMBER, Chksum_4},
+          {?CHKSUM_CLUSTER_STAT, Chksum_5}
          ]}.
 
 

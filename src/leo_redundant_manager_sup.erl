@@ -124,8 +124,8 @@ start_link_1(ServerType) ->
 start_link_2({ok, _} = Ret, ServerType) ->
     Reply = after_proc(Ret),
     ok = leo_misc:init_env(),
-    _  = ?MODULE_SET_ENV_1(),
-    _  = ?MODULE_SET_ENV_2(),
+    _ = ?MODULE_SET_ENV_1(),
+    _ = ?MODULE_SET_ENV_2(),
     ok = init_tables(ServerType),
     Reply;
 start_link_2(Error,_ServerType) ->

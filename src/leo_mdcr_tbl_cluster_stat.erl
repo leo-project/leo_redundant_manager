@@ -300,8 +300,8 @@ transform() ->
 transform(#?CLUSTER_STAT{} = ClusterStat) ->
     ClusterStat;
 transform(#cluster_stat{cluster_id = ClusterId,
-                        status     = State,
-                        checksum   = Checksum,
+                        status = State,
+                        checksum = Checksum,
                         updated_at = UpdatedAt}) ->
     #?CLUSTER_STAT{cluster_id = ClusterId,
                    state = State,

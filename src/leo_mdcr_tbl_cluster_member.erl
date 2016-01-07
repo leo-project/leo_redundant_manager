@@ -408,22 +408,24 @@ transform(#cluster_member{node = Node,
                           cluster_id = ClusterId,
                           alias = Alias,
                           ip = IP,
-                          port  = Port,
-                          inet  = Inet,
+                          port = Port,
+                          inet = Inet,
                           clock = Clock,
                           num_of_vnodes = NumOfVNodes,
                           status = State
                          }) ->
     ClusterId_1 = case is_atom(ClusterId) of
-                      true  -> ClusterId;
-                      false -> list_to_atom(ClusterId)
+                      true ->
+                          ClusterId;
+                      false ->
+                          list_to_atom(ClusterId)
                   end,
     #?CLUSTER_MEMBER{node = Node,
                      cluster_id = ClusterId_1,
                      alias = Alias,
                      ip = IP,
-                     port  = Port,
-                     inet  = Inet,
+                     port = Port,
+                     inet = Inet,
                      clock = Clock,
                      num_of_vnodes = NumOfVNodes,
                      state = State

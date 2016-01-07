@@ -46,7 +46,7 @@
 
 -record(state, {
           server_type :: atom(),
-          monitors = []    :: [atom()],
+          monitors = [] :: [atom()],
           interval = 30000 :: integer()
          }).
 

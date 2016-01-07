@@ -39,26 +39,26 @@
 -export([start/2, publish/3]).
 -export([init/0, handle_call/1, handle_call/3]).
 
--define(MQ_MONITOR_NODE,    'mq_monitor_node').
--define(MQ_WORKER_NODE,     'mq_worker_node').
+-define(MQ_MONITOR_NODE, 'mq_monitor_node').
+-define(MQ_WORKER_NODE, 'mq_worker_node').
 -define(MQ_PERSISTENT_NODE, 'mq_persistent_node').
--define(MQ_DB_PATH,             "membership").
+-define(MQ_DB_PATH, "membership").
 
--record(message, {node             :: atom(),
-                  error            :: any(),
-                  times = 0        :: integer(),
+-record(message, {node :: atom(),
+                  error :: any(),
+                  times = 0 :: integer(),
                   published_at = 0 :: integer()}).
 
 -ifdef(TEST).
 -define(DEF_RETRY_TIMES, 3).
--define(DEF_TIMEOUT,     1000).
+-define(DEF_TIMEOUT, 1000).
 -define(DEF_MAX_INTERVAL, 100).
--define(DEF_MIN_INTERVAL,  50).
+-define(DEF_MIN_INTERVAL, 50).
 
 -else.
 -define(DEF_RETRY_TIMES, 3).
--define(DEF_TIMEOUT,     30000).
--define(DEF_MAX_INTERVAL,15000).
+-define(DEF_TIMEOUT, 30000).
+-define(DEF_MAX_INTERVAL, 15000).
 -define(DEF_MIN_INTERVAL, 7500).
 -endif.
 
@@ -88,12 +88,12 @@ start1(InstanceId, RootPath0) ->
 
     leo_mq_api:new(RefSup, InstanceId, [{?MQ_PROP_MOD, ?MODULE},
                                         {?MQ_PROP_DB_PROCS, 1},
-                                        {?MQ_PROP_DB_NAME,  ?DEF_BACKEND_DB},
+                                        {?MQ_PROP_DB_NAME, ?DEF_BACKEND_DB},
                                         {?MQ_PROP_ROOT_PATH, RootPath1 ++ ?MQ_DB_PATH},
-                                        {?MQ_PROP_INTERVAL_MAX,    ?DEF_CONSUME_MAX_INTERVAL},
-                                        {?MQ_PROP_INTERVAL_REG,    ?DEF_CONSUME_REG_INTERVAL},
-                                        {?MQ_PROP_BATCH_MSGS_MAX,  ?DEF_CONSUME_MAX_BATCH_MSGS},
-                                        {?MQ_PROP_BATCH_MSGS_REG,  ?DEF_CONSUME_REG_BATCH_MSGS}
+                                        {?MQ_PROP_INTERVAL_MAX, ?DEF_CONSUME_MAX_INTERVAL},
+                                        {?MQ_PROP_INTERVAL_REG, ?DEF_CONSUME_REG_INTERVAL},
+                                        {?MQ_PROP_BATCH_MSGS_MAX, ?DEF_CONSUME_MAX_BATCH_MSGS},
+                                        {?MQ_PROP_BATCH_MSGS_REG, ?DEF_CONSUME_REG_BATCH_MSGS}
                                        ]),
     ok.
 
@@ -164,17 +164,21 @@ handle_call({consume, Id, MessageBin}) ->
 
     case leo_redundant_manager_api:get_member_by_node(RemoteNode) of
         {ok, #member{state = State}} ->
-            case leo_misc:node_existence(RemoteNode, (10 * 1000)) of
+            case leo_misc:node_existence(RemoteNode, timer:seconds(10)) of
                 true when State == ?STATE_STOP ->
                     notify_error_to_manager(Id, RemoteNode, Error);
                 true ->
-                    void;
+                    ok;
                 false ->
                     case State of
-                        ?STATE_ATTACHED  -> void;
-                        ?STATE_SUSPEND   -> void;
-                        ?STATE_DETACHED  -> void;
-                        ?STATE_RESTARTED -> void;
+                        ?STATE_ATTACHED  ->
+                            ok;
+                        ?STATE_SUSPEND   ->
+                            ok;
+                        ?STATE_DETACHED  ->
+                            ok;
+                        ?STATE_RESTARTED ->
+                            ok;
                         _ ->
                             case (Times == ?DEF_RETRY_TIMES) of
                                 true ->
@@ -192,12 +196,13 @@ handle_call({consume, Id, MessageBin}) ->
 handle_call(_,_,_) ->
     ok.
 
+
 %%--------------------------------------------------------------------
 %% INNTERNAL FUNCTIONS
 %%--------------------------------------------------------------------
 notify_error_to_manager(Id, RemoteNode, Error) when Id == ?MQ_WORKER_NODE;
                                                     Id == ?MQ_PERSISTENT_NODE ->
-    {ok, Monitors}   = application:get_env(?APP, ?PROP_MONITORS),
+    {ok, Monitors} = application:get_env(?APP, ?PROP_MONITORS),
     {ok, [Mod, Method]} = ?env_notify_mod_and_method(),
 
     lists:foldl(fun(_, true ) ->
@@ -213,7 +218,7 @@ notify_error_to_manager(Id, RemoteNode, Error) when Id == ?MQ_WORKER_NODE;
     ok;
 notify_error_to_manager(?MQ_MONITOR_NODE, RemoteNode, Error) ->
     {ok, [Mod, Method]} = ?env_notify_mod_and_method(),
-    catch erlang:apply(Mod, Method, [error, RemoteNode, node(), Error]);
-
+    catch erlang:apply(Mod, Method, [error, RemoteNode, node(), Error]),
+    ok;
 notify_error_to_manager(_,_,_) ->
     {error, badarg}.
