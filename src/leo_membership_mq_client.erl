@@ -168,7 +168,7 @@ handle_call({consume, Id, MessageBin}) ->
                 true when State == ?STATE_STOP ->
                     notify_error_to_manager(Id, RemoteNode, Error);
                 true ->
-                    void;
+                    ok;
                 false ->
                     case State of
                         ?STATE_ATTACHED  -> void;
@@ -192,6 +192,7 @@ handle_call({consume, Id, MessageBin}) ->
 handle_call(_,_,_) ->
     ok.
 
+
 %%--------------------------------------------------------------------
 %% INNTERNAL FUNCTIONS
 %%--------------------------------------------------------------------
@@ -213,7 +214,7 @@ notify_error_to_manager(Id, RemoteNode, Error) when Id == ?MQ_WORKER_NODE;
     ok;
 notify_error_to_manager(?MQ_MONITOR_NODE, RemoteNode, Error) ->
     {ok, [Mod, Method]} = ?env_notify_mod_and_method(),
-    catch erlang:apply(Mod, Method, [error, RemoteNode, node(), Error]);
-
+    catch erlang:apply(Mod, Method, [error, RemoteNode, node(), Error]),
+    ok;
 notify_error_to_manager(_,_,_) ->
     {error, badarg}.
