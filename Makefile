@@ -1,4 +1,4 @@
-.PHONY: deps test
+.PHONY: compile xref eunit check_plt build_plt dialyzer doc callgraph clean distclean
 
 REBAR := ./rebar
 APPS = erts kernel stdlib sasl crypto compiler inets mnesia public_key runtime_tools snmp syntax_tools tools xmerl webtool ssl
@@ -20,6 +20,7 @@ all:
 	@$(REBAR) eunit suites=leo_redundant_manager_api
 	@$(REBAR) eunit suites=leo_membership_cluster_local
 	@$(REBAR) eunit suites=leo_membership_mq_client
+	@$(REBAR) eunit suites=leo_gb_trees
 compile:
 	@$(REBAR) compile skip_deps=true
 xref:
@@ -33,6 +34,7 @@ eunit:
 	@$(REBAR) eunit suites=leo_redundant_manager_api
 	@$(REBAR) eunit suites=leo_membership_cluster_local
 	@$(REBAR) eunit suites=leo_membership_mq_client
+	@$(REBAR) eunit suites=leo_gb_trees
 check_plt:
 	@$(REBAR) compile
 	dialyzer --check_plt --plt $(PLT_FILE) --apps $(APPS)
@@ -42,8 +44,6 @@ build_plt:
 dialyzer:
 	@$(REBAR) compile
 	dialyzer -Wno_return --plt $(PLT_FILE) -r ebin/ --dump_callgraph $(DOT_FILE) -Wrace_conditions | fgrep -v -f ./dialyzer.ignore-warnings
-typer:
-	typer --plt $(PLT_FILE) -I include/ -r src/
 doc: compile
 	@$(REBAR) doc
 callgraph: graphviz
@@ -55,6 +55,3 @@ clean:
 distclean:
 	@$(REBAR) delete-deps
 	@$(REBAR) clean
-qc:
-	@$(REBAR) qc skip_deps=true
-
