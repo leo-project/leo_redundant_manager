@@ -460,7 +460,6 @@
           checksum = -1 :: integer(),              %% Ring's checksum
           first_vnode_id = 0 :: non_neg_integer(), %% start vnode-id
           last_vnode_id = 0 :: non_neg_integer(),  %% end vnode-id
-          routing_table :: [#ring_group{}],      %% list of groups
           members = [] :: [#member{}],             %% cluster-members
           vnode_tree = [] :: leo_gb_trees:tree()   %% vnode-tree
          }).

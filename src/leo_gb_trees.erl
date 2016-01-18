@@ -202,11 +202,9 @@ lookup(Key, {_, T}) ->
 %% @private
 lookup_1(Key, {Key_1, Val1, Smaller, _}, SoFar) when Key < Key_1 ->
     SoFar_1 = lookup_3(SoFar, lookup_2(Key, {Key_1, Val1}, Smaller)),
-    %% ?debugVal({smaller, Key_1, SoFar_1}),
     lookup_1(Key, Smaller, SoFar_1);
 
 lookup_1(Key, {Key_1, _, _, Bigger}, SoFar) when Key > Key_1 ->
-    %% ?debugVal({bigger, Key_1, SoFar}),
     lookup_1(Key, Bigger, SoFar);
 lookup_1(_, {Key, Val, _, _},_SoFar) ->
     {Key, Val};
