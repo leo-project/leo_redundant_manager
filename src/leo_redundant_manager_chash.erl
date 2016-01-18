@@ -32,7 +32,8 @@
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([add/2, add_from_list/2,
+-export([add/2,
+         add_from_list/2,
          remove/2, remove_from_list/2,
          range_of_vnodes/2, rebalance/1,
          checksum/1, vnode_id/1, vnode_id/2]).
@@ -45,19 +46,25 @@
 %% API
 %%====================================================================
 %% @doc Add a node.
-%%
--spec(add(TableInfo, Member) ->
-             ok | {error, any()} when TableInfo::table_info(),
-                                      Member::#member{}).
+-spec(add(TableInfo, Members) ->
+             {ok, VNodeTree} |
+             {error, any()} when TableInfo::table_info(),
+                                 Members::#member{},
+                                 VNodeTree::leo_gb_trees:tree()).
 add(TableInfo, Member) ->
     {ok, List} = add_1(0, Member, []),
-    leo_cluster_tbl_ring:bulk_insert(TableInfo, List).
+    case leo_cluster_tbl_ring:bulk_insert(TableInfo, List) of
+        ok ->
+            ok;
+        Error ->
+            Error
+    end.
 
 %% @private
 add_1(N, #member{num_of_vnodes = N}, Acc) ->
     {ok, Acc};
 add_1(N, #member{alias = Alias,
-                 node  = Node,
+                 node = Node,
                  clock = Clock} = Member, Acc) ->
     VNodeId = vnode_id(?gen_child_name(Alias, N)),
     add_1(N + 1, Member, [{VNodeId, Node, Clock}|Acc]).
@@ -66,7 +73,12 @@ add_1(N, #member{alias = Alias,
 %% @doc Insert recods from the list
 add_from_list(TableInfo, Members) ->
     {ok, List} = add_from_list_1(Members, []),
-    leo_cluster_tbl_ring:bulk_insert(TableInfo, List).
+    case leo_cluster_tbl_ring:bulk_insert(TableInfo, List) of
+        ok ->
+            ok;
+        Error ->
+            Error
+    end.
 
 %% @private
 add_from_list_1([], Acc) ->
@@ -164,7 +176,7 @@ rebalance_1(RebalanceInfo, AddrId, Acc) ->
                 %% case-1
                 {ok, #redundancies{vnode_id_to = CurVNodeIdTo,
                                    nodes = CurNodes_1}} =
-                    leo_redundant_manager_worker:lookup(TblNameCur,  AddrId),
+                    leo_redundant_manager_worker:lookup(TblNameCur, AddrId),
                 {CurVNodeIdTo, CurNodes_1}
         end,
 
@@ -172,8 +184,10 @@ rebalance_1(RebalanceInfo, AddrId, Acc) ->
     Acc_1 = case lists:foldl(
                    fun(#redundant_node{node = N0}, SoFar_1) ->
                            case lists:foldl(
-                                  fun(#redundant_node{node = N1},_SoFar_2) when N0 == N1 -> true;
-                                     (#redundant_node{node = N1}, SoFar_2) when N0 /= N1 -> SoFar_2
+                                  fun(#redundant_node{node = N1},_SoFar_2) when N0 == N1 ->
+                                          true;
+                                     (#redundant_node{node = N1}, SoFar_2) when N0 /= N1 ->
+                                          SoFar_2
                                   end, false, PrevNodes) of
                                true  -> SoFar_1;
                                false -> [N0|SoFar_1]

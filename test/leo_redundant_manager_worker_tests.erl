@@ -85,12 +85,12 @@ suite() ->
     ?debugVal("=== START - Get Redundancies ==="),
     ?debugVal(leo_redundant_manager_worker:checksum()),
 
-    {ok, #redundancies{vnode_id_from = 0,
-                       vnode_id_to   = VNodeIdTo1,
+    {ok, #redundancies{vnode_id_to = VNodeIdTo1,
                        nodes = N0}} = leo_redundant_manager_worker:first('leo_ring_cur'),
-    {ok, #redundancies{vnode_id_from = 0,
-                       vnode_id_to   = VNodeIdTo2,
+    {ok, #redundancies{vnode_id_to = VNodeIdTo2,
                        nodes = N0}} = leo_redundant_manager_worker:first('leo_ring_prv'),
+    ?debugVal({VNodeIdTo1, VNodeIdTo2}),
+
     {ok, #redundancies{nodes = N1}} = leo_redundant_manager_worker:lookup(
                                         'leo_ring_cur', 0),
     {ok, #redundancies{nodes = N2}} = leo_redundant_manager_worker:lookup(
@@ -104,11 +104,6 @@ suite() ->
     {ok, #redundancies{nodes = N6}} = leo_redundant_manager_worker:lookup(
                                         'leo_ring_cur', 340282366920938463463374607431768211456),
     {ok, #redundancies{nodes = N7}} = leo_redundant_manager_worker:last('leo_ring_cur'),
-
-    Size1 = collect_redundancies('leo_ring_cur', 1, VNodeIdTo1 + 1, []),
-    Size2 = collect_redundancies('leo_ring_prv', 1, VNodeIdTo2 + 1, []),
-    ?assertEqual((?DEF_NUMBER_OF_VNODES * 5), Size1),
-    ?assertEqual((?DEF_NUMBER_OF_VNODES * 5), Size2),
 
     ?assertEqual(3, length(N0)),
     ?assertEqual(3, length(N1)),
@@ -127,24 +122,15 @@ suite() ->
     ?debugVal("=== END - Get Redundancies ==="),
     ok.
 
-%% @private
-collect_redundancies(_Tbl,0,_To,Acc) ->
-    length(Acc);
-collect_redundancies( Tbl,_From, To, Acc) ->
-    {ok, Ret} = leo_redundant_manager_worker:lookup(Tbl, To),
-    From = Ret#redundancies.vnode_id_from,
-    To1  = Ret#redundancies.vnode_id_to + 1,
-    collect_redundancies(Tbl, From, To1, [Ret|Acc]).
-
 
 %% @private
 check_redundancies(0) ->
     ok;
 check_redundancies(Index) ->
     AddrId = leo_redundant_manager_chash:vnode_id(128, crypto:rand_bytes(64)),
-    {ok, #redundancies{nodes = N8}} =
+    {ok, #redundancies{nodes = NodeL}} =
         leo_redundant_manager_worker:lookup('leo_ring_cur', AddrId),
-    ?assertEqual(3, length(N8)),
+    ?assertEqual(3, length(NodeL)),
     check_redundancies(Index - 1).
 
 -endif.

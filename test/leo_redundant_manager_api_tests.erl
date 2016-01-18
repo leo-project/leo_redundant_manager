@@ -592,6 +592,7 @@ prepare(Hostname, ServerType, NumOfNodes) ->
     ok.
 
 
+%% @private
 inspect_0(Hostname, NumOfIteration) ->
     %% member-related.
     {ok, Members0} = leo_redundant_manager_api:get_members(),
@@ -656,6 +657,7 @@ inspect_0(Hostname, NumOfIteration) ->
                        r = 1,
                        w = 2,
                        d = 2}} = leo_redundant_manager_api:get_redundancies_by_addr_id(put, Max + 1),
+    ?debugVal({Id, VNodeId1, Max + 1}),
     ?assertEqual(true, (Id > VNodeId1)),
     ?assertEqual(3, length(Nodes1)),
 

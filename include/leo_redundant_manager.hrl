@@ -88,6 +88,18 @@
 -define(RING_WORKER_POOL_BUF,  0).
 -endif.
 
+-define(get_vnode_tree(_Tbl,_CurVNodeTreeL,_PrevVNodeTreeL),
+        case _Tbl of
+            ?RING_TBL_CUR when _CurVNodeTreeL == [] ->
+                [];
+            ?RING_TBL_CUR ->
+                erlang:hd(_CurVNodeTreeL);
+            ?RING_TBL_PREV when _PrevVNodeTreeL == [] ->
+                [];
+            ?RING_TBL_PREV ->
+                erlang:hd(_PrevVNodeTreeL)
+        end).
+
 
 %% Checksum
 -define(CHECKSUM_RING, 'ring').
@@ -448,8 +460,9 @@
           checksum = -1 :: integer(),              %% Ring's checksum
           first_vnode_id = 0 :: non_neg_integer(), %% start vnode-id
           last_vnode_id = 0 :: non_neg_integer(),  %% end vnode-id
-          ring_group_list :: [#ring_group{}],      %% list of groups
-          members = [] :: [#member{}]              %% cluster-members
+          routing_table :: [#ring_group{}],      %% list of groups
+          members = [] :: [#member{}],             %% cluster-members
+          vnode_tree = [] :: leo_gb_trees:tree()   %% vnode-tree
          }).
 
 -record(node_state, {

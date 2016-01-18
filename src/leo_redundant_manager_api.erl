@@ -767,8 +767,8 @@ takeover_status([#member{state = ?STATE_ATTACHED,
             RingTblCur = table_info(?VER_CUR),
             Member_1 = Member#member{alias = Alias_1},
 
-            ok = leo_redundant_manager_chash:remove(RingTblCur, Member),
-            ok = leo_redundant_manager_chash:add(RingTblCur, Member_1),
+            _ = leo_redundant_manager_chash:remove(RingTblCur, Member),
+            _ = leo_redundant_manager_chash:add(RingTblCur, Member_1),
             ok = leo_cluster_tbl_member:insert(?MEMBER_TBL_CUR, {Node, Member_1}),
 
             case SrcMember of

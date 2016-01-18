@@ -290,9 +290,15 @@ update_1(Key, Value, {_, _, Smaller, Bigger}) ->
       Tree1 :: tree(Key, Value),
       Tree2 :: tree(Key, Value).
 
-insert(Key, Val, {S, T}) when is_integer(S) ->
+insert(Key, Val, {S, T} = Tree) when is_integer(S) ->
     S1 = S+1,
-    {S1, insert_1(Key, Val, T, ?pow(S1, ?p))}.
+    case catch insert_1(Key, Val, T, ?pow(S1, ?p)) of
+        {'EXIT',_} ->
+            Tree_1 = delete(Key, Tree),
+            insert(Key, Val, Tree_1);
+        Ret ->
+            {S1, Ret}
+    end.
 
 insert_1(Key, Value, {Key_1, V, Smaller, Bigger}, S) when Key < Key_1 ->
     case insert_1(Key, Value, Smaller, ?div2(S)) of
@@ -577,11 +583,14 @@ map_1(F, {K, V, Smaller, Larger}) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec checksum(Tree) -> non_neg_integer() when
+-spec checksum(Tree) -> {ok, {ListChecksum, TreeChecksum}} when
       Tree::tree(Key, Value),
       Key::any(),
-      Value::any().
+      Value::any(),
+      ListChecksum::non_neg_integer(),
+      TreeChecksum::non_neg_integer().
 
 checksum(Tree) ->
     L = to_list(Tree),
-    erlang:crc32(term_to_binary(L)).
+    {ok, {erlang:crc32(term_to_binary(L)),
+          erlang:crc32(term_to_binary(Tree))}}.

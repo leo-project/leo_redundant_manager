@@ -61,6 +61,12 @@
 -define(DEF_TIMEOUT, timer:seconds(30)).
 -define(DEF_TIMEOUT_LONG, timer:seconds(120)).
 
+%% -record(state, {
+%%           cur_vnode_trees = [] :: [{atom(), leo_gb_trees:tree()}],
+%%           prev_vnode_trees = [] :: [{atom(), leo_gb_trees:tree()}]
+%%          }).
+
+
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
@@ -438,15 +444,14 @@ handle_call({_, routing_table,_Filename}, _From, State) ->
 
 
 handle_call({attach, TblInfo, Node, GroupL2,
-             Clock, NumOfVNodes, RPCPort}, _From, State) ->
-    Member = #member{node  = Node,
-                     clock = Clock,
-                     state = ?STATE_ATTACHED,
-                     num_of_vnodes = NumOfVNodes,
-                     grp_level_2   = GroupL2,
-                     port = RPCPort
-                    },
-    Reply = attach_1(TblInfo, Member),
+             Clock, NumOfVNodes, RPCPort},_From, State) ->
+    Reply = attach_1(TblInfo,
+                     #member{node = Node,
+                             clock = Clock,
+                             state = ?STATE_ATTACHED,
+                             num_of_vnodes = NumOfVNodes,
+                             grp_level_2 = GroupL2,
+                             port = RPCPort}),
     {reply, Reply, State};
 
 
@@ -559,8 +564,9 @@ create_1(Ver) ->
 
 %% @private
 -spec(create_2(Ver, Members) ->
-             ok | {ok, Members} when Ver::?VER_CUR|?VER_PREV,
-                                     Members::[#member{}]).
+             ok | {error, Cause} when Ver::?VER_CUR|?VER_PREV,
+                                      Members::[#member{}],
+                                      Cause::any()).
 create_2(Ver, Members) ->
     create_2(Ver, Members, []).
 
@@ -607,7 +613,12 @@ create_2( Ver, [#member{node = Node,
                                      Acc::[#member{}]).
 create_3(Ver, [], Acc) ->
     TblInfo = leo_redundant_manager_api:table_info(Ver),
-    leo_redundant_manager_chash:add_from_list(TblInfo, Acc);
+    case leo_redundant_manager_chash:add_from_list(TblInfo, Acc) of
+        ok ->
+            ok;
+        Error ->
+            Error
+    end;
 create_3(Ver, [Member|Rest], Acc) ->
     TblInfo = leo_redundant_manager_api:table_info(Ver),
 
@@ -649,13 +660,19 @@ attach_1(TblInfo, Member) ->
     {ok, Member_1} = set_alias(TblInfo, Member),
     case attach_2(TblInfo, Member_1) of
         ok ->
-            leo_redundant_manager_chash:add(TblInfo, Member_1);
+            case leo_redundant_manager_chash:add(
+                   TblInfo, Member_1) of
+                ok ->
+                    ok;
+                Error ->
+                    Error
+            end;
         Error ->
             Error
     end.
 
 %% @private
-attach_2(TblInfo, #member{node  = Node} = Member) ->
+attach_2(TblInfo, #member{node = Node} = Member) ->
     case leo_cluster_tbl_member:insert(
            ?ring_table_to_member_table(TblInfo), {Node, Member}) of
         ok ->
