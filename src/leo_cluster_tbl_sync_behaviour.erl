@@ -20,7 +20,6 @@
 %%
 %%======================================================================
 -module(leo_cluster_tbl_sync_behaviour).
--author('Yosuke Hara').
 
 -callback(synchronize(HashType::atom(), list()) ->
                  ok | {error, any()}).

@@ -27,8 +27,6 @@
 %%======================================================================
 -module(leo_redundant_manager).
 
--author('Yosuke Hara').
-
 -behaviour(gen_server).
 
 -include("leo_redundant_manager.hrl").

@@ -24,8 +24,6 @@
 %%======================================================================
 -module(leo_ring_tbl_transformer).
 
--author('Yosuke Hara').
-
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 

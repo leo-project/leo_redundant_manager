@@ -20,7 +20,6 @@
 %%
 %%======================================================================
 -module(leo_membership_mq_client_tests).
--author('Yosuke Hara').
 
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").

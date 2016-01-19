@@ -27,8 +27,6 @@
 %%======================================================================
 -module(leo_membership_mq_client).
 
--author('Yosuke Hara').
-
 -behaviour(leo_mq_behaviour).
 
 -include("leo_redundant_manager.hrl").

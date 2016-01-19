@@ -25,8 +25,6 @@
 %%======================================================================
 -module(leo_redundant_manager_app).
 
--author('Yosuke Hara').
-
 -behaviour(application).
 
 -include_lib("eunit/include/eunit.hrl").

@@ -27,8 +27,6 @@
 %%======================================================================
 -module(leo_membership_cluster_remote).
 
--author('Yosuke Hara').
-
 -behaviour(gen_server).
 
 -include("leo_redundant_manager.hrl").

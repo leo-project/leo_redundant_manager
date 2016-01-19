@@ -24,8 +24,6 @@
 %%======================================================================
 -module(leo_mdcr_tbl_sync).
 
--author('Yosuke Hara').
-
 -behaviour(gen_server).
 
 -include("leo_redundant_manager.hrl").

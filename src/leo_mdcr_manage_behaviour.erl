@@ -20,7 +20,6 @@
 %%
 %%======================================================================
 -module(leo_mdcr_manage_behaviour).
--author('Yosuke Hara').
 
 -include("leo_redundant_manager.hrl").
 

@@ -24,7 +24,6 @@
 %% @end
 %%======================================================================
 -module(leo_redundant_manager_sup).
--author('Yosuke Hara').
 
 -behaviour(supervisor).
 

@@ -27,8 +27,6 @@
 %%======================================================================
 -module(leo_redundant_manager_chash).
 
--author('Yosuke Hara').
-
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 

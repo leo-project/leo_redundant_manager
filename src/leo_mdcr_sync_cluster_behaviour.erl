@@ -21,8 +21,6 @@
 %%======================================================================
 -module(leo_mdcr_sync_cluster_behaviour).
 
--author('Yosuke Hara').
-
 %% handle call (after found a new cluster)
 -callback(handle_call(ClusterId::atom()) ->
                  ok | {error, any()}).

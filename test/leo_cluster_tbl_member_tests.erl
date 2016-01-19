@@ -24,7 +24,6 @@
 %% @end
 %%======================================================================
 -module(leo_cluster_tbl_member_tests).
--author('Yosuke Hara').
 
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
