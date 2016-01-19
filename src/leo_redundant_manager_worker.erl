@@ -812,14 +812,18 @@ reply_redundancies_1(AddrId, Redundancies, [#redundant_node{node = Node}|Rest],
 lookup_fun([],_,_,_,_) ->
     not_found;
 lookup_fun(VNodeIdTree, FirstVNodeId, LastVNodeId, AddrId, State) ->
-    case leo_gb_trees:lookup(AddrId, VNodeIdTree) of
+    AddrId_1 = case (FirstVNodeId > AddrId) of
+                   true ->
+                       FirstVNodeId;
+                   false when LastVNodeId < AddrId ->
+                       FirstVNodeId;
+                   false ->
+                       AddrId
+               end,
+
+    case leo_gb_trees:lookup(AddrId_1, VNodeIdTree) of
         nil ->
-            case lookup_fun(VNodeIdTree, FirstVNodeId, LastVNodeId, 0, State) of
-                {ok, Redundancies} ->
-                    {ok, Redundancies#redundancies{id = AddrId}};
-                Other ->
-                    Other
-            end;
+            {error, ?ERROR_COULD_NOT_GET_REDUNDANCIES};
         {_VNodeId, Redundancies} ->
             reply_redundancies(AddrId, Redundancies, State)
     end.
