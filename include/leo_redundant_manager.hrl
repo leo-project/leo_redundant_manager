@@ -461,7 +461,7 @@
           first_vnode_id = 0 :: non_neg_integer(), %% start vnode-id
           last_vnode_id = 0 :: non_neg_integer(),  %% end vnode-id
           members = [] :: [#member{}],             %% cluster-members
-          vnode_tree = [] :: leo_gb_trees:tree()   %% vnode-tree
+          routing_table = [] :: leo_gb_trees:tree()   %% vnode-tree
          }).
 
 -record(node_state, {

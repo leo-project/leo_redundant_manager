@@ -204,10 +204,10 @@ handle_call({lookup, Tbl,_AddrId},_From, State) when Tbl /= ?RING_TBL_CUR,
     {reply, {error, invalid_table}, State};
 
 handle_call({lookup, Tbl, AddrId},_From, State) ->
-    #ring_info{vnode_tree = VNodeTree,
+    #ring_info{routing_table = RoutingTbl,
                first_vnode_id = FirstVNodeId,
                last_vnode_id = LastVNodeId} = ring_info(Tbl, State),
-    Reply = lookup_fun(VNodeTree, FirstVNodeId,
+    Reply = lookup_fun(RoutingTbl, FirstVNodeId,
                        LastVNodeId, AddrId, State),
     {reply, Reply, State};
 
@@ -215,10 +215,10 @@ handle_call({first, Tbl},_From, State) when Tbl /= ?RING_TBL_CUR,
                                             Tbl /= ?RING_TBL_PREV ->
     {reply, {error, invalid_table}, State};
 handle_call({first, Tbl},_From, State) ->
-    #ring_info{vnode_tree = VNodeTree,
+    #ring_info{routing_table = RoutingTbl,
                first_vnode_id = FirstVNodeId,
                last_vnode_id = LastVNodeId} = ring_info(Tbl, State),
-    Reply = lookup_fun(VNodeTree, FirstVNodeId,
+    Reply = lookup_fun(RoutingTbl, FirstVNodeId,
                        LastVNodeId, FirstVNodeId, State),
     {reply, Reply, State};
 
@@ -227,10 +227,10 @@ handle_call({last, Tbl},_From, State) when Tbl /= ?RING_TBL_CUR,
                                            Tbl /= ?RING_TBL_PREV ->
     {reply, {error, invalid_table}, State};
 handle_call({last, Tbl},_From, State) ->
-    #ring_info{vnode_tree = VNodeTree,
+    #ring_info{routing_table = RoutingTbl,
                first_vnode_id = FirstVNodeId,
                last_vnode_id = LastVNodeId} = ring_info(Tbl, State),
-    Reply = lookup_fun(VNodeTree, FirstVNodeId,
+    Reply = lookup_fun(RoutingTbl, FirstVNodeId,
                        LastVNodeId, LastVNodeId, State),
     {reply, Reply, State};
 
@@ -265,18 +265,18 @@ handle_call({collect, Table, AddrIdAndKey, NumOfReplicas, MaxNumOfDuplicate},_Fr
 handle_call(checksum,_From, #state{checksum = Checksum} = State) ->
     {reply, {ok, Checksum}, State};
 
-handle_call(dump,_From, #state{cur  = #ring_info{vnode_tree = CurRing},
-                               prev = #ring_info{vnode_tree = PrevRing}} = State) ->
+handle_call(dump,_From, #state{cur  = #ring_info{routing_table = CurRoutingTbl},
+                               prev = #ring_info{routing_table = PrevRoutingTbl}} = State) ->
     try
-        CurRing_1 = leo_gb_trees:to_list(CurRing),
-        PrevRing_1 = leo_gb_trees:to_list(PrevRing),
+        CurRoutingTbl_1 = leo_gb_trees:to_list(CurRoutingTbl),
+        PrevRoutingTbl_1 = leo_gb_trees:to_list(PrevRoutingTbl),
 
         LogDir = ?log_dir(),
         _ = filelib:ensure_dir(LogDir),
         leo_file:file_unconsult(LogDir ++ "ring_cur_worker.log."
-                                ++ integer_to_list(leo_date:now()), CurRing_1),
+                                ++ integer_to_list(leo_date:now()), CurRoutingTbl_1),
         leo_file:file_unconsult(LogDir ++ "ring_prv_worker.log."
-                                ++ integer_to_list(leo_date:now()), PrevRing_1)
+                                ++ integer_to_list(leo_date:now()), PrevRoutingTbl_1)
     catch
         _:_ ->
             void
@@ -374,8 +374,8 @@ maybe_sync(State) ->
 
 %% @private
 maybe_sync_1(#state{checksum = {PrevHash, CurHash},
-                    cur = #ring_info{vnode_tree = CurRing},
-                    prev = #ring_info{vnode_tree = PrevRing},
+                    cur = #ring_info{routing_table = CurRoutingTbl},
+                    prev = #ring_info{routing_table = PrevRoutingTbl},
                     min_interval = MinInterval,
                     timestamp = Timestamp} = State) ->
     ThisTime = timestamp(),
@@ -385,8 +385,8 @@ maybe_sync_1(#state{checksum = {PrevHash, CurHash},
         true ->
             State#state{timestamp = ThisTime};
         false ->
-            CurHash_Now = erlang:crc32(term_to_binary(CurRing)),
-            PrevHash_Now = erlang:crc32(term_to_binary(PrevRing)),
+            CurHash_Now = erlang:crc32(term_to_binary(CurRoutingTbl)),
+            PrevHash_Now = erlang:crc32(term_to_binary(PrevRoutingTbl)),
             State_3 = case (CurHash  /= CurHash_Now orelse
                             PrevHash /= PrevHash_Now) of
                           true ->
@@ -437,7 +437,7 @@ maybe_sync_2_1(#sync_info{org_checksum = OrgChecksum,
     State;
 maybe_sync_2_1(#sync_info{target = TargetRing} = SyncInfo, #state{checksum = WorkerChecksum} = State) ->
     case gen_routing_table(SyncInfo, State) of
-        {ok, #ring_info{vnode_tree = VNodeIdTree} = RingInfo} ->
+        {ok, #ring_info{routing_table = VNodeIdTree} = RingInfo} ->
             Checksum = erlang:crc32(
                          term_to_binary(VNodeIdTree)),
 
@@ -486,13 +486,13 @@ gen_routing_table(#sync_info{target = Target} = SyncInfo, State) ->
                                              checksum = Checksum}, State).
 
 %% @private
--spec(gen_routing_table_1([{VNodeId, Node, Clock}], VNodeTree,
+-spec(gen_routing_table_1([{VNodeId, Node, Clock}], RoutingTbl,
                           #sync_info{}, #ring_conf{}, #state{}) ->
              {ok, #ring_info{}} | {error, any()} when VNodeId::non_neg_integer(),
                                                       Node::atom(),
                                                       Clock::non_neg_integer(),
-                                                      VNodeTree::leo_gb_trees:tree()).
-gen_routing_table_1([], VNodeTree, #sync_info{target = Target},
+                                                      RoutingTbl::leo_gb_trees:tree()).
+gen_routing_table_1([], RoutingTbl, #sync_info{target = Target},
                     #ring_conf{from_vnode_id = FromVNodeId,
                                checksum = Checksum},
                     #state{num_of_replicas = NumOfReplicas} = State) ->
@@ -502,9 +502,9 @@ gen_routing_table_1([], VNodeTree, #sync_info{target = Target},
                   ?SYNC_TARGET_RING_PREV ->
                       (State#state.prev)#ring_info.members
               end,
-    VNodeTree_1 = leo_gb_trees:balance(VNodeTree),
-    VNodeIdL = leo_gb_trees:to_list(VNodeTree_1),
-    {VNodeIdFirst,_} = leo_gb_trees:lookup(0, VNodeTree_1),
+    RoutingTbl_1 = leo_gb_trees:balance(RoutingTbl),
+    VNodeIdL = leo_gb_trees:to_list(RoutingTbl_1),
+    {VNodeIdFirst,_} = leo_gb_trees:lookup(0, RoutingTbl_1),
     VNodeIdLast = FromVNodeId - 1,
 
     case check_redundancies(NumOfReplicas, VNodeIdL) of
@@ -518,10 +518,10 @@ gen_routing_table_1([], VNodeTree, #sync_info{target = Target},
                     first_vnode_id = VNodeIdFirst,
                     last_vnode_id = VNodeIdLast,
                     members = Members,
-                    vnode_tree = VNodeTree_1}};
+                    routing_table = RoutingTbl_1}};
 
 gen_routing_table_1([{AddrId,_Node,_Clock}|Rest],
-                    VNodeTree, SyncInfo, #ring_conf{from_vnode_id = FromVNodeId} = RingConf, State) ->
+                    RoutingTbl, SyncInfo, #ring_conf{from_vnode_id = FromVNodeId} = RingConf, State) ->
     TargetRing = SyncInfo#sync_info.target,
     MembersCur = (State#state.cur)#ring_info.members,
     NumOfReplicas = State#state.num_of_replicas,
@@ -558,12 +558,12 @@ gen_routing_table_1([{AddrId,_Node,_Clock}|Rest],
 
             #redundancies{vnode_id_to = VNodeId,
                           nodes = RedundantNodeL} = Redundancies_1,
-            VNodeTree_1 = leo_gb_trees:insert(
-                            VNodeId, #redundancies{id = VNodeId,
-                                                   vnode_id_from = FromVNodeId,
-                                                   vnode_id_to = VNodeId,
-                                                   nodes = RedundantNodeL}, VNodeTree),
-            gen_routing_table_1(Rest, VNodeTree_1, SyncInfo,
+            RoutingTbl_1 = leo_gb_trees:insert(
+                             VNodeId, #redundancies{id = VNodeId,
+                                                    vnode_id_from = FromVNodeId,
+                                                    vnode_id_to = VNodeId,
+                                                    nodes = RedundantNodeL}, RoutingTbl),
+            gen_routing_table_1(Rest, RoutingTbl_1, SyncInfo,
                                 RingConf#ring_conf{
                                   from_vnode_id = VNodeId + 1}, State);
         Error ->
@@ -805,8 +805,8 @@ reply_redundancies_1(AddrId, Redundancies, [#redundant_node{node = Node}|Rest],
 
 %% @doc Retrieve redundancies by vnode-id
 %% @private
--spec(lookup_fun(VNodeTree, FirstVNodeId, LastVNodeId, AddrId, State) ->
-             not_found | {ok, #redundancies{}} when VNodeTree::leo_gb_trees:tree(),
+-spec(lookup_fun(RoutingTbl, FirstVNodeId, LastVNodeId, AddrId, State) ->
+             not_found | {ok, #redundancies{}} when RoutingTbl::leo_gb_trees:tree(),
                                                     FirstVNodeId::non_neg_integer(),
                                                     LastVNodeId::non_neg_integer(),
                                                     AddrId::non_neg_integer(),
@@ -859,13 +859,13 @@ force_sync_fun(TargetRing, State) ->
     end.
 
 %% @private
-force_sync_fun_1({ok, #ring_info{vnode_tree = RetL} = RingInfo}, ?SYNC_TARGET_RING_CUR,
+force_sync_fun_1({ok, #ring_info{routing_table = RetL} = RingInfo}, ?SYNC_TARGET_RING_CUR,
                  #state{checksum = Checksum} = State) ->
     {PrevHash,_} = Checksum,
     CurHash = erlang:crc32(term_to_binary(RetL)),
     State#state{cur = RingInfo,
                 checksum = {PrevHash, CurHash}};
-force_sync_fun_1({ok, #ring_info{vnode_tree = RetL} = RingInfo}, ?SYNC_TARGET_RING_PREV,
+force_sync_fun_1({ok, #ring_info{routing_table = RetL} = RingInfo}, ?SYNC_TARGET_RING_PREV,
                  #state{checksum = Checksum} = State) ->
     {_,CurHash} = Checksum,
     PrevHash = erlang:crc32(term_to_binary(RetL)),
@@ -889,7 +889,7 @@ collect_fun(NumOfReplicas,_RingInfo, _AddrIdAndKey,_TotalMembers,
             _MaxNumOfDuplicate,_State, Acc) when NumOfReplicas =< erlang:length(Acc)->
     Acc_1 = lists:sublist(Acc, NumOfReplicas),
     {ok, Acc_1};
-collect_fun(NumOfReplicas, #ring_info{vnode_tree = VNodeIdTree,
+collect_fun(NumOfReplicas, #ring_info{routing_table = VNodeIdTree,
                                       first_vnode_id = FirstVNodeId,
                                       last_vnode_id = LastVNodeId} = RingInfo,
             {AddrId, Key}, TotalMembers, MaxNumOfDuplicate, State, Acc) ->
