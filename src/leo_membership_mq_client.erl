@@ -84,9 +84,7 @@ start1(InstanceId, RootPath0) ->
                     true  -> RootPath0;
                     false -> RootPath0 ++ "/"
                 end,
-    {ok, RefSup} = application:get_env(leo_redundant_manager, mq_sup_ref),
-
-    leo_mq_api:new(RefSup, InstanceId, [{?MQ_PROP_MOD, ?MODULE},
+    leo_mq_api:new(leo_mq_sup, InstanceId, [{?MQ_PROP_MOD, ?MODULE},
                                         {?MQ_PROP_DB_PROCS, 1},
                                         {?MQ_PROP_DB_NAME, ?DEF_BACKEND_DB},
                                         {?MQ_PROP_ROOT_PATH, RootPath1 ++ ?MQ_DB_PATH},

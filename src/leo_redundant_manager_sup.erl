@@ -229,17 +229,16 @@ init([ServerType]) ->
 -spec(after_proc({ok, pid()} | {error, any()}) ->
              {ok, pid()} | {error, any()}).
 after_proc({ok, RefSup}) ->
-    MQPid = case whereis(leo_mq_sup) of
-                undefined ->
-                    ChildSpec = {leo_mq_sup,
-                                 {leo_mq_sup, start_link, []},
-                                 permanent, 2000, supervisor, [leo_mq_sup]},
-                    {ok, Pid} = supervisor:start_child(RefSup, ChildSpec),
-                    Pid;
-                Pid ->
-                    Pid
-            end,
-    ok = application:set_env(leo_redundant_manager, mq_sup_ref, MQPid),
+    case erlang:whereis(leo_mq_sup) of
+        undefined ->
+            ChildSpec = {leo_mq_sup,
+                         {leo_mq_sup, start_link, []},
+                         permanent, 2000, supervisor, [leo_mq_sup]},
+            {ok, Pid} = supervisor:start_child(RefSup, ChildSpec),
+            Pid;
+        _Pid ->
+            void
+    end,
     {ok, RefSup};
 
 after_proc(Error) ->
