@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2015 Rakuten, Inc.
+%% Copyright (c) 2012-2016 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -30,12 +30,19 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %% API
--export([start_link/0, stop/0]).
--export([lookup/2, first/1, last/1, force_sync/1,
-         redundancies/3,
-         collect/4,
-         checksum/0,
-         dump/0, subscribe/0]).
+-export([start_link/1, stop/1]).
+-export([add_vnode/3,
+         set_vnode_list/3,
+         remove_vnode_list/3,
+         get_vnode_list/2,
+         first_vnode/2,
+         last_vnode/2
+        ]).
+-export([lookup/3, first/2, last/2, force_sync/2,
+         redundancies/4,
+         collect/5,
+         checksum/1,
+         dump/1, subscribe/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -65,6 +72,7 @@
 
 -record(state, {
           id :: atom(),
+          cluster_id :: cluster_id(),
           cur  = #ring_info{} :: #ring_info{},
           prev = #ring_info{} :: #ring_info{},
           num_of_replicas = 0 :: non_neg_integer(),
@@ -83,12 +91,25 @@
           checksum = -1 :: integer()
          }).
 
+-record(redundancy_info, {
+          table_info :: table_info(),
+          cluster_id :: cluster_id(),
+          num_of_replicas = 0 :: non_neg_integer(),
+          rack_awareness_level = 0 :: non_neg_integer(),
+          vnode_id = 0 :: non_neg_integer(),
+          %% vnode_id_org = 0 :: non_neg_integer(),
+          vnode_id_hop = 0 :: non_neg_integer(),
+          node :: atom(),
+          members = [] :: [#?MEMBER{}],
+          result = #redundancies{} :: #redundancies{}
+         }).
+
 -compile({inline, [
                    lookup_fun/5,
                    reply_redundancies/3,
                    gen_routing_table/2, gen_routing_table_1/5,
-                   redundancies/5, redundancies_1/6, redundancies_1_1/7,
-                   redundancies_2/6, redundancies_3/7, get_node_by_vnode_id/2,
+                   redundancies/1, redundancies_1/1, redundancies_2/1,
+                   redundancies_3/1, redundancies_4/1, lookup_vnode_id/3,
                    get_redundancies/3, force_sync_fun/2, force_sync_fun_1/3
                   ]}).
 
@@ -97,105 +118,230 @@
 %% API
 %%--------------------------------------------------------------------
 %% @doc Start the server
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link(ClusterId) ->
+    Id = ?id_red_worker(ClusterId),
+    gen_server:start_link({local, Id}, ?MODULE, [Id, ClusterId], []).
 
 %% @doc Stop the server
-stop() ->
-    gen_server:call(?MODULE, stop, ?DEF_TIMEOUT).
+stop(ClusterId) ->
+    Id = ?id_red_worker(ClusterId),
+    gen_server:call(Id, stop, ?DEF_TIMEOUT).
+
+
+%% @doc Insert VNode
+-spec(add_vnode(ClusterId, Ver, VNode) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      Ver::version(),
+                                      VNode::{}).
+add_vnode(ClusterId, Ver, VNode) ->
+    Id = ?id_red_worker(ClusterId),
+    gen_server:call(Id, {add_vnode, Ver, VNode}, ?DEF_TIMEOUT).
+
+
+%% @doc Set a vnode list
+-spec(set_vnode_list(ClusterId, Ver, VNodeList) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      Ver::version(),
+                                      VNodeList::[]).
+set_vnode_list(ClusterId, Ver, VNodeList) ->
+    Id = ?id_red_worker(ClusterId),
+    gen_server:call(Id, {set_vnode_list, Ver, VNodeList}, ?DEF_TIMEOUT).
+
+
+%% @doc Remove vnodes from a vnode list
+-spec(remove_vnode_list(ClusterId, Ver, VNodeList) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      Ver::version(),
+                                      VNodeList::[]).
+remove_vnode_list(ClusterId, Ver, VNodeList) ->
+    Id = ?id_red_worker(ClusterId),
+    gen_server:call(Id, {remove_vnode_list, Ver, VNodeList}, ?DEF_TIMEOUT).
+
+
+-spec(get_vnode_list(ClusterId, Ver) ->
+             {ok, VNodeList} | {error, any()} when ClusterId::cluster_id(),
+                                                   Ver::version(),
+                                                   VNodeList::[]).
+get_vnode_list(ClusterId, Ver) ->
+    Id = ?id_red_worker(ClusterId),
+    %% @TODO
+    gen_server:call(Id, {get_vnode_list, Ver}, ?DEF_TIMEOUT).
+
+
+%% @doc Retrieve a first vnode
+-spec(first_vnode(ClusterId, Ver) ->
+             {ok, []} | {error, any()} when ClusterId::cluster_id(),
+                                            Ver::version()).
+first_vnode(ClusterId, Ver) ->
+    Id = ?id_red_worker(ClusterId),
+    %% @TODO
+    gen_server:call(Id, {first_vnode, Ver}, ?DEF_TIMEOUT).
+
+
+%% @doc Retrieve a last vnode
+-spec(last_vnode(ClusterId, Ver) ->
+             {ok, []} | {error, any()} when ClusterId::cluster_id(),
+                                            Ver::version()).
+last_vnode(ClusterId, Ver) ->
+    Id = ?id_red_worker(ClusterId),
+    %% @TODO
+    gen_server:call(Id, {last_vnode, Ver}, ?DEF_TIMEOUT).
 
 
 %% @doc Look up the redundant-nodes by address-id
--spec(lookup(Table, AddrId) ->
+-spec(lookup(ClusterId, Table, AddrId) ->
              {ok, #redundancies{}} |
-             not_found when Table::atom(),
+             not_found when ClusterId::cluster_id(),
+                            Table::atom(),
                             AddrId::non_neg_integer()).
-lookup(Table, AddrId) ->
-    gen_server:call(?MODULE, {lookup, Table, AddrId}, ?DEF_TIMEOUT).
+lookup(ClusterId, Table, AddrId) ->
+    Id = ?id_red_worker(ClusterId),
+    gen_server:call(Id, {lookup, Table, AddrId}, ?DEF_TIMEOUT).
 
 
 %% @doc Retrieve the first record of the redundant-nodes
--spec(first(Table) ->
+-spec(first(ClusterId, Table) ->
              {ok, #redundancies{}} |
-             not_found when Table::atom()).
-first(Table) ->
-    gen_server:call(?MODULE, {first, Table}, ?DEF_TIMEOUT).
+             not_found when ClusterId::cluster_id(),
+                            Table::atom()).
+first(ClusterId, Table) ->
+    Id = ?id_red_worker(ClusterId),
+    gen_server:call(Id, {first, Table}, ?DEF_TIMEOUT).
 
 
 %% @doc Retrieve the last record of the redundant-nodes
--spec(last(Table) ->
+-spec(last(ClusterId, Table) ->
              {ok, #redundancies{}} |
-             not_found when Table::atom()).
-last(Table) ->
-    gen_server:call(?MODULE, {last, Table}, ?DEF_TIMEOUT).
+             not_found when ClusterId::cluster_id(),
+                            Table::atom()).
+last(ClusterId, Table) ->
+    Id = ?id_red_worker(ClusterId),
+    gen_server:call(Id, {last, Table}, ?DEF_TIMEOUT).
 
 
 %% @doc Force RING to synchronize with the manager-node
--spec(force_sync(Table) ->
+-spec(force_sync(ClusterId, Table) ->
              ok |
-             {error, invalid_table} when Table::atom()).
-force_sync(Table) ->
-    gen_server:call(?MODULE, {force_sync, Table}, ?DEF_TIMEOUT_LONG).
+             {error, invalid_table} when ClusterId::cluster_id(),
+                                         Table::atom()).
+force_sync(ClusterId, Table) ->
+    Id = ?id_red_worker(ClusterId),
+    gen_server:call(Id, {force_sync, Table}, ?DEF_TIMEOUT_LONG).
 
 
 %% @doc Retrieve redundancies
--spec(redundancies(TableInfo, AddrId, Members) ->
+-spec(redundancies(ClusterId, TableInfo, AddrId, Members) ->
              {ok, #redundancies{}} |
-             not_found when TableInfo::ring_table_info(),
+             not_found when ClusterId::cluster_id(),
+                            TableInfo::ring_table_info(),
                             AddrId::non_neg_integer(),
-                            Members::[#member{}]).
-redundancies(TableInfo, AddrId, Members) ->
-    gen_server:call(?MODULE, {redundancies, TableInfo, AddrId, Members}, ?DEF_TIMEOUT).
+                            Members::[#?MEMBER{}]).
+redundancies(ClusterId, TableInfo, AddrId, Members) ->
+    Id = ?id_red_worker(ClusterId),
+    gen_server:call(Id, {redundancies, TableInfo, AddrId, Members}, ?DEF_TIMEOUT).
 
 
 %% @doc Collect redundancies
--spec(collect(Table, AddrIdAndKey, NumOfReplicas, MaxNumOfDuplicate) ->
+-spec(collect(ClusterId, Table, AddrIdAndKey, NumOfReplicas, MaxNumOfDuplicate) ->
              {ok, RedundanciesL} |
-             not_found when Table::atom(),
+             not_found when ClusterId::cluster_id(),
+                            Table::atom(),
                             AddrIdAndKey::{pos_integer(), binary()},
                             NumOfReplicas::pos_integer(),
                             MaxNumOfDuplicate::pos_integer(),
                             RedundanciesL::[#redundancies{}]).
-collect(Table, AddrIdAndKey, NumOfReplicas, MaxNumOfDuplicate) ->
-    gen_server:call(?MODULE, {collect, Table, AddrIdAndKey,
-                              NumOfReplicas, MaxNumOfDuplicate}, ?DEF_TIMEOUT).
+collect(ClusterId, Table, AddrIdAndKey, NumOfReplicas, MaxNumOfDuplicate) ->
+    Id = ?id_red_worker(ClusterId),
+    gen_server:call(Id, {collect, Table, AddrIdAndKey,
+                         NumOfReplicas, MaxNumOfDuplicate}, ?DEF_TIMEOUT).
 
 
 %% @doc Retrieve the checksums
--spec(checksum() ->
-             {ok, {PrevChecksum, CurChecksum}} when PrevChecksum::integer(),
+-spec(checksum(ClusterId) ->
+             {ok, {PrevChecksum, CurChecksum}} when ClusterId::cluster_id(),
+                                                    PrevChecksum::integer(),
                                                     CurChecksum::integer()).
-checksum() ->
-    gen_server:call(?MODULE, checksum, ?DEF_TIMEOUT).
+checksum(ClusterId) ->
+    Id = ?id_red_worker(ClusterId),
+    gen_server:call(Id, checksum, ?DEF_TIMEOUT).
 
 
 %% @doc Dump the current ring-info
--spec(dump() ->
-             ok | {error, any()}).
-dump() ->
-    gen_server:call(?MODULE, dump, ?DEF_TIMEOUT).
+-spec(dump(ClusterId) ->
+             ok | {error, any()} when ClusterId::cluster_id()).
+dump(ClusterId) ->
+    Id = ?id_red_worker(ClusterId),
+    gen_server:call(Id, dump, ?DEF_TIMEOUT).
 
 
 %% @doc Sucscrive changing records of the member-tables
--spec(subscribe() ->
-             ok | {error, any()}).
-subscribe() ->
-    gen_server:call(?MODULE, subscribe, ?DEF_TIMEOUT).
+-spec(subscribe(ClusterId) ->
+             ok | {error, any()} when ClusterId::cluster_id()).
+subscribe(ClusterId) ->
+    Id = ?id_red_worker(ClusterId),
+    gen_server:call(Id, subscribe, ?DEF_TIMEOUT).
 
 
 %%--------------------------------------------------------------------
 %% GEN_SERVER CALLBACKS
 %%--------------------------------------------------------------------
 %% @doc Initiates the server
-init([]) ->
+init([Id, ClusterId]) ->
     sync(),
-    {ok, #state{id = ?MODULE,
+    {ok, #state{id = Id,
+                cluster_id = ClusterId,
                 timestamp = timestamp()}}.
 
 %% @doc gen_server callback - Module:handle_call(Request, From, State) -> Result
 handle_call(stop,_From,State) ->
     {stop, normal, ok, State};
 
+handle_call({add_vnode, Ver, {VNodeId, Node, Clock}},
+            _From, #state{cluster_id = ClusterId} = State) ->
+    Reply = leo_cluster_tbl_ring:insert(leo_redundant_manager_api:table_info(Ver),
+                                        #?RING{id = {ClusterId, VNodeId},
+                                               cluster_id = ClusterId,
+                                               vnode_id = VNodeId,
+                                               node = Node,
+                                               clock = Clock}),
+    {reply, Reply, State};
+
+handle_call({set_vnode_list, Ver, VNodeList},
+            _From, #state{cluster_id = ClusterId} = State) ->
+    TblInfo = leo_redundant_manager_api:table_info(Ver),
+    [leo_cluster_tbl_ring:insert(TblInfo,
+                                 #?RING{id = {ClusterId, VNodeId},
+                                        cluster_id = ClusterId,
+                                        vnode_id = VNodeId,
+                                        node = Node,
+                                        clock = Clock})
+     || {VNodeId, Node, Clock} <- VNodeList],
+    Reply = ok,
+    {reply, Reply, State};
+
+handle_call({remove_vnode_list, Ver, VNodeList},_From,
+            #state{cluster_id = ClusterId} = State) ->
+    TblInfo = leo_redundant_manager_api:table_info(Ver),
+    [leo_cluster_tbl_ring:delete(TblInfo, ClusterId, VNodeId)
+     || VNodeId <- VNodeList],
+    Reply = ok,
+    {reply, Reply, State};
+
+handle_call({get_vnode_list, ?VER_CUR},_From,
+            #state{cur = #ring_info{vnode_list = VNodeList}} = State) ->
+    {reply, {ok, VNodeList}, State};
+
+handle_call({get_vnode_list, ?VER_PREV},_From,
+            #state{prev = #ring_info{vnode_list = VNodeList}} = State) ->
+    {reply, {ok, VNodeList}, State};
+
+handle_call({first_vnode,_Ver},_From, State) ->
+    Reply = ok,
+    {reply, Reply, State};
+
+handle_call({last_vnode,_Ver},_From, State) ->
+    Reply = ok,
+    {reply, Reply, State};
 
 handle_call({lookup, Tbl,_AddrId},_From, State) when Tbl /= ?RING_TBL_CUR,
                                                      Tbl /= ?RING_TBL_PREV ->
@@ -243,14 +389,21 @@ handle_call({force_sync, Table},_From, State) ->
     {reply, ok, NewState};
 
 handle_call({redundancies, TableInfo, AddrId, Members},_From,
-            #state{num_of_replicas = N,
+            #state{cluster_id = ClusterId,
+                   num_of_replicas = N,
                    num_of_rack_awareness = L2} = State) ->
-    Reply = redundancies(TableInfo, AddrId, N, L2, Members),
+    Reply = redundancies(#redundancy_info{table_info = TableInfo,
+                                          cluster_id = ClusterId,
+                                          vnode_id = AddrId,
+                                          num_of_replicas = N,
+                                          rack_awareness_level = L2,
+                                          members = Members}),
     {reply, Reply, State};
 
-handle_call({collect, Table, AddrIdAndKey, NumOfReplicas, MaxNumOfDuplicate},_From, State) ->
+handle_call({collect, Table, AddrIdAndKey, NumOfReplicas, MaxNumOfDuplicate},
+            _From, #state{cluster_id = ClusterId} = State) ->
     RingInfo = ring_info(Table, State),
-    Reply = case leo_redundant_manager_api:get_members() of
+    Reply = case leo_redundant_manager_api:get_members(ClusterId) of
                 {ok, Members} ->
                     collect_fun(NumOfReplicas, RingInfo,
                                 AddrIdAndKey, erlang:length(Members),
@@ -334,8 +487,8 @@ timestamp() ->
 
 %% @doc Retrieve the number of replicas
 %% @private
-update_state(State) ->
-    {ok, Options} = leo_redundant_manager_api:get_options(),
+update_state(#state{cluster_id = ClusterId} = State) ->
+    {ok, Options} = leo_redundant_manager_api:get_options(ClusterId),
     NumOfReplica = leo_misc:get_value(?PROP_N, Options, 0),
     case (NumOfReplica > 0) of
         true ->
@@ -400,7 +553,7 @@ maybe_sync_1(#state{checksum = {PrevHash, CurHash},
 %% @private
 maybe_sync_2(_, Hash, Hash, State) ->
     State;
-maybe_sync_2(RingVer, Hash_Now, Hash_Old, State) ->
+maybe_sync_2(RingVer, Hash_Now, Hash_Old, #state{cluster_id = ClusterId} = State) ->
     {Tbl, Target, RingInfo_1} =
         case RingVer of
             ?RING_TBL_CUR ->
@@ -411,9 +564,10 @@ maybe_sync_2(RingVer, Hash_Now, Hash_Old, State) ->
                 {?MEMBER_TBL_PREV, ?SYNC_TARGET_RING_PREV, RingInfo}
         end,
 
-    case leo_cluster_tbl_member:find_all(Tbl) of
+    case leo_cluster_tbl_member:find_by_cluster_id(
+           Tbl, ClusterId) of
         {ok, Members} ->
-            Members_1 = lists:foldl(fun(#member{state = ?STATE_ATTACHED}, Acc) ->
+            Members_1 = lists:foldl(fun(#?MEMBER{state = ?STATE_ATTACHED}, Acc) ->
                                             Acc;
                                        (Member, Acc) ->
                                             Acc ++ [Member]
@@ -461,9 +615,11 @@ maybe_sync_2_1(#sync_info{target = TargetRing} = SyncInfo, #state{checksum = Wor
 gen_routing_table(#sync_info{target = Target},_) when Target /= ?SYNC_TARGET_RING_CUR,
                                                       Target /= ?SYNC_TARGET_RING_PREV ->
     {error, invalid_target_ring};
-gen_routing_table(#sync_info{target = Target} = SyncInfo, State) ->
+gen_routing_table(#sync_info{target = Target} = SyncInfo,
+                  #state{cluster_id = ClusterId} = State) ->
     %% Retrieve ring from local's master [etc|mnesia]
-    {ok, Ring_1} = leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR),
+    {ok, Ring_1} = leo_redundant_manager_api:get_ring(
+                     ClusterId, ?SYNC_TARGET_RING_CUR),
     RingSize = erlang:length(Ring_1),
 
     %% Calculate ring's checksum
@@ -471,7 +627,8 @@ gen_routing_table(#sync_info{target = Target} = SyncInfo, State) ->
                  ?SYNC_TARGET_RING_CUR ->
                      Ring_1;
                  _ ->
-                     {ok, RingPrev} = leo_redundant_manager_api:get_ring(Target),
+                     {ok, RingPrev} = leo_redundant_manager_api:get_ring(
+                                        ClusterId, Target),
                      RingPrev
              end,
     Checksum = erlang:crc32(term_to_binary(Ring_2)),
@@ -484,11 +641,9 @@ gen_routing_table(#sync_info{target = Target} = SyncInfo, State) ->
                                              checksum = Checksum}, State).
 
 %% @private
--spec(gen_routing_table_1([{VNodeId, Node, Clock}], RoutingTbl,
+-spec(gen_routing_table_1(Ring, RoutingTbl,
                           #sync_info{}, #ring_conf{}, #state{}) ->
-             {ok, #ring_info{}} | {error, any()} when VNodeId::non_neg_integer(),
-                                                      Node::atom(),
-                                                      Clock::non_neg_integer(),
+             {ok, #ring_info{}} | {error, any()} when Ring::[#?RING{}],
                                                       RoutingTbl::leo_gb_trees:tree()).
 gen_routing_table_1([], RoutingTbl, #sync_info{target = Target},
                     #ring_conf{from_vnode_id = FromVNodeId,
@@ -518,25 +673,35 @@ gen_routing_table_1([], RoutingTbl, #sync_info{target = Target},
                     members = Members,
                     routing_table = RoutingTbl_1}};
 
-gen_routing_table_1([{AddrId,_Node,_Clock}|Rest],
-                    RoutingTbl, SyncInfo, #ring_conf{from_vnode_id = FromVNodeId} = RingConf, State) ->
+gen_routing_table_1([#?RING{vnode_id = VNodeId}|Rest],
+                    RoutingTbl, SyncInfo,
+                    #ring_conf{from_vnode_id = FromVNodeId} = RingConf,
+                    #state{cluster_id = ClusterId} = State) ->
     TargetRing = SyncInfo#sync_info.target,
     MembersCur = (State#state.cur)#ring_info.members,
     NumOfReplicas = State#state.num_of_replicas,
     NumOfAwarenessL2 = State#state.num_of_rack_awareness,
     TblInfo = leo_redundant_manager_api:table_info(?VER_CUR),
 
-    case redundancies(TblInfo, AddrId,
-                      NumOfReplicas, NumOfAwarenessL2, MembersCur) of
+    case redundancies(#redundancy_info{table_info = TblInfo,
+                                       cluster_id = ClusterId,
+                                       vnode_id = VNodeId,
+                                       num_of_replicas = NumOfReplicas,
+                                       rack_awareness_level = NumOfAwarenessL2,
+                                       members = MembersCur}) of
         {ok, #redundancies{nodes = CurNodes} = Redundancies} ->
             Redundancies_1 =
                 case TargetRing of
                     ?SYNC_TARGET_RING_PREV ->
-                        MembersPrev = (State#state.prev)#ring_info.members,
                         TblInfoPrev = leo_redundant_manager_api:table_info(?VER_PREV),
+                        MembersPrev = (State#state.prev)#ring_info.members,
 
-                        case redundancies(TblInfoPrev, AddrId,
-                                          NumOfReplicas, NumOfAwarenessL2, MembersPrev) of
+                        case redundancies(#redundancy_info{table_info = TblInfoPrev,
+                                                           cluster_id = ClusterId,
+                                                           vnode_id = VNodeId,
+                                                           num_of_replicas = NumOfReplicas,
+                                                           rack_awareness_level = NumOfAwarenessL2,
+                                                           members = MembersPrev}) of
                             {ok, #redundancies{nodes = PrevNodes}} ->
                                 CurNodes_1  = [_N1 || #redundant_node{node = _N1} <- CurNodes ],
                                 PrevNodes_1 = [_N2 || #redundant_node{node = _N2} <- PrevNodes],
@@ -554,8 +719,7 @@ gen_routing_table_1([{AddrId,_Node,_Clock}|Rest],
                         Redundancies
                 end,
 
-            #redundancies{vnode_id_to = VNodeId,
-                          nodes = RedundantNodeL} = Redundancies_1,
+            #redundancies{nodes = RedundantNodeL} = Redundancies_1,
             RoutingTbl_1 = leo_gb_trees:insert(
                              VNodeId, #redundancies{id = VNodeId,
                                                     vnode_id_from = FromVNodeId,
@@ -612,125 +776,159 @@ check_redundancies_1(NumOfReplicas, RedundantNodeL) ->
 
 %% @doc get redundancies by key.
 %% @private
--spec(redundancies(TableInfo, VNodeId, NumOfReplicas, L2, Members) ->
+-spec(redundancies(RedundancyInfo) ->
              {ok, any()} |
-             {error, any()} when TableInfo::ring_table_info(),
-                                 VNodeId::integer(),
-                                 NumOfReplicas::integer(),
-                                 L2::integer(),
-                                 Members::[#member{}]).
-redundancies(_,_,NumOfReplicas,_,_) when NumOfReplicas < ?DEF_MIN_REPLICAS;
-                                         NumOfReplicas > ?DEF_MAX_REPLICAS ->
+             {error, any()} when RedundancyInfo::#redundancy_info{}).
+
+redundancies(#redundancy_info{num_of_replicas = NumOfReplicas})
+  when NumOfReplicas < ?DEF_MIN_REPLICAS;
+       NumOfReplicas > ?DEF_MAX_REPLICAS ->
     {error, out_of_renge};
-redundancies(_,_,NumOfReplicas, L2,_) when (NumOfReplicas - L2) < 1 ->
+redundancies(#redundancy_info{num_of_replicas = NumOfReplicas,
+                              rack_awareness_level = L2})
+  when (NumOfReplicas - L2) < 1 ->
     {error, invalid_level2};
-redundancies(TableInfo, VNodeId_0, NumOfReplicas, L2, Members) ->
-    case leo_cluster_tbl_ring:lookup(TableInfo, VNodeId_0) of
+redundancies(#redundancy_info{table_info = TableInfo,
+                              cluster_id = ClusterId,
+                              vnode_id = VNodeId} = RedundancyInfo) ->
+    case leo_cluster_tbl_ring:lookup(
+           TableInfo, ClusterId, VNodeId) of
         {error, Cause} ->
             {error, Cause};
         not_found ->
-            case get_node_by_vnode_id(TableInfo, VNodeId_0) of
+            case lookup_vnode_id(TableInfo, ClusterId, VNodeId) of
                 {ok, VNodeId_1} ->
-                    redundancies_1(TableInfo, VNodeId_0, VNodeId_1,
-                                   NumOfReplicas, L2, Members);
+                    redundancies_1(
+                      RedundancyInfo#redundancy_info{vnode_id_hop = VNodeId_1});
                 {error, Cause} ->
                     {error, Cause}
             end;
+
         #?RING{node = Node} ->
-            redundancies_1_1(TableInfo, VNodeId_0, VNodeId_0,
-                             NumOfReplicas, L2, Members, Node)
+            redundancies_2(RedundancyInfo#redundancy_info{node = Node})
     end.
 
 %% @private
-redundancies_1(TableInfo, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members) ->
-    case leo_cluster_tbl_ring:lookup(TableInfo, VNodeId_Hop) of
+redundancies_1(#redundancy_info{table_info = TableInfo,
+                                cluster_id = ClusterId,
+                                vnode_id_hop = VNodeIdHop} = RedundancyInfo) ->
+    case leo_cluster_tbl_ring:lookup(
+           TableInfo, ClusterId, VNodeIdHop) of
         {error, Cause} ->
             {error, Cause};
         not_found ->
             {error, ring_not_found};
         #?RING{node = Node} ->
-            redundancies_1_1(TableInfo, VNodeId_Org, VNodeId_Hop,
-                             NumOfReplicas, L2, Members, Node)
+            redundancies_2(
+              RedundancyInfo#redundancy_info{node = Node})
     end.
 
 %% @private
-redundancies_1_1(TableInfo, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, Node) ->
+redundancies_2(#redundancy_info{num_of_replicas = NumOfReplicas,
+                                members = Members,
+                                node = Node,
+                                vnode_id = VNodeId,
+                                vnode_id_hop = VNodeIdHop} = RedundancyInfo) ->
     case get_redundancies(Members, Node, []) of
         not_found ->
             {error, ?ERROR_COULD_NOT_GET_REDUNDANCIES};
         {Node, SetsL2} ->
-            redundancies_2(TableInfo, NumOfReplicas-1, L2, Members, VNodeId_Hop,
-                           #redundancies{id = VNodeId_Org,
-                                         vnode_id_to = VNodeId_Hop,
+            redundancies_3(RedundancyInfo#redundancy_info{
+                             num_of_replicas = (NumOfReplicas - 1),
+                             result = #redundancies{
+                                         id = VNodeId,
+                                         vnode_id_to = VNodeIdHop,
                                          temp_nodes = [Node],
                                          temp_level_2 = SetsL2,
-                                         nodes = [#redundant_node{node = Node}]})
+                                         nodes = [#redundant_node{node = Node}]}})
     end.
 
 %% @private
-redundancies_2(_TableInfo,_,_L2,_Members,-1,_R) ->
+redundancies_3(#redundancy_info{vnode_id = -1}) ->
     {error,  invalid_vnode};
-redundancies_2(_TableInfo,0,_L2,_Members,_VNodeId, #redundancies{nodes = Acc} = R) ->
+redundancies_3(#redundancy_info{num_of_replicas = 0,
+                                result = R}) ->
+    #redundancies{nodes = Acc} = R,
     {ok, R#redundancies{temp_nodes = [],
                         temp_level_2 = [],
                         nodes = lists:reverse(Acc)}};
-redundancies_2(TableInfo, NumOfReplicas, L2, Members, VNodeId_0, R) ->
-    case get_node_by_vnode_id(TableInfo, VNodeId_0) of
+
+redundancies_3(#redundancy_info{table_info = TableInfo,
+                                cluster_id = ClusterId,
+                                vnode_id = VNodeId} = RedundancyInfo) ->
+    case lookup_vnode_id(TableInfo, ClusterId, VNodeId) of
         {ok, VNodeId_1} ->
-            case leo_cluster_tbl_ring:lookup(TableInfo, VNodeId_1) of
+            case leo_cluster_tbl_ring:lookup(
+                   TableInfo, ClusterId, VNodeId_1) of
                 {error, Cause} ->
                     {error, Cause};
                 not_found ->
-                    case get_node_by_vnode_id(TableInfo, VNodeId_1) of
+                    case lookup_vnode_id(
+                           TableInfo, ClusterId, VNodeId_1) of
                         {ok, Node} ->
-                            redundancies_3(TableInfo, NumOfReplicas, L2, Members, VNodeId_1, Node, R);
+                            redundancies_4(
+                              RedundancyInfo#redundancy_info{node = Node,
+                                                             vnode_id = VNodeId_1});
                         {error, Cause} ->
                             {error, Cause}
                     end;
                 #?RING{node = Node} ->
-                    redundancies_3(TableInfo, NumOfReplicas, L2, Members, VNodeId_1, Node, R)
+                    redundancies_4(
+                      RedundancyInfo#redundancy_info{node = Node,
+                                                     vnode_id = VNodeId_1})
             end;
         _ ->
             {error, out_of_range}
     end.
 
-redundancies_3(TableInfo, NumOfReplicas, L2, Members, VNodeId, Node_1, R) ->
-    AccTempNode = R#redundancies.temp_nodes,
-    AccLevel2 = R#redundancies.temp_level_2,
-    AccNodes = R#redundancies.nodes,
+%% @private
+redundancies_4(#redundancy_info{node = Node,
+                                members = Members,
+                                num_of_replicas = NumOfReplicas,
+                                rack_awareness_level = L2,
+                                result = R} = RedundancyInfo) ->
+    #redundancies{temp_nodes = AccTempNode,
+                  temp_level_2 = AccLevel2,
+                  nodes = AccNodes} = R,
 
-    case lists:member(Node_1, AccTempNode) of
+    case lists:member(Node, AccTempNode) of
         true  ->
-            redundancies_2(TableInfo, NumOfReplicas, L2, Members, VNodeId, R);
+            redundancies_3(RedundancyInfo);
         false ->
-            case get_redundancies(Members, Node_1, AccLevel2) of
+            case get_redundancies(Members, Node, AccLevel2) of
                 not_found ->
                     {error, ?ERROR_COULD_NOT_GET_REDUNDANCIES};
                 {Node_2, AccLevel2_1} ->
                     case (L2 /= 0 andalso L2 == length(AccNodes)) of
                         true when length(AccLevel2_1) < (L2 + 1) ->
-                            redundancies_2(TableInfo, NumOfReplicas, L2, Members, VNodeId, R);
+                            redundancies_3(RedundancyInfo);
                         _ ->
-                            redundancies_2(TableInfo, NumOfReplicas-1, L2, Members, VNodeId,
-                                           R#redundancies{temp_nodes = [Node_2|AccTempNode],
-                                                          temp_level_2 = AccLevel2_1,
-                                                          nodes = [#redundant_node{node = Node_2}
-                                                                   |AccNodes]})
+                            redundancies_3(RedundancyInfo#redundancy_info{
+                                             num_of_replicas = (NumOfReplicas - 1),
+                                             result = R#redundancies{
+                                                        temp_nodes = [Node_2|AccTempNode],
+                                                        temp_level_2 = AccLevel2_1,
+                                                        nodes = [#redundant_node{node = Node_2}
+                                                                 |AccNodes]}
+                                            })
                     end
             end
     end.
 
 
-%% @doc Retrieve virtual-node by vnode-id
+%% @doc Retrieve vnode-id
 %% @private
--spec(get_node_by_vnode_id(TableInfo, VNodeId) ->
+-spec(lookup_vnode_id(TableInfo, ClusterId, VNodeId) ->
              {ok, integer()} |
              {error, any()} when TableInfo::ring_table_info(),
+                                 ClusterId::cluster_id(),
                                  VNodeId::integer()).
-get_node_by_vnode_id(TableInfo, VNodeId) ->
-    case leo_cluster_tbl_ring:next(TableInfo, VNodeId) of
+lookup_vnode_id(TableInfo, ClusterId, VNodeId) ->
+    %% @TODO
+    case leo_cluster_tbl_ring:next(TableInfo, ClusterId, VNodeId) of
         '$end_of_table' ->
-            case leo_cluster_tbl_ring:first(TableInfo) of
+            %% @TODO
+            case leo_cluster_tbl_ring:first(TableInfo, ClusterId) of
                 '$end_of_table' ->
                     {error, no_entry};
                 Node ->
@@ -743,19 +941,19 @@ get_node_by_vnode_id(TableInfo, VNodeId) ->
 
 %% @doc Retrieve a member from an argument.
 %% @private
--spec(get_redundancies([#member{}], atom(), [string()]) ->
+-spec(get_redundancies([#?MEMBER{}], atom(), [string()]) ->
              {atom, [string()]} | not_found).
 get_redundancies([],_,_) ->
     not_found;
-get_redundancies([#member{node = Node_0,
-                          grp_level_2 = L2}|_], Node_1, SetL2) when Node_0 == Node_1 ->
+get_redundancies([#?MEMBER{node = Node_0,
+                           grp_level_2 = L2}|_], Node_1, SetL2) when Node_0 == Node_1 ->
     case lists:member(L2, SetL2) of
         false  ->
             {Node_0, [L2|SetL2]};
         _Other ->
             {Node_0, SetL2}
     end;
-get_redundancies([#member{node = Node_0}|T], Node_1, SetL2) when Node_0 /= Node_1 ->
+get_redundancies([#?MEMBER{node = Node_0}|T], Node_1, SetL2) when Node_0 /= Node_1 ->
     get_redundancies(T, Node_1, SetL2).
 
 
@@ -766,19 +964,21 @@ get_redundancies([#member{node = Node_0}|T], Node_1, SetL2) when Node_0 /= Node_
                                                     Redundancies::#redundancies{},
                                                     State::#state{}).
 reply_redundancies(AddrId, #redundancies{nodes = RedundantNodeL} = Redundancies,
-                   #state{num_of_replicas = NumOfReplicas}) ->
-    reply_redundancies_1(AddrId, Redundancies,
+                   #state{cluster_id = ClusterId,
+                          num_of_replicas = NumOfReplicas}) ->
+    reply_redundancies_1(ClusterId, AddrId, Redundancies,
                          RedundantNodeL, NumOfReplicas, 0, []).
 
 %% @private
-reply_redundancies_1(AddrId, Redundancies,[],_,_,Acc) ->
+reply_redundancies_1(_,AddrId, Redundancies,[],_,_,Acc) ->
     {ok, Redundancies#redundancies{id = AddrId,
                                    nodes = lists:reverse(Acc)}};
-reply_redundancies_1(AddrId, Redundancies, [#redundant_node{node = Node}|Rest],
+reply_redundancies_1(ClusterId, AddrId, Redundancies,
+                     [#redundant_node{node = Node}|Rest],
                      NumOfReplicas, Index, Acc) ->
     NextIndex = Index + 1,
-    case leo_cluster_tbl_member:lookup(Node) of
-        {ok, #member{state = State}} ->
+    case leo_cluster_tbl_member:lookup(ClusterId, Node) of
+        {ok, #?MEMBER{state = State}} ->
             Available = (State == ?STATE_RUNNING),
             CanReadRepair = (NumOfReplicas >= (length(Acc) + 1)),
             ConsensusRole = case Index of
@@ -789,14 +989,14 @@ reply_redundancies_1(AddrId, Redundancies, [#redundant_node{node = Node}|Rest],
                                 _ when CanReadRepair /= true ->
                                     ?CNS_ROLE_OBSERBER
                             end,
-            reply_redundancies_1(AddrId, Redundancies,
+            reply_redundancies_1(ClusterId, AddrId, Redundancies,
                                  Rest, NumOfReplicas, NextIndex,
                                  [#redundant_node{node = Node,
                                                   available = Available,
                                                   can_read_repair = CanReadRepair,
                                                   role = ConsensusRole}|Acc]);
         _ ->
-            reply_redundancies_1(AddrId, Redundancies,
+            reply_redundancies_1(ClusterId, AddrId, Redundancies,
                                  Rest, NumOfReplicas, NextIndex, Acc)
     end.
 
@@ -834,16 +1034,18 @@ lookup_fun(VNodeIdTree, FirstVNodeId, LastVNodeId, AddrId, State) ->
 -spec(force_sync_fun(?SYNC_TARGET_RING_CUR|
                      ?SYNC_TARGET_RING_PREV, #state{}) ->
              #state{}).
-force_sync_fun(TargetRing, State) ->
+force_sync_fun(TargetRing, #state{cluster_id = ClusterId} = State) ->
     case update_state(State) of
         #state{num_of_replicas = NumOfReplica} = State_1 when NumOfReplica > 0 ->
+            %% @TODO > include
             Tbl = case TargetRing of
                       ?SYNC_TARGET_RING_CUR ->
                           ?MEMBER_TBL_CUR;
                       ?SYNC_TARGET_RING_PREV ->
                           ?MEMBER_TBL_PREV
                   end,
-            case leo_cluster_tbl_member:find_all(Tbl) of
+            case leo_cluster_tbl_member:find_by_cluster_id(
+                   Tbl, ClusterId) of
                 {ok, Members} ->
                     State_2 = case TargetRing of
                                   ?SYNC_TARGET_RING_CUR ->

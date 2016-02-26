@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2015 Rakuten, Inc.
+%% Copyright (c) 2012-2016 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -91,8 +91,10 @@ migrate_ring([{VNodeId, Node, _}|Rest], RingTbl) ->
                     ?RING_TBL_CUR  -> ?MEMBER_TBL_CUR;
                     ?RING_TBL_PREV -> ?MEMBER_TBL_PREV
                 end,
-    case leo_cluster_tbl_member:find_by_name(MemberTbl, Node) of
-        {ok, [#member{clock = Clock}|_]} ->
+    %% @TODO - cluster-id
+    ClusterId = [],
+    case leo_cluster_tbl_member:find_by_name(MemberTbl, ClusterId, Node) of
+        {ok, [#?MEMBER{clock = Clock}|_]} ->
             ok = leo_cluster_tbl_ring:insert(
                    {mnesia, RingTbl}, {VNodeId, Node, Clock}),
             migrate_ring(Rest, RingTbl);

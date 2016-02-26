@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2015 Rakuten, Inc.
+%% Copyright (c) 2012-2016 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -34,7 +34,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 
--export([start/2, publish/3]).
+-export([start/3, publish/4]).
 -export([init/0, handle_call/1, handle_call/3]).
 
 -define(MQ_MONITOR_NODE, 'mq_monitor_node').
@@ -42,10 +42,13 @@
 -define(MQ_PERSISTENT_NODE, 'mq_persistent_node').
 -define(MQ_DB_PATH, "membership").
 
--record(message, {node :: atom(),
+-record(message, {cluster_id :: cluster_id(),
+                  node :: atom(),
                   error :: any(),
                   times = 0 :: integer(),
                   published_at = 0 :: integer()}).
+
+
 
 -ifdef(TEST).
 -define(DEF_RETRY_TIMES, 3).
@@ -64,30 +67,32 @@
 %% API
 %%--------------------------------------------------------------------
 %% @doc create queues and launch mq-servers.
-%%
--spec(start(ServerType, RootPath) ->
-             ok | {error, any()} when ServerType::node_type()|atom(),
+-spec(start(ClusterId, NodeType, RootPath) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      NodeType::node_type()|atom(),
                                       RootPath::string()).
-start(?MONITOR_NODE, RootPath) ->
-    start1(?MQ_MONITOR_NODE, RootPath);
-start(?PERSISTENT_NODE, RootPath) ->
-    start1(?MQ_PERSISTENT_NODE, RootPath);
-start(?WORKER_NODE, RootPath) ->
-    start1(?MQ_WORKER_NODE, RootPath);
-start(_,_) ->
+start(ClusterId, ?MONITOR_NODE, RootPath) ->
+    start_1(ClusterId, ?MQ_MONITOR_NODE, RootPath);
+start(ClusterId, ?PERSISTENT_NODE, RootPath) ->
+    start_1(ClusterId, ?MQ_PERSISTENT_NODE, RootPath);
+start(ClusterId, ?WORKER_NODE, RootPath) ->
+    start_1(ClusterId, ?MQ_WORKER_NODE, RootPath);
+start(_,_,_) ->
     {error, badarg}.
 
-start1(InstanceId, RootPath0) ->
-    RootPath1 = case (string:len(RootPath0) == string:rstr(RootPath0, "/")) of
-                    true  -> RootPath0;
-                    false -> RootPath0 ++ "/"
-                end,
+%% @TODO
+start_1(_ClusterId, InstanceId, RootPath) ->
+    RootPath_1 = case (string:len(RootPath) == string:rstr(RootPath, "/")) of
+                     true ->
+                         RootPath;
+                     false ->
+                         RootPath ++ "/"
+                 end,
     {ok, RefSup} = application:get_env(leo_redundant_manager, mq_sup_ref),
-
     leo_mq_api:new(RefSup, InstanceId, [{?MQ_PROP_MOD, ?MODULE},
                                         {?MQ_PROP_DB_PROCS, 1},
                                         {?MQ_PROP_DB_NAME, ?DEF_BACKEND_DB},
-                                        {?MQ_PROP_ROOT_PATH, RootPath1 ++ ?MQ_DB_PATH},
+                                        {?MQ_PROP_ROOT_PATH, RootPath_1 ++ ?MQ_DB_PATH},
                                         {?MQ_PROP_INTERVAL_MAX, ?DEF_CONSUME_MAX_INTERVAL},
                                         {?MQ_PROP_INTERVAL_REG, ?DEF_CONSUME_REG_INTERVAL},
                                         {?MQ_PROP_BATCH_MSGS_MAX, ?DEF_CONSUME_MAX_BATCH_MSGS},
@@ -97,33 +102,33 @@ start1(InstanceId, RootPath0) ->
 
 
 %% @doc Publish a message into the queue.
-%%
--spec(publish(ServerType, Node, Error) ->
-             ok | {error, any()} when ServerType::atom(),
+-spec(publish(ClusterId, NodeType, Node, Error) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      NodeType::atom(),
                                       Node::atom(),
                                       Error::any()).
-publish(ServerType, Node, Error) ->
-    publish(ServerType, Node, Error, 1).
+publish(ClusterId, NodeType, Node, Error) ->
+    publish(ClusterId, NodeType, Node, Error, 1).
 
 %% @doc Publish a message into the queue.
-%%
--spec(publish(ServerType, Node, Error, Times) ->
-             ok | {error, any()} when ServerType::atom(),
+-spec(publish(ClusterId, NodeType, Node, Error, Times) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      NodeType::atom(),
                                       Node::atom(),
                                       Error::any(),
                                       Times::non_neg_integer()).
-publish(ServerType, Node, Error, Times) ->
-    KeyBin     = term_to_binary(Node),
-    MessageBin = term_to_binary(#message{node = Node,
+publish(ClusterId, NodeType, Node, Error, Times) ->
+    KeyBin = term_to_binary({ClusterId, Node}),
+    MessageBin = term_to_binary(#message{cluster_id = ClusterId,
+                                         node = Node,
                                          error = Error,
                                          times = Times,
                                          published_at = leo_date:now()}),
-    publish(ServerType, {KeyBin, MessageBin}).
+    publish(NodeType, {KeyBin, MessageBin}).
 
 %% @doc Publish a message into the queue.
-%%
--spec(publish(ServerType, KeyAndMessage) ->
-             ok | {error, any()} when ServerType::node_type(),
+-spec(publish(NodeType, KeyAndMessage) ->
+             ok | {error, any()} when NodeType::node_type(),
                                       KeyAndMessage::{binary(),binary()}).
 publish(?MONITOR_NODE, {KeyBin, MessageBin}) ->
     leo_mq_api:publish(?MQ_MONITOR_NODE, KeyBin, MessageBin);
@@ -143,7 +148,6 @@ publish(_,_) ->
 %% Callbacks
 %%--------------------------------------------------------------------
 %% @doc Initializer
-%%
 -spec(init() ->
              ok).
 init() ->
@@ -156,26 +160,33 @@ init() ->
                      Reply::any()).
 handle_call({consume, Id, MessageBin}) ->
     Message = binary_to_term(MessageBin),
-    #message{node  = RemoteNode,
-             times = Times,
-             error = Error} = Message,
-
-    case leo_redundant_manager_api:get_member_by_node(RemoteNode) of
-        {ok, #member{state = State}} ->
-            case leo_misc:node_existence(RemoteNode, timer:seconds(10)) of
-                true when State == ?STATE_STOP ->
-                    notify_error_to_manager(Id, RemoteNode, Error);
-                true ->
-                    ok;
-                false ->
-                    case State of
-                        ?STATE_ATTACHED  ->
+    case leo_misc:get_value(
+           cluster_id,
+           lists:zip(record_info(fields, message),
+                     tl(tuple_to_list(Message)))) of
+        undefined ->
+            ok;
+        _ ->
+            #message{cluster_id = ClusterId,
+                     node  = RemoteNode,
+                     times = Times,
+                     error = Error} = Message,
+            case leo_redundant_manager_api:get_member_by_node(
+                   ClusterId, RemoteNode) of
+                {ok, #?MEMBER{state = State}} ->
+                    case leo_misc:node_existence(
+                           RemoteNode, timer:seconds(10)) of
+                        true when State == ?STATE_STOP ->
+                            notify_error_to_manager(Id, RemoteNode, Error);
+                        true ->
                             ok;
-                        ?STATE_SUSPEND   ->
+                        false when State == ?STATE_ATTACHED ->
                             ok;
-                        ?STATE_DETACHED  ->
+                        false when State == ?STATE_SUSPEND ->
                             ok;
-                        ?STATE_RESTARTED ->
+                        false when State == ?STATE_DETACHED ->
+                            ok;
+                        false when State == ?STATE_RESTARTED ->
                             ok;
                         _ ->
                             case (Times == ?DEF_RETRY_TIMES) of
@@ -183,14 +194,14 @@ handle_call({consume, Id, MessageBin}) ->
                                     notify_error_to_manager(Id, RemoteNode, Error);
                                 false ->
                                     NewMessage = Message#message{times = Times + 1},
-                                    publish(Id, {term_to_binary(RemoteNode), term_to_binary(NewMessage)})
+                                    publish(Id, {term_to_binary(RemoteNode),
+                                                 term_to_binary(NewMessage)})
                             end
-                    end
-            end;
-        _ ->
-            ok
+                    end;
+                _ ->
+                    ok
+            end
     end.
-
 handle_call(_,_,_) ->
     ok.
 

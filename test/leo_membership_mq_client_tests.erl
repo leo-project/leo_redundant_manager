@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2014 Rakuten, Inc.
+%% Copyright (c) 2012-2016 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -31,6 +31,7 @@
 -ifdef(EUNIT).
 
 -define(NODEDOWN_NODE, 'nodedown_node').
+-define(CLUSTER_ID, 'leofs_c1').
 
 membership_mq_client_test_() ->
     {foreach, fun setup/0, fun teardown/1,
@@ -58,8 +59,14 @@ setup() ->
     S = os:cmd("pwd"),
     Path = string:substr(S, 1, length(S) -1) ++ "/db",
 
-    catch leo_redundant_manager_sup:stop(),
+    application:start(crypto),
     application:start(mnesia),
+    application:start(leo_redundant_manager),
+
+    ok = leo_cluster_tbl_member:create_table('ram_copies', [node()], ?MEMBER_TBL_CUR),
+    ok = leo_cluster_tbl_member:create_table('ram_copies', [node()], ?MEMBER_TBL_PREV),
+    ok = leo_cluster_tbl_member:create_table(?MEMBER_TBL_CUR),
+    ok = leo_cluster_tbl_member:create_table(?MEMBER_TBL_PREV),
     {Mgr0, Node0, Path}.
 
 teardown({Mgr0, Node0, Path}) ->
@@ -67,9 +74,6 @@ teardown({Mgr0, Node0, Path}) ->
 
     application:stop(mnesia),
     application:stop(leo_mq),
-    application:stop(leo_backend_db),
-
-    catch leo_redundant_manager_sup:stop(),
     application:stop(leo_redundant_manager),
 
     net_kernel:stop(),
@@ -82,14 +86,19 @@ teardown({Mgr0, Node0, Path}) ->
     ok.
 
 %% @doc publish
-%%
 pubsub_manager_0_({Mgr0, _Node0, Path}) ->
     prepare(),
-    leo_redundant_manager_sup:start_link(
-      ?MONITOR_NODE, [Mgr0], Path),
+    CallbackFun = fun()-> ok end,
+    Options = [{mq_dir, Path},
+               {monitors, [Mgr0]},
+               {membership_callback, CallbackFun},
+               {system_conf, [{n, 3}, {w, 1}, {r ,1}, {d, 1}]}],
+    ok = leo_redundant_manager_api:start(
+           ?CLUSTER_ID, ?MONITOR_NODE, Options),
 
     ok = leo_membership_mq_client:publish(
-           ?MONITOR_NODE, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
+           ?CLUSTER_ID, ?MONITOR_NODE,
+           ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(1500),
 
     History0 = meck:history(leo_cluster_tbl_member),
@@ -98,18 +107,25 @@ pubsub_manager_0_({Mgr0, _Node0, Path}) ->
 
 pubsub_manager_1_({Mgr0, _, Path}) ->
     prepare(),
-    leo_redundant_manager_sup:start_link(
-      ?MONITOR_NODE, [Mgr0], Path),
+
+    CallbackFun = fun()-> ok end,
+    Options = [{mq_dir, Path},
+               {monitors, [Mgr0]},
+               {membership_callback, CallbackFun},
+               {system_conf, [{n, 3}, {w, 1}, {r ,1}, {d, 1}]}],
+    ok = leo_redundant_manager_api:start(
+           ?CLUSTER_ID, ?MONITOR_NODE, Options),
 
     ok = leo_membership_mq_client:publish(
-           ?MONITOR_NODE, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
+           ?CLUSTER_ID, ?MONITOR_NODE,
+           ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(1500),
 
     History0 = meck:history(leo_cluster_tbl_member),
     ?assertEqual(true, erlang:length(History0) > 0),
     ok.
 
-pubsub_storage_({Mgr0, _, Path}) ->
+pubsub_storage_({Mgr0,_, Path}) ->
     prepare(),
 
     ok = rpc:call(Mgr0, meck, new,    [leo_manager_api, [no_link, non_strict]]),
@@ -118,10 +134,17 @@ pubsub_storage_({Mgr0, _, Path}) ->
                                                ok
                                        end]),
 
-    leo_redundant_manager_sup:start_link(
-      ?PERSISTENT_NODE, [Mgr0], Path),
+    CallbackFun = fun()-> ok end,
+    Options = [{mq_dir, Path},
+               {monitors, [Mgr0]},
+               {membership_callback, CallbackFun},
+               {system_conf, [{n, 3}, {w, 1}, {r ,1}, {d, 1}]}],
+    ok = leo_redundant_manager_api:start(
+           ?CLUSTER_ID, ?PERSISTENT_NODE, Options),
+
     ok = leo_membership_mq_client:publish(
-           ?PERSISTENT_NODE, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
+           ?CLUSTER_ID, ?PERSISTENT_NODE,
+           ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(1500),
 
     History0 = meck:history(leo_cluster_tbl_member),
@@ -139,11 +162,17 @@ pubsub_gateway_0_({Mgr0, _, Path}) ->
                                        fun(_Type, _Node1, _Node2, _Error) ->
                                                ok
                                        end]),
+    CallbackFun = fun()-> ok end,
+    Options = [{mq_dir, Path},
+               {monitors, [Mgr0]},
+               {membership_callback, CallbackFun},
+               {system_conf, [{n, 3}, {w, 1}, {r ,1}, {d, 1}]}],
+    ok = leo_redundant_manager_api:start(
+           ?CLUSTER_ID, ?WORKER_NODE, Options),
 
-    leo_redundant_manager_sup:start_link(
-      ?WORKER_NODE, [Mgr0], Path),
     ok = leo_membership_mq_client:publish(
-           ?WORKER_NODE, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
+           ?CLUSTER_ID, ?WORKER_NODE,
+           ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(1500),
 
     %% History0 = meck:history(leo_cluster_tbl_member),
@@ -160,11 +189,17 @@ pubsub_gateway_1_({Mgr0, _, Path}) ->
                                        fun(_Type, _Node1, _Node2, _Error) ->
                                                ok
                                        end]),
+    CallbackFun = fun()-> ok end,
+    Options = [{mq_dir, Path},
+               {monitors, [Mgr0]},
+               {membership_callback, CallbackFun},
+               {system_conf, [{n, 3}, {w, 1}, {r ,1}, {d, 1}]}],
+    ok = leo_redundant_manager_api:start(
+           ?CLUSTER_ID, ?WORKER_NODE, Options),
 
-    leo_redundant_manager_sup:start_link(
-      ?WORKER_NODE, [Mgr0], Path),
     ok = leo_membership_mq_client:publish(
-           ?WORKER_NODE, ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
+           ?CLUSTER_ID, ?WORKER_NODE,
+           ?NODEDOWN_NODE, ?ERR_TYPE_NODE_DOWN),
     timer:sleep(1500),
 
     %% History0 = meck:history(leo_cluster_tbl_member),
@@ -178,20 +213,15 @@ pubsub_gateway_1_({Mgr0, _, Path}) ->
 prepare() ->
     meck:new(leo_cluster_tbl_member, [non_strict]),
     meck:expect(leo_cluster_tbl_member, lookup,
-                fun(Node) ->
-                        {ok, #member{node  = Node,
-                                     state = ?STATE_STOP}}
+                fun(_ClusterId, Node) ->
+                        {ok, #?MEMBER{node  = Node,
+                                      state = ?STATE_STOP}}
                 end),
-    meck:expect(leo_cluster_tbl_member, find_all,
-                fun() ->
-                        {ok, [#member{node  = ?NODEDOWN_NODE,
-                                      state = ?STATE_STOP}]}
+    meck:expect(leo_cluster_tbl_member, find_by_cluster_id,
+                fun(_ClusterId) ->
+                        {ok, [#?MEMBER{node  = ?NODEDOWN_NODE,
+                                       state = ?STATE_STOP}]}
                 end),
-    meck:expect(leo_cluster_tbl_member, create_members,
-                fun(_) ->
-                        ok
-                end),
-
 
     meck:new(leo_cluster_tbl_ring, [non_strict]),
     meck:expect(leo_cluster_tbl_ring, create_table_current,

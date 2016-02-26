@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2015 Rakuten, Inc.
+%% Copyright (c) 2012-2016 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -30,15 +30,15 @@
 
 %% API
 -export([create_table/2,
-         all/0, get/0, find_by_ver/1,
+         all/1, get/1,
+         find_by_ver/1,
          update/1, delete/1,
-         checksum/0, synchronize/1,
+         checksum/1, synchronize/1,
          transform/0
         ]).
 
 
 %% @doc Create the system-configutation table
-%%
 -spec(create_table(Mode, Nodes) ->
              ok | {error, any()} when Mode::mnesia_copies(),
                                       Nodes::[atom()]).
@@ -51,7 +51,7 @@ create_table(Mode, Nodes) ->
             {attributes, record_info(fields, ?SYSTEM_CONF)},
             {user_properties,
              [
-              {version,              pos_integer, primary},
+              {version, pos_integer, primary},
               {cluster_id,           atom,        false},
               {dc_id,                atom,        false},
               {n,                    pos_integer, false},
@@ -72,17 +72,18 @@ create_table(Mode, Nodes) ->
 
 
 %% @doc Retrieve all configuration of remote-clusters
-%%
--spec(all() ->
-             {ok, [#?SYSTEM_CONF{}]} | not_found | {error, any()}).
-all() ->
+-spec(all(ClusterId) ->
+             {ok, [#?SYSTEM_CONF{}]} |
+             not_found | {error, any()} when ClusterId::cluster_id()).
+all(ClusterId) ->
     Tbl = ?TBL_SYSTEM_CONF,
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
         _ ->
             F = fun() ->
-                        Q1 = qlc:q([X || X <- mnesia:table(Tbl)]),
+                        Q1 = qlc:q([X || X <- mnesia:table(Tbl),
+                                         X#?SYSTEM_CONF.cluster_id == ClusterId]),
                         Q2 = qlc:sort(Q1, [{order, descending}]),
                         qlc:e(Q2)
                 end,
@@ -91,22 +92,25 @@ all() ->
 
 
 %% @doc Retrieve a system configuration (latest)
-%%
--spec(get() ->
-             {ok, #?SYSTEM_CONF{}} | not_found | {error, any()}).
-get() ->
+-spec(get(ClusterId) ->
+             {ok, #?SYSTEM_CONF{}} |
+             not_found |
+             {error, any()} when ClusterId::atom()).
+get(ClusterId) ->
     Tbl = ?TBL_SYSTEM_CONF,
     case catch mnesia:table_info(Tbl, all) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
         _ ->
             F = fun() ->
-                        Q1 = qlc:q([X || X <- mnesia:table(Tbl)]),
+                        Q1 = qlc:q([X || X <- mnesia:table(Tbl),
+                                        X#?SYSTEM_CONF.cluster_id == ClusterId]),
                         Q2 = qlc:sort(Q1, [{order, descending}]),
                         qlc:e(Q2)
                 end,
             get_1(leo_mnesia:read(F))
     end.
+
 get_1({ok, [H|_]}) ->
     {ok, H};
 get_1(Other) ->
@@ -114,7 +118,6 @@ get_1(Other) ->
 
 
 %% @doc Retrieve a system configuration
-%%
 -spec(find_by_ver(Ver) ->
              {ok, #?SYSTEM_CONF{}} |
              not_found |
@@ -137,22 +140,24 @@ find_by_ver(Ver) ->
 
 
 %% @doc Modify a system-configuration
-%%
 -spec(update(SystemConfig) ->
              ok | {error, any()} when SystemConfig::#?SYSTEM_CONF{}).
 update(SystemConfig) ->
     Tbl = ?TBL_SYSTEM_CONF,
-    case catch mnesia:table_info(Tbl, all) of
+    case mnesia:table_info(Tbl, size) of
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
-        _ ->
-            F = fun()-> mnesia:write(Tbl, SystemConfig, write) end,
+        Size ->
+            F = fun()->
+                        mnesia:write(
+                          Tbl, SystemConfig#?SYSTEM_CONF{
+                                               version = Size + 1}, write)
+                end,
             leo_mnesia:write(F)
     end.
 
 
 %% @doc Remove a system-configuration
-%%
 -spec(delete(SystemConfig) ->
              ok | {error, any()} when SystemConfig::#?SYSTEM_CONF{}).
 delete(SystemConfig) ->
@@ -169,11 +174,11 @@ delete(SystemConfig) ->
 
 
 %% @doc Retrieve a checksum by cluster-id
-%%
--spec(checksum() ->
-             {ok, pos_integer()} | {error, any()}).
-checksum() ->
-    case all() of
+-spec(checksum(ClusterId) ->
+             {ok, pos_integer()} |
+             {error, any()} when ClusterId::cluster_id()).
+checksum(ClusterId) ->
+    case all(ClusterId) of
         {ok, Vals} ->
             {ok, erlang:crc32(term_to_binary(Vals))};
         not_found ->
@@ -184,13 +189,13 @@ checksum() ->
 
 
 %% @doc Synchronize records
-%%
 -spec(synchronize(ValL) ->
              ok | {error, any()} when ValL::[#?SYSTEM_CONF{}]).
 synchronize(ValL) ->
+    [#?SYSTEM_CONF{cluster_id = ClusterId}|_] = ValL,
     case synchronize_1(ValL) of
         ok ->
-            case all() of
+            case all(ClusterId) of
                 {ok, CurValL} ->
                     ok = synchronize_2(CurValL, ValL);
                 _ ->
@@ -215,11 +220,11 @@ synchronize_1([V|Rest]) ->
 synchronize_2([],_) ->
     ok;
 synchronize_2([#?SYSTEM_CONF{version = Ver}|Rest], Vals) ->
-    ok = synchronize_2_1(Vals, Ver),
+    ok = synchronize_3(Vals, Ver),
     synchronize_2(Rest, Vals).
 
 %% @private
-synchronize_2_1([], Ver)->
+synchronize_3([], Ver)->
     case find_by_ver(Ver) of
         {ok, #?SYSTEM_CONF{} = SystemConf} ->
             delete(SystemConf);
@@ -227,14 +232,13 @@ synchronize_2_1([], Ver)->
             void
     end,
     ok;
-synchronize_2_1([#?SYSTEM_CONF{version = Ver}|_], Ver)->
+synchronize_3([#?SYSTEM_CONF{version = Ver}|_], Ver)->
     ok;
-synchronize_2_1([#?SYSTEM_CONF{}|Rest], Ver) ->
-    synchronize_2_1(Rest, Ver).
+synchronize_3([#?SYSTEM_CONF{}|Rest], Ver) ->
+    synchronize_3(Rest, Ver).
 
 
 %% @doc Transform records
-%%
 -spec(transform() ->
              ok | {error, any()}).
 transform() ->

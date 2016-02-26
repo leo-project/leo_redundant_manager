@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2014 Rakuten, Inc.
+%% Copyright (c) 2012-2016 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -18,10 +18,6 @@
 %% specific language governing permissions and limitations
 %% under the License.
 %%
-%% ---------------------------------------------------------------------
-%% Leo Redundant Manager - EUnit
-%% @doc
-%% @end
 %%======================================================================
 -module(leo_cluster_tbl_member_tests).
 
@@ -33,25 +29,53 @@
 %%--------------------------------------------------------------------
 -ifdef(EUNIT).
 
--define(ETS,    'ets').
+-define(ETS, 'ets').
 -define(MNESIA, 'mnesia').
 
--define(NODE_0, "node_0").
--define(NODE_1, "node_1").
--define(NODE_2, "node_2").
--define(NODE_3, "node_3").
--define(NODE_4, "node_4").
+-define(CLUSTER_ID_1, 'leofs_cluster_1').
+-define(CLUSTER_ID_2, 'leofs_cluster_2').
+
+-define(NODE_0, 'node_0@127.0.0.1').
+-define(NODE_1, 'node_1@127.0.0.1').
+-define(NODE_2, 'node_2@127.0.0.1').
+-define(NODE_3, 'node_3@127.0.0.1').
+-define(NODE_4, 'node_4@127.0.0.1').
 
 -define(RACK_1, "rack_1").
 -define(RACK_2, "rack_2").
 
--define(MEMBER_0, #member{node = ?NODE_0, alias="node_0_a", state = ?STATE_RUNNING, grp_level_2 = ?RACK_1}).
--define(MEMBER_1, #member{node = ?NODE_1, alias="node_1_b", state = ?STATE_SUSPEND, grp_level_2 = ?RACK_1}).
--define(MEMBER_2, #member{node = ?NODE_2, alias="node_2_c", state = ?STATE_RUNNING, grp_level_2 = ?RACK_1}).
--define(MEMBER_3, #member{node = ?NODE_3, alias="node_3_d", state = ?STATE_RUNNING, grp_level_2 = ?RACK_2}).
--define(MEMBER_4, #member{node = ?NODE_4, alias="node_4_e", state = ?STATE_STOP,    grp_level_2 = ?RACK_2}).
+-define(MEMBER_0, #?MEMBER{id = {?CLUSTER_ID_1, ?NODE_0},
+                           cluster_id = ?CLUSTER_ID_1,
+                           node = ?NODE_0,
+                           alias="node_0_a",
+                           state = ?STATE_RUNNING,
+                           grp_level_2 = ?RACK_1}).
+-define(MEMBER_1, #?MEMBER{id = {?CLUSTER_ID_1, ?NODE_1},
+                           node = ?NODE_1,
+                           cluster_id = ?CLUSTER_ID_1,
+                           alias="node_1_b",
+                           state = ?STATE_SUSPEND,
+                           grp_level_2 = ?RACK_1}).
+-define(MEMBER_2, #?MEMBER{id = {?CLUSTER_ID_1, ?NODE_2},
+                           node = ?NODE_2,
+                           cluster_id = ?CLUSTER_ID_1,
+                           alias="node_2_c",
+                           state = ?STATE_RUNNING,
+                           grp_level_2 = ?RACK_1}).
+-define(MEMBER_3, #?MEMBER{id = {?CLUSTER_ID_1, ?NODE_3},
+                           node = ?NODE_3,
+                           cluster_id = ?CLUSTER_ID_1,
+                           alias="node_3_d",
+                           state = ?STATE_RUNNING,
+                           grp_level_2 = ?RACK_2}).
+-define(MEMBER_4, #?MEMBER{id = {?CLUSTER_ID_1, ?NODE_4},
+                           node = ?NODE_4,
+                           cluster_id = ?CLUSTER_ID_1,
+                           alias="node_4_e",
+                           state = ?STATE_STOP,
+                           grp_level_2 = ?RACK_2}).
 
-membership_test_() ->
+member_tbl_test_() ->
     {foreach, fun setup/0, fun teardown/1,
      [{with, [T]} || T <- [
                            fun suite_mnesia_/1,
@@ -59,22 +83,20 @@ membership_test_() ->
                           ]]}.
 
 setup() ->
-    catch ets:delete_all_objects(?MEMBER_TBL_CUR),
-    catch ets:delete_all_objects(?MEMBER_TBL_PREV),
     ok.
-
 teardown(_) ->
     ok.
 
+
 suite_mnesia_(_) ->
-    %% ok = application:start(mnesia),
-    %% ok = leo_cluster_tbl_member:create_table('ram_copies', [node()], ?MEMBER_TBL_CUR),
-    %% ok = leo_cluster_tbl_member:create_table('ram_copies', [node()], ?MEMBER_TBL_PREV),
-    %% ?debugVal(mnesia:table_info(?MEMBER_TBL_CUR,  all)),
-    %% ?debugVal(mnesia:table_info(?MEMBER_TBL_PREV, all)),
-    %% ok = inspect(?MNESIA),
-    %% _ = application:stop(mnesia),
-    %% net_kernel:stop(),
+    application:start(mnesia),
+    ok = leo_cluster_tbl_member:create_table('ram_copies', [node()], ?MEMBER_TBL_CUR),
+    ok = leo_cluster_tbl_member:create_table('ram_copies', [node()], ?MEMBER_TBL_PREV),
+    ?debugVal(mnesia:table_info(?MEMBER_TBL_CUR,  all)),
+    ?debugVal(mnesia:table_info(?MEMBER_TBL_PREV, all)),
+
+    ok = inspect(?MNESIA),
+    application:stop(mnesia),
     ok.
 
 suite_ets_(_) ->
@@ -84,125 +106,74 @@ suite_ets_(_) ->
     ok.
 
 inspect(TableType) ->
-    not_found = leo_cluster_tbl_member:find_all(TableType, ?MEMBER_TBL_CUR),
-    not_found = leo_cluster_tbl_member:lookup(TableType, ?MEMBER_TBL_CUR, ?NODE_0),
+    ?debugVal(TableType),
+    not_found = leo_cluster_tbl_member:find_by_cluster_id(
+                  TableType, ?MEMBER_TBL_CUR, ?CLUSTER_ID_1),
+    not_found = leo_cluster_tbl_member:lookup(
+                  TableType, ?MEMBER_TBL_CUR, ?CLUSTER_ID_1, ?NODE_0),
 
-    ok = leo_cluster_tbl_member:insert(TableType, ?MEMBER_TBL_CUR, {?NODE_0, ?MEMBER_0}),
-    ok = leo_cluster_tbl_member:insert(TableType, ?MEMBER_TBL_CUR, {?NODE_1, ?MEMBER_1}),
-    ok = leo_cluster_tbl_member:insert(TableType, ?MEMBER_TBL_CUR, {?NODE_2, ?MEMBER_2}),
-    ok = leo_cluster_tbl_member:insert(TableType, ?MEMBER_TBL_CUR, {?NODE_3, ?MEMBER_3}),
-    ok = leo_cluster_tbl_member:insert(TableType, ?MEMBER_TBL_CUR, {?NODE_4, ?MEMBER_4}),
+    %% Insert records
+    ok = leo_cluster_tbl_member:insert(TableType, ?MEMBER_TBL_CUR, ?MEMBER_0),
+    ok = leo_cluster_tbl_member:insert(TableType, ?MEMBER_TBL_CUR, ?MEMBER_1),
+    ok = leo_cluster_tbl_member:insert(TableType, ?MEMBER_TBL_CUR, ?MEMBER_2),
+    ok = leo_cluster_tbl_member:insert(TableType, ?MEMBER_TBL_CUR, ?MEMBER_3),
+    ok = leo_cluster_tbl_member:insert(TableType, ?MEMBER_TBL_CUR, ?MEMBER_4),
 
-    {ok, Rack1} = leo_cluster_tbl_member:find_by_level2(?RACK_1),
-    {ok, Rack2} = leo_cluster_tbl_member:find_by_level2(?RACK_2),
-    ?assertEqual(3, length(Rack1)),
-    ?assertEqual(2, length(Rack2)),
+    %% Lookup a record
+    {ok, Ret_1} = leo_cluster_tbl_member:lookup(
+                    TableType, ?MEMBER_TBL_CUR, ?CLUSTER_ID_1, ?NODE_0),
+    ?assertEqual(?MEMBER_0, Ret_1),
+    {ok, Ret_2} = leo_cluster_tbl_member:lookup(
+                    TableType, ?MEMBER_TBL_CUR, ?CLUSTER_ID_1, ?NODE_1),
+    ?assertEqual(?MEMBER_1, Ret_2),
+    {ok, Ret_3} = leo_cluster_tbl_member:lookup(
+                    TableType, ?MEMBER_TBL_CUR, ?CLUSTER_ID_1, ?NODE_2),
+    ?assertEqual(?MEMBER_2, Ret_3),
+    {ok, Ret_4} = leo_cluster_tbl_member:lookup(
+                    TableType, ?MEMBER_TBL_CUR, ?CLUSTER_ID_1, ?NODE_3),
+    ?assertEqual(?MEMBER_3, Ret_4),
+    {ok, Ret_5} = leo_cluster_tbl_member:lookup(
+                    TableType, ?MEMBER_TBL_CUR, ?CLUSTER_ID_1, ?NODE_4),
+    ?assertEqual(?MEMBER_4, Ret_5),
 
-    Res0 = leo_cluster_tbl_member:table_size(TableType, ?MEMBER_TBL_CUR),
-    ?assertEqual(5, Res0),
+    {ok, RetL_1} = leo_cluster_tbl_member:find_by_cluster_id(
+                     TableType, ?MEMBER_TBL_CUR, ?CLUSTER_ID_1),
+    ?assertEqual(5, erlang:length(RetL_1)),
 
-    Res1 = leo_cluster_tbl_member:lookup(TableType, ?MEMBER_TBL_CUR, ?NODE_0),
-    ?assertEqual({ok, ?MEMBER_0}, Res1),
-    Res2 = leo_cluster_tbl_member:lookup(TableType, ?MEMBER_TBL_CUR, ?NODE_1),
-    ?assertEqual({ok, ?MEMBER_1}, Res2),
-    Res3 = leo_cluster_tbl_member:lookup(TableType, ?MEMBER_TBL_CUR, ?NODE_2),
-    ?assertEqual({ok, ?MEMBER_2}, Res3),
-    Res4 = leo_cluster_tbl_member:lookup(TableType, ?MEMBER_TBL_CUR, ?NODE_3),
-    ?assertEqual({ok, ?MEMBER_3}, Res4),
-    Res5 = leo_cluster_tbl_member:lookup(TableType, ?MEMBER_TBL_CUR, ?NODE_4),
-    ?assertEqual({ok, ?MEMBER_4}, Res5),
+    {ok, RetL_2} = leo_cluster_tbl_member:find_by_status(
+                     TableType, ?MEMBER_TBL_CUR,
+                     ?CLUSTER_ID_1, ?STATE_RUNNING),
+    ?assertEqual(3, erlang:length(RetL_2)),
 
-    {ok, Res6} = leo_cluster_tbl_member:find_all(TableType, ?MEMBER_TBL_CUR),
-    ?assertEqual(5, length(Res6)),
+    {ok, RetL_3} = leo_cluster_tbl_member:find_by_status(
+                     TableType, ?MEMBER_TBL_CUR,
+                     ?CLUSTER_ID_1, ?STATE_SUSPEND),
+    ?assertEqual(1, erlang:length(RetL_3)),
 
-    ok = leo_cluster_tbl_member:delete(TableType, ?MEMBER_TBL_CUR, ?NODE_0),
-    not_found = leo_cluster_tbl_member:lookup(TableType, ?MEMBER_TBL_CUR, ?NODE_0),
-    Res7 = leo_cluster_tbl_member:table_size(TableType, ?MEMBER_TBL_CUR),
-    ?assertEqual(4, Res7),
-
-    Ret8 = leo_cluster_tbl_member:tab2list(TableType, ?MEMBER_TBL_CUR),
-    ?assertEqual(4, length(Ret8)),
-
-
-    ok = leo_cluster_tbl_member:replace(
-           TableType, ?MEMBER_TBL_CUR,
-           [?MEMBER_1, ?MEMBER_2, ?MEMBER_3, ?MEMBER_4],
-           [?MEMBER_3, ?MEMBER_4]),
-
-    Ret9 = leo_cluster_tbl_member:tab2list(TableType, ?MEMBER_TBL_CUR),
-    ?assertEqual(2, length(Ret9)),
-
-    Res10 = leo_cluster_tbl_member:table_size(TableType, ?MEMBER_TBL_CUR),
-    ?assertEqual(2, Res10),
-
-    ok = leo_cluster_tbl_member:insert(TableType, ?MEMBER_TBL_CUR, {?NODE_0, ?MEMBER_0}),
-    ok = leo_cluster_tbl_member:insert(TableType, ?MEMBER_TBL_CUR, {?NODE_0, ?MEMBER_0}),
-
-    Res11 = leo_cluster_tbl_member:table_size(TableType, ?MEMBER_TBL_CUR),
-    ?assertEqual(3, Res11),
-    Ret12 = leo_cluster_tbl_member:tab2list(TableType, ?MEMBER_TBL_CUR),
-    ?assertEqual(3, length(Ret12)),
-
-    {ok, Ret13} = leo_cluster_tbl_member:find_by_status(TableType, ?MEMBER_TBL_CUR, ?STATE_RUNNING),
-    ?assertEqual(2, length(Ret13)),
-
-    Ret14 = leo_cluster_tbl_member:find_by_status(TableType, ?MEMBER_TBL_CUR, undefined),
-    ?assertEqual(not_found, Ret14),
+    {ok, RetL_4} = leo_cluster_tbl_member:find_by_status(
+                     TableType, ?MEMBER_TBL_CUR,
+                     ?CLUSTER_ID_1, ?STATE_STOP),
+    ?assertEqual(1, erlang:length(RetL_4)),
 
 
-    {ok, Ret15} = leo_cluster_tbl_member:find_all(),
-    lists:foreach(fun(#member{alias = Alias,
-                              grp_level_2 = L2
-                             }) ->
-                          ?assertEqual(false, [] == Alias),
-                          ?assertEqual(false, undefined == Alias),
-                          ?assertEqual(false, [] == L2),
-                          ?assertEqual(false, undefined == L2)
-                  end, Ret15),
+    {ok, Rack_1} = leo_cluster_tbl_member:find_by_level2(
+                     TableType, ?MEMBER_TBL_CUR, ?CLUSTER_ID_1, ?RACK_1),
+    {ok, Rack_2} = leo_cluster_tbl_member:find_by_level2(
+                     TableType, ?MEMBER_TBL_CUR, ?CLUSTER_ID_1, ?RACK_2),
+    ?assertEqual(3, length(Rack_1)),
+    ?assertEqual(2, length(Rack_2)),
 
-    %% TEST overwrite records - cur to prev
-    not_found = leo_cluster_tbl_member:find_all(?MEMBER_TBL_PREV),
-    ok = leo_cluster_tbl_member:overwrite(?MEMBER_TBL_CUR, ?MEMBER_TBL_PREV),
+    Size_1 = leo_cluster_tbl_member:table_size(
+               TableType, ?MEMBER_TBL_CUR, ?CLUSTER_ID_1),
+    ?assertEqual(5, Size_1),
 
-    {ok, Ret17} = leo_cluster_tbl_member:find_all(?MEMBER_TBL_PREV),
-    ?assertEqual(3, length(Ret17)),
-    ?assertEqual(Ret15, Ret17),
+    ok = leo_cluster_tbl_member:delete(
+           TableType, ?MEMBER_TBL_CUR, ?CLUSTER_ID_1, ?NODE_0),
+    not_found = leo_cluster_tbl_member:lookup(
+                  TableType, ?MEMBER_TBL_CUR, ?CLUSTER_ID_1, ?NODE_0),
 
-    %% migration test
-    ok = meck:new(leo_redundant_manager_api, [no_link, non_strict]),
-    ok = meck:expect(leo_redundant_manager_api, synchronize, fun(_,[]) ->
-                                                                     ok
-                                                             end),
-    ok = meck:new(mnesia, [no_link, non_strict]),
-    ok = meck:expect(mnesia, table_info, fun(_,_) ->
-                                                 ok
-                                         end),
-
-    OldTable = 'leo_members',
-    ok = leo_cluster_tbl_member:create_table(OldTable),
-    ok = leo_cluster_tbl_member:delete_all(?MEMBER_TBL_CUR),
-    ok = leo_cluster_tbl_member:delete_all(?MEMBER_TBL_PREV),
-
-    ok = leo_cluster_tbl_member:insert(TableType, OldTable, {?NODE_0, ?MEMBER_0}),
-    ok = leo_cluster_tbl_member:insert(TableType, OldTable, {?NODE_1, ?MEMBER_1}),
-    ok = leo_cluster_tbl_member:insert(TableType, OldTable, {?NODE_2, ?MEMBER_2}),
-
-    ok = leo_cluster_tbl_member:transform(),
-    {ok, MembersOrg}  = leo_cluster_tbl_member:find_all(OldTable),
-    {ok, MembersCur}  = leo_cluster_tbl_member:find_all(?MEMBER_TBL_CUR),
-    {ok, MembersPrev} = leo_cluster_tbl_member:find_all(?MEMBER_TBL_PREV),
-    ?assertEqual(length(MembersOrg), length(MembersCur )),
-    ?assertEqual(length(MembersOrg), length(MembersPrev)),
-
-    MembersOrgHash  = erlang:crc32(term_to_binary(lists:sort(MembersOrg))),
-    MembersCurHash  = erlang:crc32(term_to_binary(lists:sort(MembersCur))),
-    MembersPrevHash = erlang:crc32(term_to_binary(lists:sort(MembersPrev))),
-
-    ?assertEqual(MembersOrgHash, MembersCurHash ),
-    ?assertEqual(MembersOrgHash, MembersPrevHash),
-
-    meck:unload(),
+    Size_2 = leo_cluster_tbl_member:table_size(
+               TableType, ?MEMBER_TBL_CUR, ?CLUSTER_ID_1),
+    ?assertEqual(4, Size_2),
     ok.
-
 -endif.
-

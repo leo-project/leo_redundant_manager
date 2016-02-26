@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2015 Rakuten, Inc.
+%% Copyright (c) 2012-2016 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -153,7 +153,8 @@ sync_tables(master, Monitors) ->
 sync_tables(slave,  Monitors) ->
     sync_tables(manager, Monitors);
 sync_tables(manager,_Monitors) ->
-    Redundancies = ?rnd_nodes_from_ring(),
+    %% TODO - ?rnd_nodes_from_ring/1
+    Redundancies = ?rnd_nodes_from_ring([]),
     case sync_tables_1(Redundancies) of
         ok ->
             ok;
@@ -169,7 +170,8 @@ sync_tables(manager,_Monitors) ->
 sync_tables(_ServerType, []) ->
     ok;
 sync_tables(ServerType, [Manager|Rest]) ->
-    case sync_tables_1(?rnd_nodes_from_ring()) of
+    %% @TODO - ?rnd_nodes_from_ring/1
+    case sync_tables_1(?rnd_nodes_from_ring([])) of
         ok ->
             ok;
         {Node, BadItems} ->
@@ -193,9 +195,12 @@ sync_tables_1([#redundant_node{node = Node,
     sync_tables_1(Rest);
 sync_tables_1([#redundant_node{node = Node,
                                available = true}|Rest]) ->
-    case rpc:call(Node, leo_redundant_manager_api, get_cluster_tbl_checksums, []) of
+    %% @TODO - leo_redundant_manager_api:get_cluster_tbl_checksums/1
+    case rpc:call(Node, leo_redundant_manager_api,
+                  get_cluster_tbl_checksums, [{}]) of
         {ok, ResL_1} ->
-            {ok, ResL_2} = leo_redundant_manager_api:get_cluster_tbl_checksums(),
+            %% TODO - leo_redundant_manager_api:get_cluster_tbl_checksums/1
+            {ok, ResL_2} = leo_redundant_manager_api:get_cluster_tbl_checksums({}),
             case check_consistency(ResL_1, ResL_2) of
                 [] ->
                     ok;

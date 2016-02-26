@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2014 Rakuten, Inc.
+%% Copyright (c) 2012-2016 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -76,6 +76,7 @@ suite_(_) ->
     application:start(mnesia),
     ok = leo_mdcr_tbl_cluster_info:create_table(ram_copies, [node()]),
 
+    ClusterId_1 = "cluster_12",
     Res1 = leo_mdcr_tbl_cluster_info:all(),
     ?assertEqual(not_found, Res1),
 
@@ -88,16 +89,16 @@ suite_(_) ->
 
     ?assertEqual(3, leo_mdcr_tbl_cluster_info:size()),
 
-    Res5 = leo_mdcr_tbl_cluster_info:get("cluster_12"),
+    Res5 = leo_mdcr_tbl_cluster_info:get(ClusterId_1),
     ?assertEqual({ok, ?CONF_2}, Res5),
 
     {ok, Res6} = leo_mdcr_tbl_cluster_info:all(),
     ?assertEqual(3, length(Res6)),
 
-    Res7 = leo_mdcr_tbl_cluster_info:delete("cluster_12"),
+    Res7 = leo_mdcr_tbl_cluster_info:delete(ClusterId_1),
     ?assertEqual(ok, Res7),
 
-    Res8 = leo_mdcr_tbl_cluster_info:get("cluster_12"),
+    Res8 = leo_mdcr_tbl_cluster_info:get(ClusterId_1),
     ?assertEqual(not_found, Res8),
 
     {ok, Res9} = leo_mdcr_tbl_cluster_info:all(),

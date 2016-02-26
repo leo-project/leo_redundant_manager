@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2014 Rakuten, Inc.
+%% Copyright (c) 2012-2016 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -31,6 +31,7 @@
 
 -define(TEST_RING_HASH,   {1050503645, 1050503645}).
 -define(TEST_MEMBER_HASH, 3430631340).
+-define(CLUSTER_ID, 'leofs_c1').
 
 membership_test_() ->
     {foreach, fun setup/0, fun teardown/1,
@@ -68,16 +69,17 @@ setup() ->
     leo_misc:init_env(),
     leo_misc:set_env(?APP, ?PROP_SERVER_TYPE, ?MONITOR_NODE),
 
+    application:start(crypto),
     application:start(mnesia),
+    application:start(leo_redundant_manager),
+
     leo_cluster_tbl_member:create_table(ram_copies, [node()], ?MEMBER_TBL_CUR),
-    %% leo_cluster_tbl_member:create_table(mnesia, ram_copies),
     {Hostname, Mgr0, Mgr1, Node0, Node1, Node2}.
 
 teardown({_, Mgr0, Mgr1, Node0, Node1, Node2}) ->
-    %% application:stop(leo_mq),
-    %% application:stop(leo_backend_db),
-    catch leo_redundant_manager:stop(),
+    application:stop(leo_redundant_manager),
     application:stop(mnesia),
+    application:stop(crypto),
     meck:unload(),
 
     net_kernel:stop(),
@@ -114,19 +116,45 @@ membership_manager_({Hostname, _, _, Node0, Node1, Node2}) ->
                                                 {ok, -1}
                                         end]),
 
-    Path = filename:absname("") ++ "db/queue",
-    leo_redundant_manager_sup:start_link(
-      ?MONITOR_NODE, [list_to_atom("test_manager@" ++ Hostname)], Path),
-    leo_redundant_manager_api:set_options([{n, 3},
-                                           {r, 1},
-                                           {w ,1},
-                                           {d, 1},
-                                           {bit_of_ring, 128}]),
-    leo_redundant_manager_api:attach(list_to_atom("node_0@" ++ Hostname)),
-    leo_redundant_manager_api:attach(list_to_atom("node_1@" ++ Hostname)),
-    leo_redundant_manager_api:attach(list_to_atom("node_2@" ++ Hostname)),
+    %% Path = filename:absname("") ++ "db/queue",
+    {ok,_RefSup} = leo_redundant_manager_sup:start_link(),
 
-    {ok, _Members, _Chksums} = leo_redundant_manager_api:create(?VER_CUR),
+    CallbackFun = fun()-> ok end,
+    Options = [{mq_dir, "work/mq-dir/"},
+               {monitors, ['manager_0@127.0.0.1', 'manager_1@127.0.0.1']},
+               {membership_callback, CallbackFun},
+               {system_conf, [{n, 3}, {w, 1}, {r ,1}, {d, 1}]}],
+    ok = leo_redundant_manager_api:start(
+           ?CLUSTER_ID, 'persistent_node', Options),
+
+    Node_1 = list_to_atom("node_0@" ++ Hostname),
+    Node_2 = list_to_atom("node_1@" ++ Hostname),
+    Node_3 = list_to_atom("node_2@" ++ Hostname),
+
+    leo_redundant_manager_api:attach(
+      ?CLUSTER_ID, #?MEMBER{id = {?CLUSTER_ID, Node_1},
+                            cluster_id = ?CLUSTER_ID,
+                            node = Node_1,
+                            ip = "127.0.0.1",
+                            state = 'attached'
+                           }),
+    leo_redundant_manager_api:attach(
+      ?CLUSTER_ID, #?MEMBER{id = {?CLUSTER_ID, Node_2},
+                            cluster_id = ?CLUSTER_ID,
+                            node = Node_2,
+                            ip = "127.0.0.1",
+                            state = 'attached'
+                           }),
+    leo_redundant_manager_api:attach(
+      ?CLUSTER_ID, #?MEMBER{id = {?CLUSTER_ID, Node_3},
+                            cluster_id = ?CLUSTER_ID,
+                            node = Node_3,
+                            ip = "127.0.0.1",
+                            state = 'attached'
+                           }),
+    {ok,_Members,_Chksums} =
+        leo_redundant_manager_api:create(?CLUSTER_ID, ?VER_CUR),
+    ?debugVal({_Members,_Chksums}),
     timer:sleep(1500),
     ok.
 
@@ -165,20 +193,43 @@ membership_storage_({Hostname, Mgr0, Mgr1, Node0, Node1, Node2}) ->
                                                ok
                                        end]),
 
-    Path = filename:absname("") ++ "db/queue",
-    leo_redundant_manager_sup:start_link(
-      ?PERSISTENT_NODE,
-      [list_to_atom("manager_master@" ++ Hostname),
-       list_to_atom("manager_slave@"  ++ Hostname)], Path),
-    leo_redundant_manager_api:set_options([{n, 3},
-                                           {r, 1},
-                                           {w ,1},
-                                           {d, 1},
-                                           {bit_of_ring, 128}]),
-    leo_redundant_manager_api:attach(list_to_atom("node_0@" ++ Hostname)),
-    leo_redundant_manager_api:attach(list_to_atom("node_1@" ++ Hostname)),
-    leo_redundant_manager_api:attach(list_to_atom("node_2@" ++ Hostname)),
-    {ok, _Members, _Chksums} = leo_redundant_manager_api:create(?VER_CUR),
+    CallbackFun = fun()-> ok end,
+    Options = [{mq_dir, "db/queue/"},
+               {monitors, [list_to_atom("manager_master@" ++ Hostname),
+                           list_to_atom("manager_slave@" ++ Hostname)]},
+               {membership_callback, CallbackFun},
+               {system_conf, [{n, 3}, {w, 1}, {r ,1}, {d, 1}]}],
+    ok = leo_redundant_manager_api:start(
+           ?CLUSTER_ID, 'persistent_node', Options),
+
+    Node_1 = list_to_atom("node_0@" ++ Hostname),
+    Node_2 = list_to_atom("node_1@" ++ Hostname),
+    Node_3 = list_to_atom("node_2@" ++ Hostname),
+
+    leo_redundant_manager_api:attach(
+      ?CLUSTER_ID, #?MEMBER{id = {?CLUSTER_ID, Node_1},
+                            cluster_id = ?CLUSTER_ID,
+                            node = Node_1,
+                            ip = "127.0.0.1",
+                            state = 'attached'
+                           }),
+    leo_redundant_manager_api:attach(
+      ?CLUSTER_ID, #?MEMBER{id = {?CLUSTER_ID, Node_2},
+                            cluster_id = ?CLUSTER_ID,
+                            node = Node_2,
+                            ip = "127.0.0.1",
+                            state = 'attached'
+                           }),
+    leo_redundant_manager_api:attach(
+      ?CLUSTER_ID, #?MEMBER{id = {?CLUSTER_ID, Node_3},
+                            cluster_id = ?CLUSTER_ID,
+                            node = Node_3,
+                            ip = "127.0.0.1",
+                            state = 'attached'
+                           }),
+    {ok,_Members,_Chksums} =
+        leo_redundant_manager_api:create(?CLUSTER_ID, ?VER_CUR),
+    ?debugVal({_Members,_Chksums}),
     timer:sleep(1500),
 
     %% History0 = rpc:call(Mgr0, meck, history, [leo_manager_api]),
@@ -188,4 +239,3 @@ membership_storage_({Hostname, Mgr0, Mgr1, Node0, Node1, Node2}) ->
     ok.
 
 -endif.
-

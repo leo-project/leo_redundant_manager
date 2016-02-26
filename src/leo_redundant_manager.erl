@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2015 Rakuten, Inc.
+%% Copyright (c) 2012-2016 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -34,268 +34,258 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %% API
--export([start_link/0, stop/0]).
+-export([start_link/1, stop/1]).
 
--export([create/1, checksum/1, has_member/1, get_members/0, get_members/1,
-         get_member_by_node/1, get_members_by_status/2,
-         update_member/1,
-         update_members/1, update_members/3,
-         update_member_by_node/2, update_member_by_node/3,
-         delete_member_by_node/1, dump/1]).
+-export([create/2, checksum/2, has_member/2, get_members/1, get_members/2,
+         get_member_by_node/2, get_members_by_status/3,
+         update_member/2,
+         update_members/2, update_members/4,
+         update_member_by_node/3, update_member_by_node/4,
+         delete_member_by_node/2, dump/2]).
 
--export([attach/4, attach/5, attach/6,
-         reserve/5, reserve/6,
-         detach/2, detach/3, suspend/2]).
+-export([attach/2, reserve/2,
+         detach/3,  detach/4, suspend/3]).
 
 %% gen_server callbacks
 -export([init/1,
          handle_call/3,
          handle_cast/2,
          handle_info/2,
-	       terminate/2,
+         terminate/2,
          code_change/3]).
 
 -undef(DEF_TIMEOUT).
 -define(DEF_TIMEOUT, timer:seconds(30)).
 -define(DEF_TIMEOUT_LONG, timer:seconds(120)).
 
-%% -record(state, {
-%%           cur_vnode_trees = [] :: [{atom(), leo_gb_trees:tree()}],
-%%           prev_vnode_trees = [] :: [{atom(), leo_gb_trees:tree()}]
-%%          }).
+-record(state, {id :: atom(),
+                cluster_id :: cluster_id()
+               }).
 
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 %% @doc Start the process
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link(ClusterId) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:start_link({local, Id}, ?MODULE, [Id, ClusterId], []).
 
 %% @doc Stop the process
-stop() ->
-    gen_server:call(?MODULE, stop, ?DEF_TIMEOUT).
+stop(ClusterId) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, stop, ?DEF_TIMEOUT).
 
 
 %% @doc Create the Rings.
-%%
--spec(create(Ver) ->
-             ok | {error, any()} when Ver::?VER_CUR|?VER_PREV).
-create(Ver) ->
-    gen_server:call(?MODULE, {create, Ver}, ?DEF_TIMEOUT_LONG).
+-spec(create(ClusterId, Ver) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      Ver::?VER_CUR|?VER_PREV).
+create(ClusterId, Ver) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {create, Ver}, ?DEF_TIMEOUT_LONG).
 
 
 %% @doc Retrieve checksum of ring/member
-%%
--spec(checksum(Type) ->
-             {ok, integer() | tuple()} when Type::checksum_type()).
-checksum(Type) ->
-    gen_server:call(?MODULE, {checksum, Type}, ?DEF_TIMEOUT).
+-spec(checksum(ClusterId, Type) ->
+             {ok, integer() | tuple()} when ClusterId::cluster_id(),
+                                            Type::checksum_type()).
+checksum(ClusterId, Type) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {checksum, Type}, ?DEF_TIMEOUT).
 
 
 %% @doc Is exists member?
-%%
--spec(has_member(Node) ->
-             boolean() when Node::atom()).
-has_member(Node) ->
-    gen_server:call(?MODULE, {has_member, Node}, ?DEF_TIMEOUT).
+-spec(has_member(ClusterId, Node) ->
+             boolean() when ClusterId::cluster_id(),
+                            Node::atom()).
+has_member(ClusterId, Node) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {has_member, Node}, ?DEF_TIMEOUT).
 
 
 %% @doc Retrieve all members.
-%%
--spec(get_members() ->
-             {ok, [#member{}]} | {error, any()}).
-get_members() ->
-    gen_server:call(?MODULE, {get_members, ?VER_CUR}, ?DEF_TIMEOUT).
+-spec(get_members(ClusterId) ->
+             {ok, [#?MEMBER{}]} | {error, any()} when ClusterId::cluster_id()).
+get_members(ClusterId) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {get_members, ?VER_CUR}, ?DEF_TIMEOUT).
 
--spec(get_members(Ver) ->
-             {ok, [#member{}]} | {error, any()} when Ver::?VER_CUR|?VER_PREV).
-get_members(Ver) ->
-    gen_server:call(?MODULE, {get_members, Ver}, ?DEF_TIMEOUT).
+-spec(get_members(ClusterId, Ver) ->
+             {ok, [#?MEMBER{}]} | {error, any()} when ClusterId::cluster_id(),
+                                                      Ver::?VER_CUR|?VER_PREV).
+get_members(ClusterId, Ver) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {get_members, Ver}, ?DEF_TIMEOUT).
 
 
 %% @doc Retrieve a member by node.
-%%
--spec(get_member_by_node(Node) ->
-             {ok, #member{}} | {error, any()} when Node::atom()).
-get_member_by_node(Node) ->
-    gen_server:call(?MODULE, {get_member_by_node, Node}, ?DEF_TIMEOUT).
+-spec(get_member_by_node(ClusterId, Node) ->
+             {ok, #?MEMBER{}} | {error, any()} when ClusterId::cluster_id(),
+                                                    Node::atom()).
+get_member_by_node(ClusterId, Node) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {get_member_by_node, Node}, ?DEF_TIMEOUT).
 
 
 %% @doc Retrieve members by status.
-%%
--spec(get_members_by_status(Ver, Status) ->
-             {ok, list(#member{})} |
-             {error, any()} when Ver::?VER_CUR|?VER_PREV,
+-spec(get_members_by_status(ClusterId, Ver, Status) ->
+             {ok, [#?MEMBER{}]} |
+             {error, any()} when ClusterId::cluster_id(),
+                                 Ver::?VER_CUR|?VER_PREV,
                                  Status::atom()).
-get_members_by_status(Ver, Status) ->
-    gen_server:call(?MODULE, {get_members_by_status, Ver, Status}, ?DEF_TIMEOUT).
+get_members_by_status(ClusterId, Ver, Status) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {get_members_by_status, Ver, Status}, ?DEF_TIMEOUT).
 
 
 %% @doc Modify a member.
-%%
--spec(update_member(Member) ->
-             ok | {error, any()} when Member::#member{}).
-update_member(Member) ->
-    gen_server:call(?MODULE, {update_member, Member}, ?DEF_TIMEOUT).
+-spec(update_member(ClusterId, Member) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      Member::#?MEMBER{}).
+update_member(ClusterId, Member) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {update_member, Member}, ?DEF_TIMEOUT).
 
 
 %% @doc Modify members.
-%%
--spec(update_members(Members) ->
-             ok | {error, any()} when Members::[#member{}]).
-update_members(Members) ->
-    gen_server:call(?MODULE, {update_members, Members}, ?DEF_TIMEOUT).
+-spec(update_members(ClusterId, Members) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      Members::[#?MEMBER{}]).
+update_members(ClusterId, Members) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {update_members, Members}, ?DEF_TIMEOUT).
 
--spec(update_members(Table, OldMembers, NewMembers) ->
-             ok | {error, any()} when Table::atom(),
-                                      OldMembers::[#member{}],
-                                      NewMembers::[#member{}]).
-update_members(Table, OldMembers, NewMembers) ->
-    gen_server:call(?MODULE, {update_members, Table, OldMembers, NewMembers}, ?DEF_TIMEOUT).
+-spec(update_members(ClusterId, Table, OldMembers, NewMembers) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      Table::atom(),
+                                      OldMembers::[#?MEMBER{}],
+                                      NewMembers::[#?MEMBER{}]).
+update_members(ClusterId, Table, OldMembers, NewMembers) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {update_members, Table, OldMembers, NewMembers}, ?DEF_TIMEOUT).
 
 
 %% @doc Modify a member by node.
-%%
--spec(update_member_by_node(Node, NodeState) ->
-             ok | {error, any()} when Node::atom(),
+-spec(update_member_by_node(ClusterId, Node, NodeState) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      Node::atom(),
                                       NodeState::atom()).
-update_member_by_node(Node, NodeState) ->
-    gen_server:call(?MODULE, {update_member_by_node, Node, NodeState}, ?DEF_TIMEOUT).
+update_member_by_node(ClusterId, Node, NodeState) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {update_member_by_node, Node, NodeState}, ?DEF_TIMEOUT).
 
--spec(update_member_by_node(Node, Clock, NodeState) ->
-             ok | {error, any()} when Node::atom(),
+-spec(update_member_by_node(ClusterId, Node, Clock, NodeState) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      Node::atom(),
                                       Clock::integer(),
                                       NodeState::atom()).
-update_member_by_node(Node, Clock, NodeState) ->
-    gen_server:call(?MODULE, {update_member_by_node, Node, Clock, NodeState}, ?DEF_TIMEOUT).
+update_member_by_node(ClusterId, Node, Clock, NodeState) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {update_member_by_node, Node, Clock, NodeState}, ?DEF_TIMEOUT).
 
 
 %% @doc Remove a member by node.
-%%
--spec(delete_member_by_node(Node) ->
-             ok | {error, any()} when Node::atom()).
-delete_member_by_node(Node) ->
-    gen_server:call(?MODULE, {delete_member_by_node, Node}, ?DEF_TIMEOUT).
+-spec(delete_member_by_node(ClusterId, Node) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      Node::atom()).
+delete_member_by_node(ClusterId, Node) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {delete_member_by_node, Node}, ?DEF_TIMEOUT).
 
 
 %% @doc Dump files which are member and ring.
-%%
--spec(dump(Type) ->
-             ok when Type::atom()).
-dump(Type) ->
-    gen_server:call(?MODULE, {dump, Type}, ?DEF_TIMEOUT).
+-spec(dump(ClusterId, Type) ->
+             ok when ClusterId::cluster_id(),
+                     Type::atom()).
+dump(ClusterId, Type) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {dump, Type}, ?DEF_TIMEOUT).
 
 
 %% @doc Change node status to 'attach'.
-%%
--spec(attach(Node, AwarenessL2, Clock, NumOfVNodes) ->
-             ok | {error, any()} when Node::atom(),
-                                      AwarenessL2::string(),
-                                      Clock::integer(),
-                                      NumOfVNodes::integer()).
-attach(Node, AwarenessL2, Clock, NumOfVNodes) ->
-    attach(Node, AwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
-
--spec(attach(Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
-             ok | {error, any()} when Node::atom(),
-                                      AwarenessL2::string(),
-                                      Clock::integer(),
-                                      NumOfVNodes::integer(),
-                                      RPCPort::integer()).
-attach(Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
-    attach(leo_redundant_manager_api:table_info(?VER_CUR),
-           Node, AwarenessL2, Clock, NumOfVNodes, RPCPort).
-
--spec(attach(TableInfo, Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
-             ok | {error, any()} when TableInfo::ring_table_info(),
-                                      Node::atom(),
-                                      AwarenessL2::string(),
-                                      Clock::integer(),
-                                      NumOfVNodes::integer(),
-                                      RPCPort::integer()).
-attach(TableInfo, Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
-    gen_server:call(?MODULE, {attach, TableInfo, Node,
-                              AwarenessL2, Clock, NumOfVNodes, RPCPort}, ?DEF_TIMEOUT).
+-spec(attach(ClusterId, Member) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      Member::#?MEMBER{}).
+attach(ClusterId, #?MEMBER{} = Member) ->
+    Id = ?id_red_server(ClusterId),
+    TblInfo = leo_redundant_manager_api:table_info(?VER_CUR),
+    gen_server:call(Id, {attach, TblInfo, Member}, ?DEF_TIMEOUT).
 
 
 %% @doc Change node status to 'reserve'.
-%%
--spec(reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes) ->
-             ok | {error, any()} when Node::atom(),
-                                      CurState::atom(),
-                                      AwarenessL2::string(),
-                                      Clock::integer(),
-                                      NumOfVNodes::integer()).
-reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes) ->
-    reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes, ?DEF_LISTEN_PORT).
+-spec(reserve(ClusterId, Member) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      Member::#?MEMBER{}).
+reserve(ClusterId, Member) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {reserve, Member}, ?DEF_TIMEOUT).
 
--spec(reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
-             ok | {error, any()} when Node::atom(),
-                                      CurState::atom(),
-                                      AwarenessL2::string(),
-                                      Clock::integer(),
-                                      NumOfVNodes::integer(),
-                                      RPCPort::integer()).
-reserve(Node, CurState, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
-    gen_server:call(?MODULE, {reserve, Node, CurState,
-                              AwarenessL2, Clock, NumOfVNodes, RPCPort}, ?DEF_TIMEOUT).
 
 %% @doc Change node status to 'detach'.
-%%
--spec(detach(Node, Clock) ->
-             ok | {error, any()} when Node::atom(),
-                                      Clock::integer()).
-detach(Node, Clock) ->
-    detach(leo_redundant_manager_api:table_info(?VER_CUR), Node, Clock).
-
--spec(detach(TableInfo, Node, Clock) ->
-             ok | {error, any()} when TableInfo::ring_table_info(),
+-spec(detach(ClusterId, Node, Clock) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
                                       Node::atom(),
                                       Clock::integer()).
-detach(TableInfo, Node, Clock) ->
-    gen_server:call(?MODULE, {detach, TableInfo, Node, Clock}, ?DEF_TIMEOUT).
+detach(ClusterId, Node, Clock) ->
+    TblInfo = leo_redundant_manager_api:table_info(?VER_CUR),
+    detach(ClusterId, TblInfo, Node, Clock).
+
+-spec(detach(ClusterId, TableInfo, Node, Clock) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      TableInfo::ring_table_info(),
+                                      Node::atom(),
+                                      Clock::integer()).
+detach(ClusterId, TableInfo, Node, Clock) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {detach, TableInfo, Node, Clock}, ?DEF_TIMEOUT).
 
 
 %% @doc Change node status to 'suspend'.
-%%
--spec(suspend(Node, Clock) ->
-             ok | {error, any()} when Node::atom(),
+-spec(suspend(ClusterId, Node, Clock) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      Node::atom(),
                                       Clock::integer()).
-suspend(Node, Clock) ->
-    gen_server:call(?MODULE, {suspend, Node, Clock}, ?DEF_TIMEOUT).
+suspend(ClusterId, Node, Clock) ->
+    Id = ?id_red_server(ClusterId),
+    gen_server:call(Id, {suspend, Node, Clock}, ?DEF_TIMEOUT).
 
 
 %%--------------------------------------------------------------------
 %% GEN_SERVER CALLBACKS
 %%--------------------------------------------------------------------
 %% @doc Initiates the server
-init([]) ->
-    {ok, null}.
+init([Id, ClusterId]) ->
+    {ok, #state{id = Id,
+                cluster_id = ClusterId}}.
 
 %% @doc gen_server callback - Module:handle_call(Request, From, State) -> Result
 handle_call(stop,_From,State) ->
     {stop, normal, ok, State};
 
 
-handle_call({create, Ver}, _From, State) when Ver == ?VER_CUR;
-                                              Ver == ?VER_PREV ->
-    Reply = create_1(Ver),
+handle_call({create, Ver},_From, #state{cluster_id = ClusterId} = State) when Ver == ?VER_CUR;
+                                                                              Ver == ?VER_PREV ->
+    Reply = create_1(ClusterId, Ver),
     {reply, Reply, State};
 
 handle_call({create,_Ver}, _From, State) ->
     {reply, {error, invalid_version}, State};
 
-handle_call({checksum, ?CHECKSUM_MEMBER}, _From, State) ->
-    HashCur = case leo_cluster_tbl_member:find_all(?MEMBER_TBL_CUR) of
+handle_call({checksum, ?CHECKSUM_MEMBER}, _From, #state{cluster_id = ClusterId} = State) ->
+    HashCur = case leo_cluster_tbl_member:find_by_cluster_id(
+                     ?MEMBER_TBL_CUR, ClusterId) of
                   {ok, MembersCur} ->
-                      erlang:crc32(term_to_binary(lists:sort(MembersCur)));
+                      erlang:crc32(
+                        term_to_binary(lists:sort(MembersCur)));
                   _ ->
                       -1
               end,
-    HashPrv = case leo_cluster_tbl_member:find_all(?MEMBER_TBL_PREV) of
+    HashPrv = case leo_cluster_tbl_member:find_by_cluster_id(
+                     ?MEMBER_TBL_PREV, ClusterId) of
                   {ok, MembersPrev} ->
-                      erlang:crc32(term_to_binary(lists:sort(MembersPrev)));
+                      erlang:crc32(
+                        term_to_binary(lists:sort(MembersPrev)));
                   _ ->
                       -1
               end,
@@ -304,21 +294,21 @@ handle_call({checksum, ?CHECKSUM_MEMBER}, _From, State) ->
 handle_call({checksum, _}, _From, State) ->
     {reply, {error, badarg}, State};
 
-handle_call({has_member, Node}, _From, State) ->
-    Reply = case leo_cluster_tbl_member:lookup(Node) of
+handle_call({has_member, Node}, _From, #state{cluster_id = ClusterId} = State) ->
+    Reply = case leo_cluster_tbl_member:lookup(ClusterId, Node) of
                 {ok, _} ->
                     true;
-                _ ->
+                _Other ->
                     false
             end,
     {reply, Reply, State};
 
-handle_call({get_members, Ver}, _From, State) ->
-    Reply = get_members_1(Ver),
+handle_call({get_members, Ver}, _From, #state{cluster_id = ClusterId} = State) ->
+    Reply = get_members_1(Ver, ClusterId),
     {reply, Reply, State};
 
-handle_call({get_member_by_node, Node}, _From, State) ->
-    Reply = case leo_cluster_tbl_member:lookup(Node) of
+handle_call({get_member_by_node, Node}, _From, #state{cluster_id = ClusterId} = State) ->
+    Reply = case leo_cluster_tbl_member:lookup(ClusterId, Node) of
                 {ok, Member} ->
                     {ok, Member};
                 not_found = Cause ->
@@ -328,9 +318,11 @@ handle_call({get_member_by_node, Node}, _From, State) ->
             end,
     {reply, Reply, State};
 
-handle_call({get_members_by_status, Ver, Status}, _From, State) ->
+handle_call({get_members_by_status, Ver, Status}, _From, #state{cluster_id = ClusterId} = State) ->
     Table = ?member_table(Ver),
-    Reply = case leo_cluster_tbl_member:find_by_status(Table, Status) of
+    %% @TODO
+    Reply = case leo_cluster_tbl_member:find_by_status(
+                   Table, ClusterId, Status) of
                 {ok, Members} ->
                     {ok, Members};
                 not_found = Cause ->
@@ -340,62 +332,75 @@ handle_call({get_members_by_status, Ver, Status}, _From, State) ->
             end,
     {reply, Reply, State};
 
-handle_call({update_member, #member{state = MemberState} = Member}, _From, State) ->
+handle_call({update_member, #?MEMBER{state = MemberState} = Member},
+            _From, #state{cluster_id = ClusterId} = State) ->
     Reply = case ?is_correct_state(MemberState) of
                 true ->
-                    leo_cluster_tbl_member:insert({Member#member.node, Member});
+                    leo_cluster_tbl_member:insert(
+                      Member#?MEMBER{cluster_id = ClusterId});
                 false ->
                     ok
             end,
     {reply, Reply, State};
 
-handle_call({update_members, Members}, _From, State) ->
-    Reply = case leo_cluster_tbl_member:find_all() of
+handle_call({update_members, Members}, _From, #state{cluster_id = ClusterId} = State) ->
+    %% @TODO
+    Reply = case leo_cluster_tbl_member:find_by_cluster_id(ClusterId) of
                 {ok, CurMembers} ->
-                    CurMembers1 = lists:reverse(CurMembers),
-                    CurMembersHash = erlang:crc32(term_to_binary(CurMembers1)),
-                    MembersHash    = erlang:crc32(term_to_binary(Members)),
+                    CurMembers_1 = lists:reverse(CurMembers),
+                    CurMembersHash = erlang:crc32(term_to_binary(CurMembers_1)),
+                    MembersHash = erlang:crc32(term_to_binary(Members)),
 
                     case (MembersHash =:= CurMembersHash) of
                         true ->
                             ok;
                         false ->
-                            leo_cluster_tbl_member:replace(CurMembers1, Members)
+                            %% @TODO
+                            leo_cluster_tbl_member:replace(
+                              ClusterId, CurMembers_1, Members)
                     end;
                 not_found ->
-                    leo_cluster_tbl_member:replace([], Members);
+                    %% @TODO
+                    leo_cluster_tbl_member:replace(ClusterId, [], Members);
                 Error ->
                     Error
             end,
     {reply, Reply, State};
 
-handle_call({update_members, Table, OldMembers, NewMembers}, _From, State) ->
-    Reply = leo_cluster_tbl_member:replace(Table, OldMembers, NewMembers),
+handle_call({update_members, Table, OldMembers, NewMembers},
+            _From, #state{cluster_id = ClusterId} = State) ->
+    %% @TODO
+    Reply = leo_cluster_tbl_member:replace(
+              Table, ClusterId, OldMembers, NewMembers),
     {reply, Reply, State};
 
-handle_call({update_member_by_node, Node, NodeState}, _From, State) ->
+handle_call({update_member_by_node, Node, NodeState}, _From,
+            #state{cluster_id = ClusterId} = State) ->
     Reply = case ?is_correct_state(NodeState) of
                 true ->
-                    update_member_by_node_1(Node, NodeState);
+                    update_member_by_node_1(ClusterId, Node, NodeState);
                 false ->
                     {error, incorrect_node_state}
             end,
     {reply, Reply, State};
 
-handle_call({update_member_by_node, Node, Clock, NodeState}, _From, State) ->
+handle_call({update_member_by_node, Node, Clock, NodeState}, _From,
+            #state{cluster_id = ClusterId} = State) ->
     Reply = case ?is_correct_state(NodeState) of
                 true ->
-                    update_member_by_node_1(Node, Clock, NodeState);
+                    update_member_by_node_1(ClusterId, Node, Clock, NodeState);
                 false ->
                     {error, incorrect_node_state}
             end,
     {reply, Reply, State};
 
-handle_call({delete_member_by_node, Node}, _From, State) ->
-    Reply = leo_cluster_tbl_member:delete(Node),
+handle_call({delete_member_by_node, Node},
+            _From, #state{cluster_id = ClusterId} = State) ->
+    %% @TODO
+    Reply = leo_cluster_tbl_member:delete(ClusterId, Node),
     {reply, Reply, State};
 
-handle_call({dump, member}, _From, State) ->
+handle_call({dump, member}, _From, #state{cluster_id = ClusterId} = State) ->
     LogDir = case application:get_env(leo_redundant_manager,
                                       log_dir_member) of
                  undefined ->
@@ -408,14 +413,18 @@ handle_call({dump, member}, _From, State) ->
              end,
     _ = filelib:ensure_dir(LogDir),
 
-    Reply = case leo_cluster_tbl_member:find_all(?MEMBER_TBL_CUR) of
+    %% @TODO
+    Reply = case leo_cluster_tbl_member:find_by_cluster_id(
+                   ?MEMBER_TBL_CUR, ClusterId) of
                 {ok, MembersCur} ->
                     Path_1 = lists:append([LogDir,
                                            ?DUMP_FILE_MEMBERS_CUR,
                                            integer_to_list(leo_date:now())]),
                     leo_file:file_unconsult(Path_1, MembersCur),
 
-                    case leo_cluster_tbl_member:find_all(?MEMBER_TBL_PREV) of
+                    %% @TODO
+                    case leo_cluster_tbl_member:find_by_cluster_id(
+                           ?MEMBER_TBL_PREV, ClusterId) of
                         {ok, MembersPrev} ->
                             Path_2 = lists:append([LogDir,
                                                    ?DUMP_FILE_MEMBERS_PREV,
@@ -440,25 +449,18 @@ handle_call({dump, ring}, _From, State) ->
 handle_call({_, routing_table,_Filename}, _From, State) ->
     {reply, {error, badarg}, State};
 
-
-handle_call({attach, TblInfo, Node, GroupL2,
-             Clock, NumOfVNodes, RPCPort},_From, State) ->
-    Reply = attach_1(TblInfo,
-                     #member{node = Node,
-                             clock = Clock,
-                             state = ?STATE_ATTACHED,
-                             num_of_vnodes = NumOfVNodes,
-                             grp_level_2 = GroupL2,
-                             port = RPCPort}),
+handle_call({attach, TblInfo, Member},_From, State) ->
+    Reply = attach_1(TblInfo, Member#?MEMBER{state = ?STATE_ATTACHED}),
     {reply, Reply, State};
 
-
 handle_call({reserve, Node, CurState, AwarenessL2,
-             Clock, NumOfVNodes, RPCPort}, _From, State) ->
-    Reply = case leo_cluster_tbl_member:lookup(Node) of
+             Clock, NumOfVNodes, RPCPort},
+            _From, #state{cluster_id = ClusterId} = State) ->
+    Reply = case leo_cluster_tbl_member:lookup(ClusterId, Node) of
                 {ok, Member} ->
                     leo_cluster_tbl_member:insert(
-                      {Node, Member#member{state = CurState}});
+                      Member#?MEMBER{cluster_id = ClusterId,
+                                     state = CurState});
                 not_found ->
                     NodeStr = atom_to_list(Node),
                     IP = case (string:chr(NodeStr, $@) > 0) of
@@ -467,37 +469,39 @@ handle_call({reserve, Node, CurState, AwarenessL2,
                              false ->
                                  []
                          end,
-
                     leo_cluster_tbl_member:insert(
-                      {Node, #member{node  = Node,
-                                     ip    = IP,
-                                     clock = Clock,
-                                     state = CurState,
-                                     num_of_vnodes = NumOfVNodes,
-                                     grp_level_2   = AwarenessL2,
-                                     port = RPCPort
-                                    }});
+                      #?MEMBER{cluster_id = ClusterId,
+                               node = Node,
+                               ip = IP,
+                               clock = Clock,
+                               state = CurState,
+                               num_of_vnodes = NumOfVNodes,
+                               grp_level_2 = AwarenessL2,
+                               port = RPCPort});
                 {error, Cause} ->
                     {error, Cause}
             end,
     {reply, Reply, State};
 
 
-handle_call({detach, TblInfo, Node, Clock}, _From, State) ->
-    Reply = case leo_cluster_tbl_member:lookup(Node) of
+handle_call({detach, TblInfo, Node, Clock},
+            _From, #state{cluster_id = ClusterId} = State) ->
+    Reply = case leo_cluster_tbl_member:lookup(ClusterId, Node) of
                 {ok, Member} ->
-                    detach_1(TblInfo, Member#member{clock = Clock});
+                    detach_1(TblInfo, Member#?MEMBER{clock = Clock});
                 Error ->
                     Error
             end,
     {reply, Reply, State};
 
 
-handle_call({suspend, Node, _Clock}, _From, State) ->
-    Reply = case leo_cluster_tbl_member:lookup(Node) of
+handle_call({suspend, Node, _Clock},
+            _From, #state{cluster_id = ClusterId} = State) ->
+    Reply = case leo_cluster_tbl_member:lookup(ClusterId, Node) of
                 {ok, Member} ->
                     case leo_cluster_tbl_member:insert(
-                           {Node, Member#member{state = ?STATE_SUSPEND}}) of
+                           Member#?MEMBER{cluster_id = ClusterId,
+                                          state = ?STATE_SUSPEND}) of
                         ok ->
                             ok;
                         Error ->
@@ -541,18 +545,20 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% @doc Create a RING(routing-table)
 %% @private
--spec(create_1(Ver) ->
-             ok | {error, any()} when Ver::?VER_CUR|?VER_PREV).
-create_1(Ver) ->
-    case leo_cluster_tbl_member:find_all(?member_table(Ver)) of
+-spec(create_1(ClusterId, Ver) ->
+             ok | {error, any()} when ClusterId::cluster_id(),
+                                      Ver::?VER_CUR|?VER_PREV).
+create_1(ClusterId, Ver) ->
+    case leo_cluster_tbl_member:find_by_cluster_id(
+           ?member_table(Ver), ClusterId) of
         {ok, Members} ->
-            create_2(Ver, Members);
+            create_2(ClusterId, Ver, Members);
         not_found when Ver == ?VER_PREV ->
             %% overwrite current-ring to prev-ring
             case leo_cluster_tbl_member:overwrite(
-                   ?MEMBER_TBL_CUR, ?MEMBER_TBL_PREV) of
+                   ?MEMBER_TBL_CUR, ?MEMBER_TBL_PREV, ClusterId) of
                 ok ->
-                    create_1(Ver);
+                    create_1(ClusterId, Ver);
                 Error ->
                     Error
             end;
@@ -561,79 +567,89 @@ create_1(Ver) ->
     end.
 
 %% @private
--spec(create_2(Ver, Members) ->
-             ok | {error, Cause} when Ver::?VER_CUR|?VER_PREV,
-                                      Members::[#member{}],
+-spec(create_2(ClusterId, Ver, Members) ->
+             ok | {error, Cause} when ClusterId::cluster_id(),
+                                      Ver::?VER_CUR|?VER_PREV,
+                                      Members::[#?MEMBER{}],
                                       Cause::any()).
-create_2(Ver, Members) ->
-    create_2(Ver, Members, []).
+create_2(ClusterId, Ver, Members) ->
+    create_2(ClusterId, Ver, Members, []).
 
--spec(create_2(Ver, Members, Acc) ->
-             ok | {ok, Members} when Ver::?VER_CUR|?VER_PREV,
-                                     Members::[#member{}],
-                                     Acc::[#member{}]).
-create_2(Ver,[], Acc) ->
-    case create_3(Ver, Acc, []) of
+-spec(create_2(ClusterId, Ver, Members, Acc) ->
+             ok | {ok, Members} when ClusterId::cluster_id(),
+                                     Ver::?VER_CUR|?VER_PREV,
+                                     Members::[#?MEMBER{}],
+                                     Acc::[#?MEMBER{}]).
+create_2(ClusterId, Ver,[], Acc) ->
+    case create_3(ClusterId, Ver, Acc, []) of
         ok ->
-            ok = leo_redundant_manager_worker:force_sync(?RING_TBL_CUR),
-            ok = leo_redundant_manager_worker:force_sync(?RING_TBL_PREV),
-            ok;
+            Tbl = ?member_table(Ver),
+            Ret = leo_cluster_tbl_member:bulk_insert(Tbl, Acc),
+            ok = leo_redundant_manager_worker:force_sync(
+                   ClusterId, ?RING_TBL_CUR),
+            ok = leo_redundant_manager_worker:force_sync(
+                   ClusterId, ?RING_TBL_PREV),
+            Ret;
         Other ->
             Other
     end;
-create_2( Ver, [#member{state = ?STATE_RESERVED}|Rest], Acc) ->
-    create_2(Ver, Rest, Acc);
-create_2( Ver, [#member{node = Node,
-                        state = State} = Member_0|Rest], Acc) ->
+create_2(ClusterId, Ver, [#?MEMBER{state = ?STATE_RESERVED}|Rest], Acc) ->
+    create_2(ClusterId, Ver, Rest, Acc);
+create_2(ClusterId, Ver, [#?MEMBER{node = Node,
+                                   state = State} = Member|Rest], Acc) ->
     %% Modify/Add a member into 'member-table'
     Table = ?member_table(Ver),
-    Ret_2 = case leo_cluster_tbl_member:lookup(Table, Node) of
-                {ok, Member_1} when State == ?STATE_ATTACHED ->
-                    {ok, Member_1#member{state = ?STATE_RUNNING}};
-                {ok, Member_1} ->
-                    {ok, Member_1};
-                not_found ->
-                    {ok, Member_0#member{state = ?STATE_RUNNING}};
-                {error, Cause} ->
-                    {error, Cause}
-            end,
-    case Ret_2 of
+    Ret = case leo_cluster_tbl_member:lookup(Table, ClusterId, Node) of
+              {ok, Member_1} when State == ?STATE_ATTACHED ->
+                  {ok, Member_1#?MEMBER{state = ?STATE_RUNNING}};
+              {ok, Member_1} ->
+                  {ok, Member_1};
+              not_found ->
+                  {ok, Member#?MEMBER{state = ?STATE_RUNNING}};
+              {error, Cause} ->
+                  {error, Cause}
+          end,
+    case Ret of
         {ok, Member_2} ->
-            create_2(Ver, Rest, [Member_2|Acc]);
+            create_2(ClusterId, Ver, Rest, [Member_2|Acc]);
         Error ->
             Error
     end.
 
 %% @private
--spec(create_3(Ver, Members, Acc) ->
-             ok | {ok, Members} when Ver::?VER_CUR|?VER_PREV,
-                                     Members::[#member{}],
-                                     Acc::[#member{}]).
-create_3(Ver, [], Acc) ->
-    TblInfo = leo_redundant_manager_api:table_info(Ver),
-    case leo_redundant_manager_chash:add_from_list(TblInfo, Acc) of
+-spec(create_3(ClusterId, Ver, Members, Acc) ->
+             ok | {ok, Members} when ClusterId::cluster_id(),
+                                     Ver::?VER_CUR|?VER_PREV,
+                                     Members::[#?MEMBER{}],
+                                     Acc::[#?MEMBER{}]).
+create_3(_,Ver, [], Acc) ->
+    case leo_redundant_manager_chash:add_from_list(
+           leo_redundant_manager_api:table_info(Ver),
+           Acc) of
         ok ->
             ok;
         Error ->
             Error
     end;
-create_3(Ver, [Member|Rest], Acc) ->
+create_3(ClusterId, Ver, [#?MEMBER{alias = []} = Member|Rest], Acc) ->
     TblInfo = leo_redundant_manager_api:table_info(Ver),
-
     {ok, Member_1} = set_alias(TblInfo, Member),
     case attach_2(TblInfo, Member_1) of
         ok ->
-            create_3(Ver, Rest, [Member_1|Acc]);
+            create_3(ClusterId, Ver, Rest, [Member_1|Acc]);
         Error ->
             Error
-    end.
+    end;
+create_3(ClusterId, Ver, [Member|Rest], Acc) ->
+    create_3(ClusterId, Ver, Rest, [Member|Acc]).
 
 
 %% @doc Ser alias of the node
 %% @private
-set_alias(TblInfo, #member{node  = Node,
-                           alias = [],
-                           grp_level_2 = GrpL2} = Member) ->
+set_alias(TblInfo, #?MEMBER{cluster_id = ClusterId,
+                            node = Node,
+                            alias = [],
+                            grp_level_2 = GrpL2} = Member) ->
     NodeStr = atom_to_list(Node),
     IP = case (string:chr(NodeStr, $@) > 0) of
              true ->
@@ -645,9 +661,9 @@ set_alias(TblInfo, #member{node  = Node,
     {ok, {_Member, Alias}} =
         leo_redundant_manager_api:get_alias(
           init, ?ring_table_to_member_table(TblInfo),
-          Node, GrpL2),
-    {ok, Member#member{alias = Alias,
-                       ip    = IP}};
+          ClusterId, Node, GrpL2),
+    {ok, Member#?MEMBER{alias = Alias,
+                        ip = IP}};
 set_alias(_,Member) ->
     {ok, Member}.
 
@@ -670,9 +686,9 @@ attach_1(TblInfo, Member) ->
     end.
 
 %% @private
-attach_2(TblInfo, #member{node = Node} = Member) ->
+attach_2(TblInfo, Member) ->
     case leo_cluster_tbl_member:insert(
-           ?ring_table_to_member_table(TblInfo), {Node, Member}) of
+           ?ring_table_to_member_table(TblInfo), Member) of
         ok ->
             ok;
         Error ->
@@ -683,11 +699,11 @@ attach_2(TblInfo, #member{node = Node} = Member) ->
 %% @doc Detach a node from storage-cluster
 %% @private
 detach_1({_, ?RING_TBL_CUR} = TblInfo, Member) ->
-    Node = Member#member.node,
+    Node = Member#?MEMBER.node,
     case leo_cluster_tbl_member:insert(
-           {Node, Member#member{node = Node,
-                                clock = Member#member.clock,
-                                state = ?STATE_DETACHED}}) of
+           Member#?MEMBER{node = Node,
+                          clock = Member#?MEMBER.clock,
+                          state = ?STATE_DETACHED}) of
         ok ->
             detach_2(TblInfo, Member);
         Error ->
@@ -708,8 +724,10 @@ detach_2(TblInfo, Member) ->
 
 %% @doc Retrieve members
 %% @private
-get_members_1(Ver) ->
-    case leo_cluster_tbl_member:find_all(?member_table(Ver)) of
+get_members_1(Ver, ClusterId) ->
+    %% @TODO
+    case leo_cluster_tbl_member:find_by_cluster_id(
+           ?member_table(Ver), ClusterId) of
         {ok, Members} ->
             {ok, Members};
         not_found = Cause ->
@@ -721,18 +739,20 @@ get_members_1(Ver) ->
 
 %% @doc Update the member by node
 %% @private
-update_member_by_node_1(Node, NodeState) ->
-    update_member_by_node_1(Node, -1, NodeState).
+update_member_by_node_1(ClusterId, Node, NodeState) ->
+    update_member_by_node_1(ClusterId, Node, -1, NodeState).
 
-update_member_by_node_1(Node, Clock, NodeState) ->
-    case leo_cluster_tbl_member:lookup(Node) of
+update_member_by_node_1(ClusterId, Node, Clock, NodeState) ->
+    case leo_cluster_tbl_member:lookup(ClusterId, Node) of
         {ok, Member} ->
             Member_1 = case Clock of
-                           -1 -> Member#member{state = NodeState};
-                           _  -> Member#member{clock = Clock,
-                                               state = NodeState}
+                           -1 ->
+                               Member#?MEMBER{state = NodeState};
+                           _  ->
+                               Member#?MEMBER{clock = Clock,
+                                              state = NodeState}
                        end,
-            case leo_cluster_tbl_member:insert({Node, Member_1}) of
+            case leo_cluster_tbl_member:insert(Member_1) of
                 ok ->
                     ok;
                 Error ->

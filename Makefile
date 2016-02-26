@@ -12,6 +12,8 @@ all:
 	@$(REBAR) get-deps
 	@$(REBAR) compile
 	@$(REBAR) xref skip_deps=true
+	@$(REBAR) eunit suites=leo_cluster_tbl_member
+	@$(REBAR) eunit suites=leo_cluster_tbl_ring
 	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_info
 	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_member
 	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_mgr
@@ -26,6 +28,8 @@ compile:
 xref:
 	@$(REBAR) xref skip_deps=true
 eunit:
+	@$(REBAR) eunit suites=leo_cluster_tbl_member
+	@$(REBAR) eunit suites=leo_cluster_tbl_ring
 	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_info
 	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_member
 	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_mgr

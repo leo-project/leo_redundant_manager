@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2015 Rakuten, Inc.
+%% Copyright (c) 2012-2016 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -39,7 +39,6 @@
 
 
 %% @doc Create a table of configuration of clusters
-%%
 -spec(create_table(Mode, Nodes) ->
              ok | {error, any()} when Mode::mnesia_copies(),
                                       Nodes::[atom()]).
@@ -49,19 +48,7 @@ create_table(Mode, Nodes) ->
            [{Mode, Nodes},
             {type, set},
             {record_name, ?CLUSTER_INFO},
-            {attributes, record_info(fields, ?CLUSTER_INFO)},
-            {user_properties,
-             [{cluster_id,           atom,        primary},
-              {dc_id,                atom,        false  },
-              {n,                    pos_integer, false  },
-              {r,                    pos_integer, false  },
-              {w,                    pos_integer, false  },
-              {d,                    pos_integer, false  },
-              {bit_of_ring,          pos_integer, false  },
-              {num_of_dc_replicas,   pos_integer, false  },
-              {num_of_rack_replicas, pos_integer, false  },
-              {max_mdc_targets,      pos_integer, false  }
-             ]}
+            {attributes, record_info(fields, ?CLUSTER_INFO)}
            ]) of
         {atomic, ok} ->
             ok;
@@ -71,9 +58,9 @@ create_table(Mode, Nodes) ->
 
 
 %% @doc Retrieve all configuration of remote-clusters
-%%
 -spec(all() ->
-             {ok, [#?CLUSTER_INFO{}]} | not_found | {error, any()}).
+             {ok, [#?CLUSTER_INFO{}]} |
+             not_found | {error, any()}).
 all() ->
     Tbl = ?TBL_CLUSTER_INFO,
     case catch mnesia:table_info(Tbl, all) of
@@ -82,7 +69,7 @@ all() ->
         _ ->
             F = fun() ->
                         Q1 = qlc:q([X || X <- mnesia:table(Tbl)]),
-                        Q2 = qlc:sort(Q1, [{order, descending}]),
+                        Q2 = qlc:sort(Q1, [{order, ascending}]),
                         qlc:e(Q2)
                 end,
             leo_mnesia:read(F)
@@ -90,7 +77,6 @@ all() ->
 
 
 %% @doc Retrieve a configuration of remote-clusters by cluster-id
-%%
 -spec(get(ClusterId) ->
              {ok, #?CLUSTER_INFO{}} |
              not_found |
@@ -116,7 +102,6 @@ get(ClusterId) ->
 
 
 %% @doc Retrieve records by limit
-%%
 -spec(find_by_limit(Rows) ->
              {ok, #?CLUSTER_INFO{}} |
              not_found |
@@ -164,7 +149,6 @@ find_by_limit(Rows, ClusterId, Acc) ->
 
 
 %% @doc Modify a configuration of a cluster
-%%
 -spec(update(ClusterInfo) ->
              ok | {error, any()} when ClusterInfo::#?CLUSTER_INFO{}).
 update(ClusterInfo) ->
@@ -174,13 +158,14 @@ update(ClusterInfo) ->
         {'EXIT', _Cause} ->
             {error, ?ERROR_MNESIA_NOT_START};
         _ ->
-            F = fun()-> mnesia:write(Tbl, ClusterInfo, write) end,
+            F = fun()->
+                        mnesia:write(Tbl, ClusterInfo, write)
+                end,
             leo_mnesia:write(F)
     end.
 
 
 %% @doc Remove a configuration of a cluster
-%%
 -spec(delete(ClusterId) ->
              ok | {error, any()} when ClusterId::atom()).
 delete(ClusterId) ->
@@ -198,9 +183,9 @@ delete(ClusterId) ->
 
 
 %% @doc Retrieve a checksum
-%%
 -spec(checksum() ->
-             {ok, pos_integer()} | {error, any()}).
+             {ok, pos_integer()} |
+             {error, any()}).
 checksum() ->
     case all() of
         {ok, Vals} ->
@@ -225,6 +210,7 @@ size() ->
 -spec(synchronize(ValL) ->
              ok | {error, any()} when ValL::[#?CLUSTER_INFO{}]).
 synchronize(ValL) ->
+    %% [#?CLUSTER_INFO{cluster_id = ClusterId}|_] = ValL,
     case synchronize_1(ValL) of
         ok ->
             case all() of
@@ -245,7 +231,7 @@ synchronize_1([#?CLUSTER_INFO{cluster_id = ClusterId} = V|Rest]) ->
     %% for the synchronization of objects to a remote-cluster
     case ?MODULE:get(ClusterId) of
         not_found ->
-            case leo_cluster_tbl_conf:get() of
+            case leo_cluster_tbl_conf:get(ClusterId) of
                 {ok, #?SYSTEM_CONF{cluster_id = ClusterId}} ->
                     void;
                 {ok, _} ->
@@ -327,12 +313,26 @@ transform(#cluster_info{cluster_id = ClusterId,
 
 %% @private
 transform_2() ->
-    case all() of
-        {ok, RetL} ->
-            transform_3(RetL);
+    Tbl = ?TBL_CLUSTER_INFO,
+    case catch mnesia:table_info(Tbl, all) of
+        {'EXIT', _Cause} ->
+            {error, ?ERROR_MNESIA_NOT_START};
         _ ->
-            ok
+            F = fun() ->
+                        Q1 = qlc:q([X || X <- mnesia:table(Tbl)]),
+                        Q2 = qlc:sort(Q1, [{order, ascending}]),
+                        qlc:e(Q2)
+                end,
+            case leo_mnesia:read(F) of
+                {ok, RetL} ->
+                    transform_3(RetL);
+                not_found = Cuase ->
+                    {error, Cuase};
+                Other ->
+                    Other
+            end
     end.
+
 
 %% @private
 transform_3([]) ->

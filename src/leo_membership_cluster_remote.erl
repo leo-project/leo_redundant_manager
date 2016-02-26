@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2015 Rakuten, Inc.
+%% Copyright (c) 2012-2016 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -44,10 +44,11 @@
          handle_call/3,
          handle_cast/2,
          handle_info/2,
-	       terminate/2,
+         terminate/2,
          code_change/3]).
 
--record(state, {interval = 30000 :: integer(),
+-record(state, {cluster_id :: cluster_id(),
+                interval = 30000 :: integer(),
                 timestamp = 0 :: integer()
                }).
 
@@ -184,7 +185,7 @@ exec([]) ->
 exec([#cluster_manager{node = Node,
                        cluster_id = ClusterId}|Rest]) ->
     %% Retrieve own cluster-id
-    case leo_cluster_tbl_conf:get() of
+    case leo_cluster_tbl_conf:get(ClusterId) of
         {ok,  #?SYSTEM_CONF{cluster_id = ClusterId}} ->
             ok;
         {ok,  #?SYSTEM_CONF{}} ->
@@ -257,8 +258,8 @@ exec_2(Node, ClusterId) ->
             case exec_3(Members, ClusterId) of
                 ok ->
                     State = case [N ||
-                                     #member{node = N,
-                                             state = ?STATE_RUNNING} <- Members] of
+                                     #?MEMBER{node = N,
+                                              state = ?STATE_RUNNING} <- Members] of
                                 [] ->
                                     ?STATE_STOP;
                                 _ ->
@@ -277,18 +278,18 @@ exec_2(Node, ClusterId) ->
     end.
 
 %% @private
--spec(exec_3([#member{}], atom()) ->
+-spec(exec_3([#?MEMBER{}], atom()) ->
              ok | {error, any()}).
 exec_3([], _) ->
     ok;
-exec_3([#member{node = Node,
-                alias = Alias,
-                ip = IP,
-                port = Port,
-                inet = Inet,
-                clock = Clock,
-                state = State,
-                num_of_vnodes = NumOfVNodes}|Rest], ClusterId) ->
+exec_3([#?MEMBER{node = Node,
+                 alias = Alias,
+                 ip = IP,
+                 port = Port,
+                 inet = Inet,
+                 clock = Clock,
+                 state = State,
+                 num_of_vnodes = NumOfVNodes}|Rest], ClusterId) ->
     case leo_mdcr_tbl_cluster_member:update(
            #?CLUSTER_MEMBER{node = Node,
                             cluster_id = ClusterId,

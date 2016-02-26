@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2014 Rakuten, Inc.
+%% Copyright (c) 2012-2016 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -24,6 +24,9 @@
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-define(CLUSTER_ID, 'leofs_c1').
+
+
 %%--------------------------------------------------------------------
 %% TEST FUNCTIONS
 %%--------------------------------------------------------------------
@@ -43,66 +46,139 @@ suite_test_() ->
      ]}.
 
 setup() ->
+    [] = os:cmd("epmd -daemon"),
+    {ok, Hostname} = inet:gethostname(),
+    Me = list_to_atom("test_0@" ++ Hostname),
+    net_kernel:start([Me, shortnames]),
+
+    timer:sleep(500),
     application:start(crypto),
+    application:start(mnesia),
+    application:start(leo_redundant_manager),
 
-    catch ets:delete_all_objects(?MEMBER_TBL_CUR),
-    catch ets:delete_all_objects(?MEMBER_TBL_PREV),
-    catch ets:delete_all_objects('leo_ring_cur'),
-    catch ets:delete_all_objects('leo_ring_prv'),
+    catch ets:delete(?MEMBER_TBL_CUR),
+    catch ets:delete(?MEMBER_TBL_PREV),
+    catch ets:delete(?RING_TBL_CUR),
+    catch ets:delete(?RING_TBL_PREV),
 
-    leo_misc:init_env(),
-    leo_misc:set_env(leo_redundant_manager, 'server_type', ?WORKER_NODE),
-    {ok, Pid} = leo_redundant_manager_sup:start_link(?WORKER_NODE),
-    leo_redundant_manager_api:set_options(
-      [{n, 3},{r, 1}, {w ,2},{d, 2},{bit_of_ring, 128},{level_2, 0}]),
-    leo_redundant_manager_api:attach('node_0@127.0.0.1'),
-    leo_redundant_manager_api:attach('node_1@127.0.0.1'),
-    leo_redundant_manager_api:attach('node_2@127.0.0.1'),
-    leo_redundant_manager_api:attach('node_3@127.0.0.1'),
-    leo_redundant_manager_api:attach('node_4@127.0.0.1'),
+    %% ok = leo_cluster_tbl_member:create_table(
+    %%        'ram_copies', [node()], ?MEMBER_TBL_CUR),
+    %% ok = leo_cluster_tbl_member:create_table(
+    %%        'ram_copies', [node()], ?MEMBER_TBL_PREV),
+    %% ok = leo_cluster_tbl_ring:create_table_current(ram_copies),
+    %% ok = leo_cluster_tbl_ring:create_table_prev(ram_copies),
 
-    ?debugVal(leo_redundant_manager_api:get_options()),
+    catch ets:new(?MEMBER_TBL_CUR, [named_table, ordered_set,
+                                    public, {read_concurrency, true}]),
+    catch ets:new(?MEMBER_TBL_PREV,[named_table, ordered_set,
+                                    public, {read_concurrency, true}]),
+    catch ets:new(?RING_TBL_CUR, [named_table, ordered_set,
+                                  public, {read_concurrency, true}]),
+    catch ets:new(?RING_TBL_PREV,[named_table, ordered_set,
+                                  public, {read_concurrency, true}]),
+    CallbackFun = fun()-> ok end,
+    Options = [{mq_dir, "work/mq-dir/"},
+               {monitors, []},
+               {membership_callback, CallbackFun},
+               {system_conf, [{n, 3}, {w, 2}, {r ,1}, {d, 2}]}],
+    ok = leo_redundant_manager_api:start(
+           ?CLUSTER_ID, 'persistent_node', Options),
 
-    leo_redundant_manager_api:create(?VER_CUR),
-    leo_redundant_manager_api:create(?VER_PREV),
-
-    CurRows_2  = leo_cluster_tbl_ring:tab2list({?DB_ETS, 'leo_ring_cur'}),
-    PrevRows_2 = leo_cluster_tbl_ring:tab2list({?DB_ETS, 'leo_ring_cur'}),
-    ?assertEqual((?DEF_NUMBER_OF_VNODES * 5), length(CurRows_2)),
-    ?assertEqual((?DEF_NUMBER_OF_VNODES * 5), length(PrevRows_2)),
-
+    Node_0 = list_to_atom("node_0@" ++ Hostname),
+    Node_1 = list_to_atom("node_1@" ++ Hostname),
+    Node_2 = list_to_atom("node_2@" ++ Hostname),
+    Node_3 = list_to_atom("node_3@" ++ Hostname),
+    Node_4 = list_to_atom("node_4@" ++ Hostname),
+    Node_5 = list_to_atom("node_5@" ++ Hostname),
+    Node_6 = list_to_atom("node_6@" ++ Hostname),
+    Node_7 = list_to_atom("node_7@" ++ Hostname),
+    leo_redundant_manager_api:attach(?CLUSTER_ID,
+                                     #?MEMBER{id = {?CLUSTER_ID, Node_0},
+                                              cluster_id = ?CLUSTER_ID,
+                                              node = Node_0,
+                                              alias= "node_0",
+                                              state = ?STATE_ATTACHED}),
+    leo_redundant_manager_api:attach(?CLUSTER_ID,
+                                     #?MEMBER{id = {?CLUSTER_ID, Node_1},
+                                              cluster_id = ?CLUSTER_ID,
+                                              node = Node_1,
+                                              alias= "node_1",
+                                              state = ?STATE_ATTACHED}),
+    leo_redundant_manager_api:attach(?CLUSTER_ID,
+                                     #?MEMBER{id = {?CLUSTER_ID, Node_2},
+                                              cluster_id = ?CLUSTER_ID,
+                                              node = Node_2,
+                                              alias= "node_2",
+                                              state = ?STATE_ATTACHED}),
+    leo_redundant_manager_api:attach(?CLUSTER_ID,
+                                     #?MEMBER{id = {?CLUSTER_ID, Node_3},
+                                              cluster_id = ?CLUSTER_ID,
+                                              node = Node_3,
+                                              alias= "node_3",
+                                              state = ?STATE_ATTACHED}),
+    leo_redundant_manager_api:attach(?CLUSTER_ID,
+                                     #?MEMBER{id = {?CLUSTER_ID, Node_4},
+                                              cluster_id = ?CLUSTER_ID,
+                                              node = Node_4,
+                                              alias= "node_4",
+                                              state = ?STATE_ATTACHED}),
+    leo_redundant_manager_api:attach(?CLUSTER_ID,
+                                     #?MEMBER{id = {?CLUSTER_ID, Node_5},
+                                              cluster_id = ?CLUSTER_ID,
+                                              node = Node_5,
+                                              alias= "node_5",
+                                              state = ?STATE_ATTACHED}),
+    leo_redundant_manager_api:attach(?CLUSTER_ID,
+                                     #?MEMBER{id = {?CLUSTER_ID, Node_6},
+                                              cluster_id = ?CLUSTER_ID,
+                                              node = Node_6,
+                                              alias= "node_6",
+                                              state = ?STATE_ATTACHED}),
+    leo_redundant_manager_api:attach(?CLUSTER_ID,
+                                     #?MEMBER{id = {?CLUSTER_ID, Node_7},
+                                              cluster_id = ?CLUSTER_ID,
+                                              node = Node_7,
+                                              alias= "node_7",
+                                              state = ?STATE_ATTACHED}),
+    {ok,_,_} = leo_redundant_manager_api:create(?CLUSTER_ID, ?VER_CUR),
+    {ok,_,_} = leo_redundant_manager_api:create(?CLUSTER_ID, ?VER_PREV),
     timer:sleep(1000),
-    Pid.
+    ok.
 
-teardown(Pid) ->
-    timer:sleep(100),
-    exit(Pid, normal),
+teardown(_) ->
+    net_kernel:stop(),
+    application:stop(leo_redundant_manager),
+    application:stop(mnesia),
     application:stop(crypto),
+
+    os:cmd("rm -rf queue"),
+    os:cmd("rm ring_*"),
     ok.
 
 suite() ->
     ?debugVal("=== START - Get Redundancies ==="),
-    ?debugVal(leo_redundant_manager_worker:checksum()),
-
     {ok, #redundancies{vnode_id_to = VNodeIdTo1,
-                       nodes = N0}} = leo_redundant_manager_worker:first('leo_ring_cur'),
+                       nodes = N0}} = leo_redundant_manager_worker:first(
+                                        ?CLUSTER_ID, ?RING_TBL_CUR),
     {ok, #redundancies{vnode_id_to = VNodeIdTo2,
-                       nodes = N0}} = leo_redundant_manager_worker:first('leo_ring_prv'),
+                       nodes = N0}} = leo_redundant_manager_worker:first(
+                                        ?CLUSTER_ID, 'leo_ring_prv'),
     ?debugVal({VNodeIdTo1, VNodeIdTo2}),
 
     {ok, #redundancies{nodes = N1}} = leo_redundant_manager_worker:lookup(
-                                        'leo_ring_cur', 0),
+                                        ?CLUSTER_ID, ?RING_TBL_CUR, 0),
     {ok, #redundancies{nodes = N2}} = leo_redundant_manager_worker:lookup(
-                                        'leo_ring_cur', 1264314306571079495751037749109419166),
+                                        ?CLUSTER_ID, ?RING_TBL_CUR, 1264314306571079495751037749109419166),
     {ok, #redundancies{nodes = N3}} = leo_redundant_manager_worker:lookup(
-                                        'leo_ring_cur', 3088066518744027498382227205172020754),
+                                        ?CLUSTER_ID, ?RING_TBL_CUR, 3088066518744027498382227205172020754),
     {ok, #redundancies{nodes = N4}} = leo_redundant_manager_worker:lookup(
-                                        'leo_ring_cur', 4870818527799149765629747665733758595),
+                                        ?CLUSTER_ID, ?RING_TBL_CUR, 4870818527799149765629747665733758595),
     {ok, #redundancies{nodes = N5}} = leo_redundant_manager_worker:lookup(
-                                        'leo_ring_cur', 5257965865843856950061366315134191522),
+                                        ?CLUSTER_ID, ?RING_TBL_CUR, 5257965865843856950061366315134191522),
     {ok, #redundancies{nodes = N6}} = leo_redundant_manager_worker:lookup(
-                                        'leo_ring_cur', 340282366920938463463374607431768211456),
-    {ok, #redundancies{nodes = N7}} = leo_redundant_manager_worker:last('leo_ring_cur'),
+                                        ?CLUSTER_ID, ?RING_TBL_CUR, 340282366920938463463374607431768211456),
+    {ok, #redundancies{nodes = N7}} = leo_redundant_manager_worker:last(
+                                        ?CLUSTER_ID, ?RING_TBL_CUR),
 
     ?assertEqual(3, length(N0)),
     ?assertEqual(3, length(N1)),
@@ -126,9 +202,11 @@ suite() ->
 check_redundancies(0) ->
     ok;
 check_redundancies(Index) ->
-    AddrId = leo_redundant_manager_chash:vnode_id(128, crypto:rand_bytes(64)),
+    AddrId = leo_redundant_manager_chash:vnode_id(
+               128, crypto:rand_bytes(64)),
     {ok, #redundancies{nodes = NodeL}} =
-        leo_redundant_manager_worker:lookup('leo_ring_cur', AddrId),
+        leo_redundant_manager_worker:lookup(
+          ?CLUSTER_ID, ?RING_TBL_CUR, AddrId),
     ?assertEqual(3, length(NodeL)),
     check_redundancies(Index - 1).
 

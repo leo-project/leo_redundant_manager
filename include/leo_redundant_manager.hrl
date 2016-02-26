@@ -26,8 +26,34 @@
 %%--------------------------------------------------------------------
 %% CONSTANTS
 %%--------------------------------------------------------------------
-%% Application Name
+%% Application name
 -define(APP, 'leo_redundant_manager').
+
+%% Process id
+-define(id_red_server(_ClusterId),
+        list_to_atom(
+          lists:append(["leo_red_mngr_server_",
+                        atom_to_list(_ClusterId)]))).
+
+-define(id_red_worker(_ClusterId),
+        list_to_atom(
+          lists:append(["leo_red_mngr_worker_",
+                        atom_to_list(_ClusterId)]))).
+
+-define(id_membership_local(_ClusterId),
+        list_to_atom(
+          lists:append(["leo_membership_local_",
+                        atom_to_list(_ClusterId)]))).
+
+-define(id_red_options(_ClusterId),
+        list_to_atom(
+          lists:append(["leo_red_mngr_options_",
+                        atom_to_list(_ClusterId)]))).
+
+-define(id_red_type(_ClusterId),
+        list_to_atom(
+          lists:append(["leo_red_type_",
+                        atom_to_list(_ClusterId)]))).
 
 %% Error
 -define(ERROR_COULD_NOT_GET_RING, "Could not get ring").
@@ -36,6 +62,7 @@
 -define(ERROR_COULD_NOT_GET_REDUNDANCIES, "Could not get redundancies").
 -define(ERROR_COULD_NOT_GET_MEMBERS, "Could not get members").
 -define(ERROR_INVALID_CONF, "Invalid configuration").
+-define(ERROR_SOME_RECORDS, "There're some records").
 
 -define(ERR_TYPE_INCONSISTENT_HASH, inconsistent_hash).
 -define(ERR_TYPE_NODE_DOWN, nodedown).
@@ -53,7 +80,7 @@
 -define(DEF_MIN_REPLICAS, 1).
 -define(DEF_MAX_REPLICAS, 8).
 
--define(DB_ETS,    'ets').
+-define(DB_ETS, 'ets').
 -define(DB_MNESIA, 'mnesia').
 -type(table_info() :: {?DB_MNESIA, atom()} |
                       {?DB_ETS, atom()}).
@@ -72,11 +99,18 @@
 -define(RING_TBL_PREV, 'leo_ring_prv').
 -define(NODE_ALIAS_PREFIX, "node_").
 
+-define(ring_ver(_Tbl), case _Tbl of
+                            ?RING_TBL_CUR ->
+                                ?VER_CUR;
+                            ?RING_TBL_PREV ->
+                                ?VER_PREV
+                        end).
+
 -type(ring_table() :: ?TYPE_RING_TABLE_ETS | ?TYPE_RING_TABLE_MNESIA).
 -type(ring_table_info() :: {ring_table(), ?RING_TBL_CUR} |
                            {ring_table(), ?RING_TBL_PREV}).
 
--define(WORKER_POOL_NAME,        'leo_redundant_manager_worker').
+-define(WORKER_POOL_NAME, 'leo_redundant_manager_worker').
 -define(WORKER_POOL_NAME_PREFIX, lists:append([atom_to_list(?WORKER_POOL_NAME), "_"])).
 
 -define(RING_WORKER_POOL_NAME, 'ring_worker_pool').
@@ -187,6 +221,8 @@
 %%
 -define(VER_CUR, 'cur' ).
 -define(VER_PREV, 'prev').
+-type(version() :: ?VER_CUR | ?VER_PREV).
+
 -define(member_table(_VER),
         case _VER of
             ?VER_CUR ->
@@ -259,6 +295,11 @@
                           ?CNS_ROLE_OBSERBER |
                           undefined).
 
+%% ClusterId
+-type(cluster_id() :: atom()).
+%% VNodeId
+-type(vnode_id() :: integer()).
+
 %% Server Type
 -define(MONITOR_NODE, 'monitor_node').
 -define(PERSISTENT_NODE, 'persistent_node').
@@ -266,6 +307,15 @@
 -type(node_type() :: ?MONITOR_NODE |
                      ?PERSISTENT_NODE |
                      ?WORKER_NODE).
+
+-define(ITEM_KEY_MONITORS, monitors).
+-define(ITEM_KEY_MQ_DIR, mq_dir).
+-define(ITEM_KEY_SYSTEM_CONF, system_conf).
+-define(ITEM_KEY_MEMBERSHIP_CALLBACK, membership_callback).
+-type(option_item_key() :: ?ITEM_KEY_MONITORS |
+                           ?ITEM_KEY_MQ_DIR |
+                           ?ITEM_KEY_SYSTEM_CONF |
+                           ?ITEM_KEY_MEMBERSHIP_CALLBACK).
 
 %% Mnesia Tables
 -define(TBL_SYSTEM_CONF, 'leo_system_conf').
@@ -319,7 +369,7 @@
          }).
 -record(system_conf_2, {
           version = 1 :: non_neg_integer(), %% version
-          cluster_id :: atom(),             %% cluster-id
+          cluster_id :: cluster_id(),       %% cluster-id
           dc_id :: atom(),                  %% dc-id
           n = 0 :: non_neg_integer(),       %% # of replicas
           r = 0 :: non_neg_integer(),       %% # of replicas needed for a successful READ operation
@@ -346,7 +396,7 @@
           num_of_rack_replicas = 0 :: non_neg_integer()  %% # of Rack-awareness replicas
          }).
 -record(cluster_info_1, {
-          cluster_id :: atom(),       %% cluster-id
+          cluster_id :: cluster_id(), %% cluster-id
           dc_id :: atom(),            %% dc-id
           n = 0 :: non_neg_integer(), %% # of replicas
           r = 0 :: non_neg_integer(), %% # of replicas needed for a successful READ operation
@@ -380,7 +430,7 @@
 %% Cluster Manager
 -record(cluster_manager, {
           node :: atom(), %% actual node-name
-          cluster_id :: atom()  %% cluster-id
+          cluster_id :: cluster_id()  %% cluster-id
          }).
 
 
@@ -410,7 +460,7 @@
 -define(CLUSTER_MEMBER, 'cluster_member_1').
 
 
-%% a member of a local storage cluster
+%% a member of a local cluster
 -record(member, {
           node :: atom(),                   %% actual node-name
           alias = [] :: string(),           %% node-alias
@@ -423,6 +473,22 @@
           grp_level_1 = [] :: string(),      %% Group of level_1 for multi-dc replication
           grp_level_2 = [] :: string()       %% Group of level_2 for rack-awareness replication
          }).
+%% since leo_redundant_manager:v2.0.0 / LeoFS:v1.4.0
+-record(member_1, {
+          id :: {atom(), atom()},           %% {cluster_id, node}
+          node :: atom(),                   %% actual node-name
+          cluster_id :: atom(),             %% [new] cluster-id
+          alias = [] :: string(),           %% node-alias
+          ip = "0.0.0.0" :: string(),       %% ip-address
+          port = 13075 :: pos_integer(),    %% port-number
+          inet = 'ipv4' :: 'ipv4'|'ipv6',   %% type of ip
+          clock = 0 :: pos_integer(),       %% joined at
+          state = null:: node_state()|null, %% current-status
+          num_of_vnodes = ?DEF_NUMBER_OF_VNODES :: integer(), %% # of vnodes
+          grp_level_1 = [] :: string(),      %% Group of level_1 for multi-dc replication
+          grp_level_2 = [] :: string()       %% Group of level_2 for rack-awareness replication
+         }).
+-define(MEMBER, 'member_1').
 
 
 %% Synchronization info
@@ -444,10 +510,10 @@
          }).
 
 -record(vnodeid_nodes, {
-          id = 0 :: non_neg_integer(),            %% id
-          vnode_id_from = 0 :: non_neg_integer(), %% vnode-id's from
-          vnode_id_to = 0 :: non_neg_integer(),   %% vnode-id's to
-          nodes :: [#redundant_node{}]            %% list of nodes
+          id = 0 :: non_neg_integer(),     %% id
+          vnode_id_from = 0 :: vnode_id(), %% vnode-id's from
+          vnode_id_to = 0 :: vnode_id(),   %% vnode-id's to
+          nodes :: [#redundant_node{}]     %% list of nodes
          }).
 
 -record(ring_group, {
@@ -457,11 +523,12 @@
          }).
 
 -record(ring_info, {
-          checksum = -1 :: integer(),              %% Ring's checksum
-          first_vnode_id = 0 :: non_neg_integer(), %% start vnode-id
-          last_vnode_id = 0 :: non_neg_integer(),  %% end vnode-id
-          members = [] :: [#member{}],             %% cluster-members
-          routing_table = [] :: leo_gb_trees:tree()   %% vnode-tree
+          checksum = -1 :: integer(),       %% Ring's checksum
+          first_vnode_id = 0 :: vnode_id(), %% start vnode-id
+          last_vnode_id = 0 :: vnode_id(),  %% end vnode-id
+          members = [] :: [#?MEMBER{}],     %% cluster-members
+          vnode_list = [] :: [{non_neg_integer(), atom(), non_neg_integer()}], %% vnode-id-list
+          routing_table = [] :: leo_gb_trees:tree()  %% routing-table
          }).
 
 -record(node_state, {
@@ -474,11 +541,11 @@
          }).
 
 -record(redundancies, {
-          id = -1 :: integer(),            %% ring's address
-          vnode_id_from = -1 :: integer(), %% start of vnode_id
-          vnode_id_to = -1 :: integer(),   %% end   of vnode_id (ex. vnode_id)
-          temp_nodes = [] :: [atom()],     %% tempolary objects of redundant-nodes
-          temp_level_2 = [] :: [string()], %% tempolary list of level-2's node
+          id = -1 :: integer(),             %% ring's address
+          vnode_id_from = -1 :: vnode_id(), %% start of vnode_id
+          vnode_id_to = -1 :: vnode_id(),   %% end   of vnode_id (ex. vnode_id)
+          temp_nodes = [] :: [atom()],      %% tempolary objects of redundant-nodes
+          temp_level_2 = [] :: [string()],  %% tempolary list of level-2's node
           nodes = [] :: list(#redundant_node{}), %% objects of redundant-nodes
           n = 0 :: non_neg_integer(), %% # of replicas
           r = 0 :: non_neg_integer(), %% # of successes of READ
@@ -490,15 +557,22 @@
          }).
 
 -record(ring, {
-          vnode_id = -1 :: integer(), %% vnode-id
-          node :: atom()              %% node
+          vnode_id = -1 :: vnode_id(), %% vnode-id
+          node :: atom() %% node
          }).
 -record(ring_0_16_8, {
-          vnode_id = -1 :: integer(),    %% vnode-id
+          vnode_id = -1 :: vnode_id(), %% vnode-id
+          node :: atom(), %% node
+          clock = 0 :: non_neg_integer() %% clock
+         }).
+-record(ring_2, {
+          id :: {cluster_id(), non_neg_integer()}, %% binary
+          cluster_id :: cluster_id(),    %% cluster-id
+          vnode_id = -1 :: vnode_id(),   %% vnode-id
           node :: atom(),                %% node
           clock = 0 :: non_neg_integer() %% clock
          }).
--define(RING, 'ring_0_16_8').
+-define(RING, 'ring_2').
 
 
 -record(rebalance, {
@@ -520,26 +594,25 @@
          }).
 
 -ifdef(TEST).
--define(rnd_nodes_from_ring(),
+-define(rnd_nodes_from_ring(_),
         begin
             {ok,_Host} = inet:gethostname(),
-            [
-             #redundant_node{node = list_to_atom("sync_test_me@" ++ _Host),
+            [#redundant_node{node = list_to_atom("sync_test_me@" ++ _Host),
                              available = true},
              #redundant_node{node = list_to_atom("sync_test_node_0@" ++ _Host),
                              available = false},
              #redundant_node{node = list_to_atom("sync_test_node_1@" ++ _Host),
-                             available = true}
-            ]
+                             available = true}]
         end).
 -else.
--define(rnd_nodes_from_ring(),
+-define(rnd_nodes_from_ring(_ClusterId),
         begin
-            {ok,_Options} = leo_redundant_manager_api:get_options(),
+            {ok,_Options} = leo_redundant_manager_api:get_options(_ClusterId),
             _BitOfRing = leo_misc:get_value('bit_of_ring',_Options),
-            _AddrId    = random:uniform(leo_math:power(2,_BitOfRing)),
+            _AddrId = random:uniform(leo_math:power(2,_BitOfRing)),
 
-            case leo_redundant_manager_api:get_redundancies_by_addr_id(_AddrId) of
+            case leo_redundant_manager_api:get_redundancies_by_addr_id(
+                   _ClusterId, _AddrId) of
                 {ok, #redundancies{nodes = _Redundancies}} ->
                     _Redundancies;
                 _ ->
