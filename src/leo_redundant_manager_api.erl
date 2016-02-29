@@ -1252,7 +1252,7 @@ judge_cluster_status(Members) ->
              {ok, [tuple()]} when ClusterId::cluster_id()).
 get_cluster_tbl_checksums(ClusterId) ->
     Chksum_1 = leo_cluster_tbl_conf:checksum(ClusterId),
-    Chksum_2 = leo_mdcr_tbl_cluster_info:checksum(ClusterId),
+    Chksum_2 = leo_mdcr_tbl_cluster_info:checksum(),
     Chksum_3 = leo_mdcr_tbl_cluster_mgr:checksum(),
     Chksum_4 = leo_mdcr_tbl_cluster_member:checksum(ClusterId),
     Chksum_5 = leo_mdcr_tbl_cluster_stat:checksum(ClusterId),
