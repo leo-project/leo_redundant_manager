@@ -80,7 +80,7 @@ start(ClusterId, ?WORKER_NODE, RootPath) ->
 start(_,_,_) ->
     {error, badarg}.
 
-%% @TODO
+%% @private
 start_1(_ClusterId, InstanceId, RootPath) ->
     RootPath_1 = case (string:len(RootPath) == string:rstr(RootPath, "/")) of
                      true ->
