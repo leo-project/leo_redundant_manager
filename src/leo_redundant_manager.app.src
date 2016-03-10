@@ -3,7 +3,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2015 Rakuten, Inc.
+%% Copyright (c) 2012-2016 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -23,7 +23,7 @@
 {application, leo_redundant_manager,
   [
     {description, "Leo Redundant Manaeger"},
-    {vsn, "1.9.22"},
+    {vsn, "1.9.23"},
     {id, "leo_redundant_manager"},
     {registered,   []},
     {applications, [kernel, stdlib, crypto]},
