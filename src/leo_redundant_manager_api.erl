@@ -279,13 +279,8 @@ attach(Node, AwarenessL2, Clock, NumOfVNodes) ->
                                       NumOfVNodes::integer(),
                                       RPCPort::integer()).
 attach(Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) ->
-    case leo_redundant_manager:attach(
-           Node, AwarenessL2, Clock, NumOfVNodes, RPCPort) of
-        ok ->
-            ok;
-        Error ->
-            Error
-    end.
+    leo_redundant_manager:attach(
+      Node, AwarenessL2, Clock, NumOfVNodes, RPCPort).
 
 
 %% @doc reserve a node during in operation
@@ -764,18 +759,23 @@ takeover_status([#member{state = ?STATE_ATTACHED,
             %% Takeover vnodes:
             %%     Remove vnodes by old-alias,
             %%     then insert vnodes by new-alias
+            Clock = leo_date:clock(),
             RingTblCur = table_info(?VER_CUR),
-            Member_1 = Member#member{alias = Alias_1},
-
+            Member_1 = Member#member{alias = Alias_1,
+                                     clock = Clock},
             ok = leo_redundant_manager_chash:remove(RingTblCur, Member),
+            ok = leo_redundant_manager_chash:remove(RingTblCur, SrcMember),
             ok = leo_redundant_manager_chash:add(RingTblCur, Member_1),
+            ok = leo_cluster_tbl_member:delete(?MEMBER_TBL_CUR, Node),
             ok = leo_cluster_tbl_member:insert(?MEMBER_TBL_CUR, {Node, Member_1}),
 
             case SrcMember of
-                [] -> void;
+                [] ->
+                    void;
                 #member{node = SrcNode} ->
                     ok = leo_cluster_tbl_member:insert(
-                           ?MEMBER_TBL_CUR, {SrcNode, SrcMember#member{alias = []}})
+                           ?MEMBER_TBL_CUR, {SrcNode, SrcMember#member{alias = [],
+                                                                       clock = Clock}})
             end,
             takeover_status(Rest, [{Member, Member_1, SrcMember}|TakeOverList]);
         _ ->
@@ -832,20 +832,33 @@ after_rebalance([]) ->
     case leo_redundant_manager_api:get_members_by_status(
            ?VER_CUR, ?STATE_DETACHED) of
         {ok, DetachedNodes} ->
-            TblCur  = leo_redundant_manager_api:table_info(?VER_CUR),
+            TblCur = leo_redundant_manager_api:table_info(?VER_CUR),
             TblPrev = leo_redundant_manager_api:table_info(?VER_PREV),
             ok = lists:foreach(
-                   fun(#member{node  = Node,
+                   fun(#member{node = Node,
                                alias = Alias} = Member) ->
                            %% remove detached node from members
-                           leo_cluster_tbl_member:delete(?MEMBER_TBL_CUR,  Node),
+                           leo_cluster_tbl_member:delete(?MEMBER_TBL_CUR, Node),
                            leo_cluster_tbl_member:delete(?MEMBER_TBL_PREV, Node),
                            %% remove detached node from ring
                            case Alias of
-                               [] -> void;
-                               _  ->
-                                   leo_redundant_manager_chash:remove(TblCur,  Member),
-                                   leo_redundant_manager_chash:remove(TblPrev, Member)
+                               [] ->
+                                   void;
+                               _ ->
+                                   case leo_cluster_tbl_member:find_by_alias(
+                                          ?MEMBER_TBL_CUR, Alias) of
+                                       not_found ->
+                                           leo_redundant_manager_chash:remove(TblCur, Member);
+                                       _ ->
+                                           void
+                                   end,
+                                   case leo_cluster_tbl_member:find_by_alias(
+                                          ?MEMBER_TBL_PREV, Alias) of
+                                       not_found ->
+                                           leo_redundant_manager_chash:remove(TblPrev, Member);
+                                       _ ->
+                                           void
+                                   end
                            end
                    end, DetachedNodes);
         {error,_Cause} ->
@@ -859,7 +872,7 @@ after_rebalance([]) ->
         {error, Reason} ->
             error_logger:warning_msg("~p,~p,~p,~p~n",
                                      [{module, ?MODULE_STRING},
-                                      {function, "after_rebalance_1/0"},
+                                      {function, "after_rebalance/1"},
                                       {line, ?LINE},
                                       {body, Reason}])
     end,
@@ -869,10 +882,15 @@ after_rebalance([{#member{node = Node} = Member_1, Member_2, SrcMember}|Rest]) -
         %% After exec taking over data from detach-node to attach-node
         RingTblPrev = table_info(?VER_PREV),
         MembersTblPrev = ?MEMBER_TBL_PREV,
-
-        ok = leo_redundant_manager_chash:remove(RingTblPrev, Member_1),
-        ok = leo_redundant_manager_chash:add(RingTblPrev, Member_2),
-        ok = leo_cluster_tbl_member:insert(MembersTblPrev, {Node, Member_2}),
+        case (Member_1#member.node /= Member_2#member.node) of
+            true ->
+                ok = leo_redundant_manager_chash:remove(RingTblPrev, Member_1),
+                ok = leo_redundant_manager_chash:add(RingTblPrev, Member_2),
+                ok = leo_cluster_tbl_member:delete(MembersTblPrev, Node),
+                ok = leo_cluster_tbl_member:insert(MembersTblPrev, {Node, Member_2});
+            false ->
+                void
+        end,
 
         case SrcMember of
             [] -> void;
@@ -884,7 +902,7 @@ after_rebalance([{#member{node = Node} = Member_1, Member_2, SrcMember}|Rest]) -
         _:Cause ->
             error_logger:warning_msg("~p,~p,~p,~p~n",
                                      [{module, ?MODULE_STRING},
-                                      {function, "after_rebalance_1/0"},
+                                      {function, "after_rebalance/1"},
                                       {line, ?LINE},
                                       {body, Cause}])
     end,

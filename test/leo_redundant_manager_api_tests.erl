@@ -73,43 +73,84 @@ suite_2_test_() ->
      ]}.
 suite_3_test_() ->
     {setup,
-     fun ( ) -> setup(),      ok end,
-     fun (_) -> teardown([]), ok end,
+     fun ( ) ->
+             ?debugVal("### ATTACH-1.TEST ###"),
+             setup(),
+             ok
+     end,
+     fun (_) ->
+             teardown([]),
+             ok
+     end,
      [
       {"",{timeout, 5000, fun attach_1/0}}
      ]}.
 suite_4_test_() ->
     {setup,
-     fun ( ) -> setup(),      ok end,
-     fun (_) -> teardown([]), ok end,
+     fun ( ) ->
+             ?debugVal("### ATTACH-2.TEST ###"),
+             setup(),
+             ok
+     end,
+     fun (_) ->
+             teardown([]),
+             ok
+     end,
      [
       {"",{timeout, 5000, fun attach_2/0}}
      ]}.
 suite_5_test_() ->
     {setup,
-     fun ( ) -> setup(),      ok end,
-     fun (_) -> teardown([]), ok end,
+     fun ( ) ->
+             ?debugVal("### DETACH-1.TEST ###"),
+             setup(),
+             ok end,
+     fun (_) ->
+             teardown([]),
+             ok
+     end,
      [
       {"",{timeout, 5000, fun detach/0}}
      ]}.
 suite_7_test_() ->
     {setup,
-     fun ( ) -> setup(),      ok end,
-     fun (_) -> teardown([]), ok end,
+     fun ( ) ->
+             ?debugVal("### MEMBER_TABLE.TEST ###"),
+             setup(),
+             ok
+     end,
+     fun (_) ->
+             teardown([]),
+             ok
+     end,
      [
       {"",{timeout, 5000, fun members_table/0}}
      ]}.
 suite_8_test_() ->
     {setup,
-     fun ( ) -> setup(),      ok end,
-     fun (_) -> teardown([]), ok end,
+     fun ( ) ->
+             ?debugVal("### RACK_AWARE-1.TEST ###"),
+             setup(),
+             ok
+     end,
+     fun (_) ->
+             teardown([]),
+             ok
+     end,
      [
       {"",{timeout, 5000, fun rack_aware_1/0}}
      ]}.
 suite_9_test_() ->
     {setup,
-     fun ( ) -> setup(),      ok end,
-     fun (_) -> teardown([]), ok end,
+     fun ( ) ->
+             ?debugVal("### RACK_AWARE-2.TEST ###"),
+             setup(),
+             ok
+     end,
+     fun (_) ->
+             teardown([]),
+             ok
+     end,
      [
       {"",{timeout, 5000, fun rack_aware_2/0}}
      ]}.
@@ -346,9 +387,10 @@ detach_1_1(Index) ->
         true ->
             ok;
         false ->
-            R1Nodes = [N || #redundant_node{node = N} <- R1#redundancies.nodes],
-            R2Nodes = [N || #redundant_node{node = N} <- R2#redundancies.nodes],
-            ?debugVal({R1Nodes, R2Nodes})
+            _R1Nodes = [N || #redundant_node{node = N} <- R1#redundancies.nodes],
+            _R2Nodes = [N || #redundant_node{node = N} <- R2#redundancies.nodes],
+            %% ?debugVal({R1Nodes, R2Nodes})
+            ok
     end,
     detach_1_1(Index - 1).
 
@@ -839,39 +881,47 @@ redundant_1(Members, St, End) ->
 
 
 redundant_manager_2_test_() ->
+    ?debugVal("### LONG-RUN-1.TEST ###"),
     {timeout, 60000, ?_assertEqual(ok, begin
                                            long_run_1()
                                        end)}.
 redundant_manager_3_test_() ->
+    ?debugVal("### LONG-RUN-2.TEST ###"),
     {timeout, 60000, ?_assertEqual(ok, begin
                                            long_run_2()
                                        end)}.
 redundant_manager_4_test_() ->
+    ?debugVal("### LONG-RUN-3.TEST ###"),
     {timeout, 60000, ?_assertEqual(ok, begin
                                            long_run_3()
                                        end)}.
 
 redundant_manager_5_test_() ->
+    ?debugVal("### ATTACH TO DETACH.TEST ###"),
     {timeout, 60000, ?_assertEqual(ok, begin
                                            attach_to_detach()
                                        end)}.
 
 redundant_manager_6_test_() ->
+    ?debugVal("### ATTACH AND ATTACH.TEST ###"),
     {timeout, 60000, ?_assertEqual(ok, begin
                                            attach_to_attach()
                                        end)}.
 
 redundant_manager_7_test_() ->
+    ?debugVal("### ATTACH AND DETACH.TEST ###"),
     {timeout, 60000, ?_assertEqual(ok, begin
                                            attach_and_detach()
                                        end)}.
 
 redundant_manager_8_test_() ->
+    ?debugVal("### ATTACH AND ATTACH.TEST ###"),
     {timeout, 60000, ?_assertEqual(ok, begin
                                            attach_and_attach()
                                        end)}.
 
 redundant_manager_9_test_() ->
+    ?debugVal("### DETACH AND ATTACH SAME-NODE.TEST ###"),
     {timeout, 60000, ?_assertEqual(ok, begin
                                            detach_after_attach_same_node()
                                        end)}.
@@ -909,7 +959,6 @@ long_run_1() ->
                                          false -> [Src|Acc]
                                      end
                              end, [], Res1)),
-    ?debugVal(SrcNodes),
     ?assertEqual(8, length(SrcNodes)),
 
     %% retrieve redundancies
@@ -949,7 +998,6 @@ long_run_2() ->
                                          false -> [Src|Acc]
                                      end
                              end, [], Res1)),
-    ?debugVal(SrcNodes),
     ?assertEqual(8, length(SrcNodes)),
 
     %% retrieve redundancies
@@ -981,7 +1029,6 @@ long_run_3() ->
                                          false -> [Src|Acc]
                                      end
                              end, [], Res1)),
-    ?debugVal(SrcNodes),
     ?assertEqual(7, length(SrcNodes)),
 
     %% retrieve redundancies
@@ -1026,7 +1073,6 @@ attach_to_detach() ->
                                          false -> [Src|Acc]
                                      end
                              end, [], Res2)),
-    ?debugVal(SrcNodes),
     ?assertEqual(8, length(SrcNodes)),
 
     %% {ok, {RingHashCur_2, RingHashPrev_2}} = leo_redundant_manager_api:checksum(ring),
@@ -1085,7 +1131,6 @@ attach_to_attach() ->
                                          false -> [Src|Acc]
                                      end
                              end, [], Res2)),
-    ?debugVal(SrcNodes),
     ?assertEqual(9, length(SrcNodes)),
 
     ok = leo_redundant_manager_api:update_member_by_node(
@@ -1132,7 +1177,6 @@ attach_and_detach() ->
                                          false -> [Src|Acc]
                                      end
                              end, [], Res1)),
-    ?debugVal(SrcNodes),
     ?assertEqual(7, length(SrcNodes)),
 
     lists:foreach(fun(Item) ->
@@ -1181,7 +1225,6 @@ attach_and_attach() ->
                                          false -> [Src|Acc]
                                      end
                              end, [], Res1)),
-    ?debugVal(SrcNodes),
     ?assertEqual(3, length(SrcNodes)),
 
     lists:foreach(fun(Item) ->
@@ -1237,7 +1280,6 @@ detach_after_attach_same_node() ->
                                          false -> [Src|Acc]
                                      end
                              end, [], Res1)),
-    ?debugVal(SrcNodes),
     ?assertEqual(7, length(SrcNodes)),
 
     lists:foreach(fun(Item) ->
