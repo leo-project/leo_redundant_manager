@@ -171,7 +171,7 @@ find_all(Table) ->
 find_all(?DB_MNESIA, Table) ->
     F = fun() ->
                 Q1 = qlc:q([X || X <- mnesia:table(Table)]),
-                Q2 = qlc:sort(Q1, [{order, descending}]),
+                Q2 = qlc:sort(Q1, [{order, ascending}]),
                 qlc:e(Q2)
         end,
     leo_mnesia:read(F);
@@ -457,10 +457,10 @@ insert(DBType, Table, {_Node, Member}) ->
             clock = Clock} = Member,
     Ret = case lookup(DBType, Table, Node) of
               {ok, #member{state = State,
-                           clock = Clock_1}} when Clock > Clock_1 ->
+                           clock = Clock_1}} when Clock >= Clock_1 ->
                   ok;
               {ok, #member{state = State,
-                           clock = Clock_1}} when Clock =< Clock_1 ->
+                           clock = Clock_1}} when Clock < Clock_1 ->
                   {error, ignore};
               {ok,_} ->
                   ok;
