@@ -751,7 +751,7 @@ takeover_status([], TakeOverList) ->
             Error
     end;
 takeover_status([#member{state = ?STATE_ATTACHED,
-                         node  = Node,
+                         node = Node,
                          alias = Alias,
                          grp_level_2 = GrpL2} = Member|Rest], TakeOverList) ->
     case get_alias(Node, GrpL2) of
@@ -760,23 +760,14 @@ takeover_status([#member{state = ?STATE_ATTACHED,
             %%     Remove vnodes by old-alias,
             %%     then insert vnodes by new-alias
             Clock = leo_date:clock(),
-            RingTblCur = table_info(?VER_CUR),
             Member_1 = Member#member{alias = Alias_1,
                                      clock = Clock},
+            RingTblCur = table_info(?VER_CUR),
             ok = leo_redundant_manager_chash:remove(RingTblCur, Member),
             ok = leo_redundant_manager_chash:remove(RingTblCur, SrcMember),
             ok = leo_redundant_manager_chash:add(RingTblCur, Member_1),
             ok = leo_cluster_tbl_member:delete(?MEMBER_TBL_CUR, Node),
             ok = leo_cluster_tbl_member:insert(?MEMBER_TBL_CUR, {Node, Member_1}),
-
-            case SrcMember of
-                [] ->
-                    void;
-                #member{node = SrcNode} ->
-                    ok = leo_cluster_tbl_member:insert(
-                           ?MEMBER_TBL_CUR, {SrcNode, SrcMember#member{alias = [],
-                                                                       clock = Clock}})
-            end,
             takeover_status(Rest, [{Member, Member_1, SrcMember}|TakeOverList]);
         _ ->
             takeover_status(Rest, TakeOverList)
@@ -789,11 +780,12 @@ takeover_status([_|Rest], TakeOverList) ->
 before_rebalance_1([]) ->
     %% Synchronize previous-ring
     case synchronize_1(?SYNC_TARGET_RING_PREV, ?VER_PREV) of
-        ok -> void;
+        ok ->
+            void;
         {error, Reason} ->
             error_logger:warning_msg("~p,~p,~p,~p~n",
                                      [{module, ?MODULE_STRING},
-                                      {function, "after_rebalance_1/0"},
+                                      {function, "before_rebalance_1/1"},
                                       {line, ?LINE},
                                       {body, Reason}])
     end,
@@ -837,9 +829,31 @@ after_rebalance([]) ->
             ok = lists:foreach(
                    fun(#member{node = Node,
                                alias = Alias} = Member) ->
+                           %% add a took over node
+                           case leo_cluster_tbl_member:find_by_alias(?MEMBER_TBL_CUR, Alias) of
+                               {ok, MemberL} ->
+                                   case lists:keyfind(Node, 2, MemberL) of
+                                       false ->
+                                           void;
+                                       RemovedNode ->
+                                           case lists:delete(RemovedNode, MemberL) of
+                                               [#member{node = TookOverNode} = TookOverMember] ->
+                                                   ok = leo_redundant_manager_chash:add(
+                                                          table_info(?VER_PREV), TookOverMember),
+                                                   ok = leo_cluster_tbl_member:insert(
+                                                          ?MEMBER_TBL_PREV, {TookOverNode, TookOverMember});
+                                               _ ->
+                                                   void
+                                           end
+                                   end;
+                               _ ->
+                                   void
+                           end,
+
                            %% remove detached node from members
                            leo_cluster_tbl_member:delete(?MEMBER_TBL_CUR, Node),
                            leo_cluster_tbl_member:delete(?MEMBER_TBL_PREV, Node),
+
                            %% remove detached node from ring
                            case Alias of
                                [] ->

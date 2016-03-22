@@ -514,6 +514,8 @@ delete(?DB_MNESIA, Table, Node) ->
                           mnesia:delete_object(Table, Member, write)
                   end,
             leo_mnesia:delete(Fun);
+        not_found ->
+            ok;
         Error ->
             Error
     end;
