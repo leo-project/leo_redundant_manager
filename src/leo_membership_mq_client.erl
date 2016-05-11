@@ -85,14 +85,14 @@ start1(InstanceId, RootPath0) ->
                     false -> RootPath0 ++ "/"
                 end,
     leo_mq_api:new(leo_mq_sup, InstanceId, [{?MQ_PROP_MOD, ?MODULE},
-                                        {?MQ_PROP_DB_PROCS, 1},
-                                        {?MQ_PROP_DB_NAME, ?DEF_BACKEND_DB},
-                                        {?MQ_PROP_ROOT_PATH, RootPath1 ++ ?MQ_DB_PATH},
-                                        {?MQ_PROP_INTERVAL_MAX, ?DEF_CONSUME_MAX_INTERVAL},
-                                        {?MQ_PROP_INTERVAL_REG, ?DEF_CONSUME_REG_INTERVAL},
-                                        {?MQ_PROP_BATCH_MSGS_MAX, ?DEF_CONSUME_MAX_BATCH_MSGS},
-                                        {?MQ_PROP_BATCH_MSGS_REG, ?DEF_CONSUME_REG_BATCH_MSGS}
-                                       ]),
+                                            {?MQ_PROP_DB_PROCS, 3},
+                                            {?MQ_PROP_DB_NAME, ?DEF_BACKEND_DB},
+                                            {?MQ_PROP_ROOT_PATH, RootPath1 ++ ?MQ_DB_PATH},
+                                            {?MQ_PROP_INTERVAL_MAX, ?DEF_CONSUME_MAX_INTERVAL},
+                                            {?MQ_PROP_INTERVAL_REG, ?DEF_CONSUME_REG_INTERVAL},
+                                            {?MQ_PROP_BATCH_MSGS_MAX, ?DEF_CONSUME_MAX_BATCH_MSGS},
+                                            {?MQ_PROP_BATCH_MSGS_REG, ?DEF_CONSUME_REG_BATCH_MSGS}
+                                           ]),
     ok.
 
 
