@@ -208,6 +208,16 @@ prepare() ->
     meck:expect(leo_manager_api, notify, fun(_Type, _Node1, _Notify2, _Error) ->
                                                  ok
                                          end),
+
+    meck:new(leo_mq_api, [non_strict]),
+    meck:expect(leo_mq_api, new,
+                fun(_,_,_) ->
+                        ok
+                end),
+    meck:expect(leo_mq_api, publish,
+                fun(_,_,_) ->
+                        ok
+                end),
     ok.
 
 -endif.
