@@ -64,20 +64,6 @@
 start_link() ->
     case supervisor:start_link({local, ?MODULE}, ?MODULE, []) of
         {ok, RefSup} ->
-            %% Launch the mq-sup
-            MQPid = case whereis(leo_mq_sup) of
-                        undefined ->
-                            ChildSpec = {leo_mq_sup,
-                                         {leo_mq_sup, start_link, []},
-                                         permanent, 2000, supervisor, [leo_mq_sup]},
-                            {ok, Pid} = supervisor:start_child(RefSup, ChildSpec),
-                            Pid;
-                        Pid ->
-                            Pid
-                    end,
-            ok = application:set_env(
-                   leo_redundant_manager, mq_sup_ref, MQPid),
-
             %% Initialize environment vars
             ok = leo_misc:init_env(),
             ?MODULE_SET_ENV_1(),
@@ -98,21 +84,12 @@ start_link() ->
                                                 RefSup::pid(),
                                                 Cause::any()).
 start_child(ClusterId, NodeType, Option) ->
-    Monitors = leo_misc:get_value(?ITEM_KEY_MONITORS, Option, []),
-    MQDir = leo_misc:get_value(?ITEM_KEY_MQ_DIR, Option),
     SystemConf = leo_misc:get_value(?ITEM_KEY_SYSTEM_CONF, Option),
-    MembershipCallback = leo_misc:get_value(?ITEM_KEY_MEMBERSHIP_CALLBACK, Option),
 
     %% Launch membership for local-cluster,
     %% then lunch mdc-tables sync
-    case start_child_1(ClusterId, NodeType,
-                       Monitors, MembershipCallback) of
+    case start_child_1(ClusterId, NodeType) of
         ok ->
-            %% Start membership of the cluster
-            ok = leo_membership_mq_client:start(ClusterId, NodeType, MQDir),
-            ok = leo_membership_cluster_local:start_heartbeat(
-                   ?id_membership_local(ClusterId)),
-
             %% Set environment vars
             ok = leo_misc:set_env(?APP, ?id_red_type(ClusterId), NodeType),
             case (SystemConf == []) of
@@ -137,7 +114,7 @@ start_child(ClusterId, NodeType, Option) ->
     end.
 
 %% @private
-start_child_1(ClusterId, NodeType, Monitors, MembershipCallback) ->
+start_child_1(ClusterId, NodeType) ->
     ok = init_tables(NodeType),
     Specs = [
              {?id_red_server(ClusterId),
@@ -150,14 +127,8 @@ start_child_1(ClusterId, NodeType, Monitors, MembershipCallback) ->
               {leo_redundant_manager_worker, start_link, [ClusterId]},
               permanent,
               ?SHUTDOWN_WAITING_TIME, worker,
-              [leo_redundant_manager_worker]},
+              [leo_redundant_manager_worker]}
 
-             {?id_membership_local(ClusterId),
-              {leo_membership_cluster_local,
-               start_link,
-               [ClusterId, NodeType, Monitors, MembershipCallback]},
-              permanent, ?SHUTDOWN_WAITING_TIME, worker,
-              [leo_membership_cluster_local]}
              %% @TODO
              %% {leo_mdcr_tbl_sync,
              %%  {leo_mdcr_tbl_sync,
@@ -166,19 +137,8 @@ start_child_1(ClusterId, NodeType, Monitors, MembershipCallback) ->
              %%  permanent, 2000, worker,
              %%  [leo_mdcr_tbl_sync]}
             ],
-    start_child_2(
-      begin
-          case NodeType of
-              ?MONITOR_NODE ->
-                  lists:reverse([{leo_membership_cluster_remote,
-                                  {leo_membership_cluster_remote, start_link, []},
-                                  permanent,
-                                  ?SHUTDOWN_WAITING_TIME, worker,
-                                  [leo_membership_cluster_remote]}|Specs]);
-              _ ->
-                  Specs
-          end
-      end).
+    ?debugVal(Specs),
+    start_child_2(Specs).
 
 %% @private
 start_child_2([]) ->

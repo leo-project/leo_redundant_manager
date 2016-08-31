@@ -20,8 +20,6 @@ all:
 	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_stat
 	@$(REBAR) eunit suites=leo_redundant_manager_worker
 	@$(REBAR) eunit suites=leo_redundant_manager_api
-	@$(REBAR) eunit suites=leo_membership_cluster_local
-	@$(REBAR) eunit suites=leo_membership_mq_client
 	@$(REBAR) eunit suites=leo_gb_trees
 compile:
 	@$(REBAR) compile skip_deps=true
@@ -36,8 +34,6 @@ eunit:
 	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_stat
 	@$(REBAR) eunit suites=leo_redundant_manager_worker
 	@$(REBAR) eunit suites=leo_redundant_manager_api
-	@$(REBAR) eunit suites=leo_membership_cluster_local
-	@$(REBAR) eunit suites=leo_membership_mq_client
 	@$(REBAR) eunit suites=leo_gb_trees
 check_plt:
 	@$(REBAR) compile

@@ -59,7 +59,8 @@
          update_member/2, update_members/2,
          update_member_by_node/3, update_member_by_node/4,
 
-         delete_member_by_node/2, is_alive/1, table_info/1,
+         delete_member_by_node/2,
+         table_info/1,
          force_sync_workers/1,
          get_cluster_status/1,
          get_cluster_tbl_checksums/1
@@ -1163,11 +1164,11 @@ delete_member_by_node(ClusterId, Node) ->
       ClusterId, Node).
 
 
-%% @doc Is alive the process?
--spec(is_alive(ClusterId) ->
-             ok when ClusterId::cluster_id()).
-is_alive(ClusterId) ->
-    leo_membership_cluster_local:heartbeat(?id_membership_local(ClusterId)).
+%% %% @doc Is alive the process?
+%% -spec(is_alive(ClusterId) ->
+%%              ok when ClusterId::cluster_id()).
+%% is_alive(ClusterId) ->
+%%     leo_membership_cluster_local:heartbeat(?id_membership_local(ClusterId)).
 
 
 %% @doc Retrieve table-info by version.
