@@ -1,4 +1,4 @@
-.PHONY: all comile xref eunit check_plt build_plt dialyzer doc callgraph graphviz clean distclean
+.PHONY: all get_deps comile xref eunit check_plt build_plt dialyzer doc callgraph graphviz clean distclean
 
 REBAR := ./rebar
 APPS = erts kernel stdlib sasl crypto compiler inets mnesia public_key runtime_tools snmp syntax_tools tools xmerl webtool ssl
@@ -8,8 +8,8 @@ DOT_FILE = leo_redundant_manager.dot
 CALL_GRAPH_FILE = leo_redundant_manager.png
 
 all:
-	@$(REBAR) update-deps
 	@$(REBAR) get-deps
+	$(SHELL) -c ./replace_otp_vsn.sh
 	@$(REBAR) compile
 	@$(REBAR) xref skip_deps=true
 	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_info
@@ -21,7 +21,8 @@ all:
 	@$(REBAR) eunit suites=leo_membership_cluster_local
 	@$(REBAR) eunit suites=leo_membership_mq_client
 compile:
-	@$(REBAR) compile skip_deps=true
+	$(SHELL) -c ./replace_otp_vsn.sh
+	@$(REBAR) compile
 xref:
 	@$(REBAR) xref skip_deps=true
 eunit:
@@ -49,7 +50,7 @@ callgraph: graphviz
 graphviz:
 	$(if $(shell which dot),,$(error "To make the depgraph, you need graphviz installed"))
 clean:
-	@$(REBAR) clean skip_deps=true
+	@$(REBAR) clean
 distclean:
 	@$(REBAR) delete-deps
 	@$(REBAR) clean
