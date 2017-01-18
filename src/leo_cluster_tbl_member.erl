@@ -542,7 +542,7 @@ delete_all(Table) ->
 delete_all(?DB_MNESIA = DBType, Table) ->
     case find_all(DBType, Table) of
         {ok, L} ->
-            case mnesia:transaction(
+            case mnesia:sync_transaction(
                    fun() ->
                            case delete_all_1(L, Table) of
                                ok -> ok;
@@ -639,7 +639,7 @@ overwrite(SrcTable, DestTable) ->
 
 %% @private
 overwrite_1(?DB_MNESIA = DB, Table, Members) ->
-    case mnesia:transaction(
+    case mnesia:sync_transaction(
            fun() ->
                    overwrite_1_1(DB, Table, Members)
            end) of

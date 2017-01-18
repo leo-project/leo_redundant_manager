@@ -162,7 +162,7 @@ insert({?DB_ETS, Table}, {VNodeId, Node, Clock}) ->
              ok | {error, any()} when TableInfo::table_info(),
                                       List::[{integer(), atom(), integer()}]).
 bulk_insert({?DB_MNESIA, Table}, List) ->
-    case mnesia:transaction(
+    case mnesia:sync_transaction(
            fun() ->
                    bulk_insert_1(Table, List)
            end) of
@@ -224,7 +224,7 @@ delete({?DB_ETS, Table}, VNodeId) ->
              ok | {error, any()} when TableInfo::table_info(),
                                       List::[integer()]).
 bulk_delete({?DB_MNESIA,_} = TableInfo, List) ->
-    case mnesia:transaction(
+    case mnesia:sync_transaction(
            fun() ->
                    bulk_delete_1(TableInfo, List)
            end) of
@@ -381,7 +381,7 @@ overwrite(SrcTableInfo, DestTableInfo) ->
                                                  {?DB_ETS, atom()},
                                       Items::[tuple()]|[#?RING{}]).
 overwrite_1({?DB_MNESIA,_} = TableInfo,Items) ->
-    case mnesia:transaction(
+    case mnesia:sync_transaction(
            fun() ->
                    overwrite_2(TableInfo, Items)
            end) of
