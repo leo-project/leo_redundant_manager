@@ -646,9 +646,7 @@ collect_redundancies_by_key(Key, NumOfReplicas, MaxNumOfDuplicate) ->
         {ok, RedundantNodeL} ->
             {ok, {Options, RedundantNodeL}};
         not_found = Cause ->
-            {error, Cause};
-        Others ->
-            Others
+            {error, Cause}
     end.
 
 
