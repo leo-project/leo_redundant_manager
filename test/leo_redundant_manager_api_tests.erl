@@ -30,28 +30,73 @@
 %%--------------------------------------------------------------------
 -ifdef(EUNIT).
 
-check_redundancies_test_() ->
+check_redundancies_1_test_() ->
     {setup,
      fun ( ) ->
-             ?debugVal("### CHECK-REDUNDANCIES.START ###"),
+             ?debugVal("### CHECK-REDUNDANCIES-1.START ###"),
              {_} = setup(),
              ok
      end,
      fun (_) ->
              teardown([]),
              timer:sleep(3000),
-             ?debugVal("### CHECK-REDUNDANCIES.END ###"),
+             ?debugVal("### CHECK-REDUNDANCIES-1.END ###"),
              ok
      end,
      [
-      {"check redundancies",
-       {timeout, 5000, fun check_redundancies/0}}
+      {"check redundancies#1",
+       {timeout, 5000, fun check_redundancies_1/0}}
      ]}.
 
-check_redundancies() ->
+check_redundancies_1() ->
     {ok, Hostname} = inet:gethostname(),
     ok = prepare(Hostname, master),
     ok = inspect_0(Hostname, 500),
+    ok.
+
+check_redundancies_2_test_() ->
+    {setup,
+     fun ( ) ->
+             ?debugVal("### CHECK-REDUNDANCIES-2.START ###"),
+             {_} = setup(),
+             ok
+     end,
+     fun (_) ->
+             teardown([]),
+             timer:sleep(3000),
+             ?debugVal("### CHECK-REDUNDANCIES-2.END ###"),
+             ok
+     end,
+     [
+      {"check redundancies_2",
+       {timeout, 5000, fun check_redundancies_2/0}}
+     ]}.
+
+check_redundancies_2() ->
+    {ok, Hostname} = inet:gethostname(),
+    ok = prepare_1(Hostname, master),
+    {ok, Members, Chksums} = leo_redundant_manager_api:create(),
+    ?debugVal({Members, Chksums}),
+
+    %% Test leo_redundant_manager_api:get_redundancies_by_addr_id/3
+    Max = leo_math:power(2, ?MD5),
+    Id  = random:uniform(Max),
+    NumOfReplicas = 4,
+
+    {ok, #redundancies{nodes = Nodes,
+                       n = N_Value,
+                       r = R_Value,
+                       w = W_Value,
+                       d = D_Value}} = leo_redundant_manager_api:get_redundancies_by_addr_id(
+                                         default, Id, NumOfReplicas),
+
+    ?debugVal({Nodes, N_Value, R_Value, W_Value, D_Value}),
+
+    Q_Value = leo_math:floor(NumOfReplicas * ?env_quorum_coefficient()),
+    ?assertEqual(NumOfReplicas, length(Nodes)),
+    ?assertEqual(Q_Value, R_Value),
+    ?assertEqual(Q_Value, W_Value),
+    ?assertEqual(Q_Value, D_Value),
     ok.
 
 
@@ -633,6 +678,37 @@ prepare(Hostname, ServerType, NumOfNodes) ->
     end,
     ok.
 
+prepare_1(Hostname, ServerType) ->
+    catch ets:delete(?MEMBER_TBL_CUR),
+    catch ets:delete(?MEMBER_TBL_PREV),
+    catch ets:delete('leo_ring_cur'),
+    catch ets:delete('leo_ring_prv'),
+
+    {ok, _RefSup} = leo_redundant_manager_sup:start_link(ServerType),
+    case ServerType of
+        master ->
+            leo_cluster_tbl_ring:create_table_current(ram_copies, [node()]),
+            leo_cluster_tbl_ring:create_table_prev(ram_copies, [node()]);
+        _ ->
+            void
+    end,
+
+    leo_redundant_manager_api:set_options([{n, 5},
+                                           {r, 3},
+                                           {w ,4},
+                                           {d, 4},
+                                           {bit_of_ring, 128}]),
+
+    leo_redundant_manager_api:attach(list_to_atom("node_0@" ++ Hostname)),
+    leo_redundant_manager_api:attach(list_to_atom("node_1@" ++ Hostname)),
+    leo_redundant_manager_api:attach(list_to_atom("node_2@" ++ Hostname)),
+    leo_redundant_manager_api:attach(list_to_atom("node_3@" ++ Hostname)),
+    leo_redundant_manager_api:attach(list_to_atom("node_4@" ++ Hostname)),
+    leo_redundant_manager_api:attach(list_to_atom("node_5@" ++ Hostname)),
+    leo_redundant_manager_api:attach(list_to_atom("node_6@" ++ Hostname)),
+    leo_redundant_manager_api:attach(list_to_atom("node_7@" ++ Hostname)),
+    ok.
+
 
 inspect_0(Hostname, NumOfIteration) ->
     %% member-related.
@@ -733,6 +809,7 @@ inspect_0(Hostname, NumOfIteration) ->
 inspect_redundancies_1(0) ->
     ok;
 inspect_redundancies_1(Counter) ->
+    %% Test leo_redundant_manager_api:get_redundancies_by_key/3
     case leo_redundant_manager_api:get_redundancies_by_key(integer_to_list(Counter)) of
         {ok, #redundancies{id = _Id0,
                            vnode_id_to = _VNodeId0,
@@ -751,11 +828,21 @@ inspect_redundancies_1(Counter) ->
         _Other ->
             ?debugVal(_Other)
     end,
+
+    %% Test leo_redundant_manager_api:get_redundancies_by_key/3
+    {ok, #redundancies{nodes = Nodes1,
+                       n = 2,
+                       r = 1,
+                       w = 1,
+                       d = 1}} = leo_redundant_manager_api:get_redundancies_by_key(
+                                   default, integer_to_list(Counter), 2),
+    ?assertEqual(2, length(Nodes1)),
     inspect_redundancies_1(Counter - 1).
 
 inspect_redundancies_2(0) ->
     ok;
 inspect_redundancies_2(Counter) ->
+    %% Test leo_redundant_manager_api:get_redundancies_by_addr_id/3
     Max = leo_math:power(2, ?MD5),
     Id  = random:uniform(Max),
     {ok, #redundancies{id = _Id0,
@@ -773,6 +860,15 @@ inspect_redundancies_2(Counter) ->
                                         end, Nodes0a)
                   end, Nodes0),
     ?assertEqual(3, length(Nodes0)),
+
+    %% Test leo_redundant_manager_api:get_redundancies_by_addr_id/3
+    {ok, #redundancies{nodes = Nodes1,
+                       n = 2,
+                       r = 1,
+                       w = 1,
+                       d = 1}} = leo_redundant_manager_api:get_redundancies_by_addr_id(
+                                   default, Id, 2),
+    ?assertEqual(2, length(Nodes1)),
     inspect_redundancies_2(Counter - 1).
 
 

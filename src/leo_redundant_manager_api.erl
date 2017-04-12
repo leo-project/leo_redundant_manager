@@ -44,8 +44,8 @@
          get_ring/0, get_ring/1, dump/1
         ]).
 %% Redundancy-related
--export([get_redundancies_by_key/1, get_redundancies_by_key/2,
-         get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2,
+-export([get_redundancies_by_key/1, get_redundancies_by_key/2, get_redundancies_by_key/3,
+         get_redundancies_by_addr_id/1, get_redundancies_by_addr_id/2, get_redundancies_by_addr_id/3,
          collect_redundancies_by_key/3,
          part_of_collect_redundancies_by_key/4,
          range_of_vnodes/1, rebalance/0,
@@ -581,6 +581,17 @@ get_redundancies_by_key(Method, Key) ->
     AddrId = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
     get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options).
 
+-spec(get_redundancies_by_key(Method, Key, NumOfReplicas) ->
+             {ok, #redundancies{}} |
+             {error, any()} when Method::method(),
+                                 Key::binary(),
+                                 NumOfReplicas::non_neg_integer()).
+get_redundancies_by_key(Method, Key, NumOfReplicas) ->
+    {ok, Options} = get_options(),
+    BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
+    AddrId = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
+    get_redundancies_by_addr_id(Method, AddrId, NumOfReplicas).
+
 
 %% @doc Retrieve redundancies from the ring-table.
 %%
@@ -597,6 +608,35 @@ get_redundancies_by_addr_id(Method, AddrId) ->
     {ok, Options} = get_options(),
     get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options).
 
+-spec(get_redundancies_by_addr_id(Method, AddrId, NumOfReplicas) ->
+             {ok, #redundancies{}} |
+             {error, any()} when Method::method(),
+                                 AddrId::integer(),
+                                 NumOfReplicas::non_neg_integer()).
+get_redundancies_by_addr_id(Method, AddrId, NumOfReplicas) ->
+    {ok, Options} = get_options(),
+    N_Value = leo_misc:get_value(?PROP_N, Options),
+    BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
+    Options_1 = case (N_Value =< NumOfReplicas) of
+                    true ->
+                        Options;
+                    false when NumOfReplicas =< 2 ->
+                        [{?PROP_N, NumOfReplicas},
+                         {?PROP_R, 1},
+                         {?PROP_W, 1},
+                         {?PROP_D, 1},
+                         {?PROP_RING_BIT, BitOfRing}];
+                    false ->
+                        Quorum = leo_math:floor(NumOfReplicas * ?env_quorum_coefficient()),
+                        [{?PROP_N, NumOfReplicas},
+                         {?PROP_R, Quorum},
+                         {?PROP_W, Quorum},
+                         {?PROP_D, Quorum},
+                         {?PROP_RING_BIT, BitOfRing}]
+                end,
+    get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options_1).
+
+
 %% @private
 -spec(get_redundancies_by_addr_id_1({_,atom()}, integer(), [_]) ->
              {ok, #redundancies{}} | {error, any()}).
@@ -608,6 +648,17 @@ get_redundancies_by_addr_id_1({_,Tbl}, AddrId, Options) ->
 
     case leo_redundant_manager_worker:lookup(Tbl, AddrId) of
         {ok, Redundancies} ->
+            RedundantNodes = Redundancies#redundancies.nodes,
+            LenNodes = erlang:length(RedundantNodes),
+            RedundantNodes_1 =
+                case (LenNodes /= N andalso
+                      LenNodes >= N) of
+                    true ->
+                        lists:sublist(RedundantNodes, N);
+                    false ->
+                        RedundantNodes
+                end,
+
             CurRingHash =
                 case leo_misc:get_env(?APP, ?PROP_RING_HASH) of
                     {ok, RingHash} ->
@@ -621,6 +672,7 @@ get_redundancies_by_addr_id_1({_,Tbl}, AddrId, Options) ->
                                            r = R,
                                            w = W,
                                            d = D,
+                                           nodes = RedundantNodes_1,
                                            ring_hash = CurRingHash}};
         not_found = Cause ->
             {error, Cause}
