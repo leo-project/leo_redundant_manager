@@ -75,28 +75,44 @@ check_redundancies_2_test_() ->
 check_redundancies_2() ->
     {ok, Hostname} = inet:gethostname(),
     ok = prepare_1(Hostname, master),
-    {ok, Members, Chksums} = leo_redundant_manager_api:create(),
-    ?debugVal({Members, Chksums}),
+    {ok,_Members,_Chksums} = leo_redundant_manager_api:create(),
+    timer:sleep(timer:seconds(3)),
 
     %% Test leo_redundant_manager_api:get_redundancies_by_addr_id/3
     Max = leo_math:power(2, ?MD5),
     Id  = random:uniform(Max),
-    NumOfReplicas = 4,
 
-    {ok, #redundancies{nodes = Nodes,
-                       n = N_Value,
-                       r = R_Value,
-                       w = W_Value,
-                       d = D_Value}} = leo_redundant_manager_api:get_redundancies_by_addr_id(
-                                         default, Id, NumOfReplicas),
+    %% TestCase-1
+    NumOfReplicas_1 = 4,
+    {ok, #redundancies{nodes = Nodes_1,
+                       n = N_Value_1,
+                       r = R_Value_1,
+                       w = W_Value_1,
+                       d = D_Value_1}} = leo_redundant_manager_api:get_redundancies_by_addr_id(
+                                           default, Id, NumOfReplicas_1),
 
-    ?debugVal({Nodes, N_Value, R_Value, W_Value, D_Value}),
+    ?debugVal({Nodes_1, N_Value_1, R_Value_1, W_Value_1, D_Value_1}),
 
-    Q_Value = leo_math:floor(NumOfReplicas * ?env_quorum_coefficient()),
-    ?assertEqual(NumOfReplicas, length(Nodes)),
-    ?assertEqual(Q_Value, R_Value),
-    ?assertEqual(Q_Value, W_Value),
-    ?assertEqual(Q_Value, D_Value),
+    Q_Value_1 = leo_math:floor(NumOfReplicas_1 * ?env_quorum_coefficient()),
+    ?assertEqual(NumOfReplicas_1, length(Nodes_1)),
+    ?assertEqual(Q_Value_1, R_Value_1),
+    ?assertEqual(Q_Value_1, W_Value_1),
+    ?assertEqual(Q_Value_1, D_Value_1),
+
+    %% TestCase-2
+    NumOfReplicas_2 = 6,
+    {ok, #redundancies{nodes = Nodes_2,
+                       n = N_Value_2,
+                       r = R_Value_2,
+                       w = W_Value_2,
+                       d = D_Value_2}} = leo_redundant_manager_api:get_redundancies_by_addr_id(
+                                           default, Id, NumOfReplicas_2),
+
+    ?debugVal({Nodes_2, N_Value_2, R_Value_2, W_Value_2, D_Value_2}),
+    ?assertEqual(5, length(Nodes_2)),
+    ?assertEqual(3, R_Value_2),
+    ?assertEqual(4, W_Value_2),
+    ?assertEqual(4, D_Value_2),
     ok.
 
 
