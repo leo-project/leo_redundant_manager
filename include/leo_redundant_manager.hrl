@@ -53,6 +53,9 @@
 -define(DEF_MIN_REPLICAS, 1).
 -define(DEF_MAX_REPLICAS, 8).
 
+-define(PROP_QUORUM_COEFFICIENT, 'quorum_coefficient').
+-define(DEF_QUORUM_COEFFICIENT, 0.8).
+
 -define(DB_ETS,    'ets').
 -define(DB_MNESIA, 'mnesia').
 -type(table_info() :: {?DB_MNESIA, atom()} |
@@ -562,6 +565,15 @@
                 _Mod;
             undefined = Ret ->
                 Ret
+        end).
+
+%% @doc Retrieve quorum's coefficient which is used at `get_redundancies_by_addr_id`
+-define(env_quorum_coefficient(),
+        case application:get_env(?APP, ?PROP_QUORUM_COEFFICIENT) of
+            {ok, _QC} ->
+                _QC;
+            undefined ->
+                ?DEF_QUORUM_COEFFICIENT
         end).
 
 %% @doc Retrieve the log-directory for the ring
