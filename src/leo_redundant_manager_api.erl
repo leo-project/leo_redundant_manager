@@ -587,7 +587,7 @@ get_redundancies_by_key(Method, Key) ->
                                  Key::binary(),
                                  ConsistencyLevel::[{ConsistencyItem, ConsistencyValue}],
                                  ConsistencyItem::consistency_item(),
-                                 ConsistencyValue::non_neg_integer()).
+                                 ConsistencyValue::pos_integer()).
 get_redundancies_by_key(Method, Key, ConsistencyLevel) ->
     {ok, Options} = get_options(),
     BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
@@ -616,7 +616,7 @@ get_redundancies_by_addr_id(Method, AddrId) ->
                                  AddrId::integer(),
                                  ConsistencyLevel::[{ConsistencyItem, ConsistencyValue}],
                                  ConsistencyItem::consistency_item(),
-                                 ConsistencyValue::non_neg_integer()).
+                                 ConsistencyValue::pos_integer()).
 get_redundancies_by_addr_id(Method, AddrId, ConsistencyLevel) ->
     {ok, Options} = get_options(),
     N_Value = leo_misc:get_value(?PROP_N, Options),
@@ -653,7 +653,7 @@ get_redundancies_by_addr_id_1({_,Tbl}, AddrId, Options) ->
             LenNodes = erlang:length(RedundantNodes),
             RedundantNodes_1 =
                 case (LenNodes /= N andalso
-                      LenNodes >= N) of
+                      LenNodes > N) of
                     true ->
                         lists:sublist(RedundantNodes, N);
                     false ->
