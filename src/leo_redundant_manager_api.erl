@@ -581,16 +581,18 @@ get_redundancies_by_key(Method, Key) ->
     AddrId = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
     get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options).
 
--spec(get_redundancies_by_key(Method, Key, NumOfReplicas) ->
+-spec(get_redundancies_by_key(Method, Key, ConsistencyLevel) ->
              {ok, #redundancies{}} |
              {error, any()} when Method::method(),
                                  Key::binary(),
-                                 NumOfReplicas::non_neg_integer()).
-get_redundancies_by_key(Method, Key, NumOfReplicas) ->
+                                 ConsistencyLevel::[{ConsistencyItem, ConsistencyValue}],
+                                 ConsistencyItem::consistency_item(),
+                                 ConsistencyValue::non_neg_integer()).
+get_redundancies_by_key(Method, Key, ConsistencyLevel) ->
     {ok, Options} = get_options(),
     BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
     AddrId = leo_redundant_manager_chash:vnode_id(BitOfRing, Key),
-    get_redundancies_by_addr_id(Method, AddrId, NumOfReplicas).
+    get_redundancies_by_addr_id(Method, AddrId, ConsistencyLevel).
 
 
 %% @doc Retrieve redundancies from the ring-table.
@@ -608,34 +610,33 @@ get_redundancies_by_addr_id(Method, AddrId) ->
     {ok, Options} = get_options(),
     get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options).
 
--spec(get_redundancies_by_addr_id(Method, AddrId, NumOfReplicas) ->
+-spec(get_redundancies_by_addr_id(Method, AddrId, ConsistencyLevel) ->
              {ok, #redundancies{}} |
              {error, any()} when Method::method(),
                                  AddrId::integer(),
-                                 NumOfReplicas::non_neg_integer()).
-get_redundancies_by_addr_id(Method, AddrId, NumOfReplicas) ->
+                                 ConsistencyLevel::[{ConsistencyItem, ConsistencyValue}],
+                                 ConsistencyItem::consistency_item(),
+                                 ConsistencyValue::non_neg_integer()).
+get_redundancies_by_addr_id(Method, AddrId, ConsistencyLevel) ->
     {ok, Options} = get_options(),
     N_Value = leo_misc:get_value(?PROP_N, Options),
     BitOfRing = leo_misc:get_value(?PROP_RING_BIT, Options),
-    Options_1 = case (N_Value =< NumOfReplicas) of
-                    true ->
-                        Options;
-                    false when NumOfReplicas =< 2 ->
-                        [{?PROP_N, NumOfReplicas},
-                         {?PROP_R, 1},
-                         {?PROP_W, 1},
-                         {?PROP_D, 1},
-                         {?PROP_RING_BIT, BitOfRing}];
-                    false ->
-                        Quorum = leo_math:floor(NumOfReplicas * ?env_quorum_coefficient()),
-                        [{?PROP_N, NumOfReplicas},
-                         {?PROP_R, Quorum},
-                         {?PROP_W, Quorum},
-                         {?PROP_D, Quorum},
-                         {?PROP_RING_BIT, BitOfRing}]
-                end,
-    get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options_1).
+    MDCR_N_Value = leo_misc:get_value(?PROP_N, ConsistencyLevel),
 
+    case (N_Value >= MDCR_N_Value) of
+        true ->
+            MDCR_R_Value = leo_misc:get_value(?PROP_R, ConsistencyLevel),
+            MDCR_W_Value = leo_misc:get_value(?PROP_W, ConsistencyLevel),
+            MDCR_D_Value = leo_misc:get_value(?PROP_D, ConsistencyLevel),
+            Options_1 = [{?PROP_N, MDCR_N_Value},
+                         {?PROP_R, MDCR_R_Value},
+                         {?PROP_W, MDCR_W_Value},
+                         {?PROP_D, MDCR_D_Value},
+                         {?PROP_RING_BIT, BitOfRing}],
+            get_redundancies_by_addr_id_1(ring_table(Method), AddrId, Options_1);
+        false ->
+            {error, ?ERROR_INVALID_MDCR_CONFIG}
+    end.
 
 %% @private
 -spec(get_redundancies_by_addr_id_1({_,atom()}, integer(), [_]) ->

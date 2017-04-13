@@ -36,6 +36,7 @@
 -define(ERROR_COULD_NOT_GET_REDUNDANCIES, "Could not get redundancies").
 -define(ERROR_COULD_NOT_GET_MEMBERS, "Could not get members").
 -define(ERROR_INVALID_CONF, "Invalid configuration").
+-define(ERROR_INVALID_MDCR_CONFIG, "Invalid configurations of mdc-replication").
 
 -define(ERR_TYPE_INCONSISTENT_HASH, inconsistent_hash).
 -define(ERR_TYPE_NODE_DOWN, nodedown).
@@ -49,12 +50,15 @@
 -define(PROP_L1, 'level_1').
 -define(PROP_L2, 'level_2').
 -define(PROP_RING_BIT, 'bit_of_ring').
-
+-type(consistency_item() :: ?PROP_N |
+                            ?PROP_W |
+                            ?PROP_R |
+                            ?PROP_D |
+                            ?PROP_L1 |
+                            ?PROP_L2 |
+                            ?PROP_RING_BIT).
 -define(DEF_MIN_REPLICAS, 1).
 -define(DEF_MAX_REPLICAS, 8).
-
--define(PROP_QUORUM_COEFFICIENT, 'quorum_coefficient').
--define(DEF_QUORUM_COEFFICIENT, 0.8).
 
 -define(DB_ETS,    'ets').
 -define(DB_MNESIA, 'mnesia').
@@ -565,15 +569,6 @@
                 _Mod;
             undefined = Ret ->
                 Ret
-        end).
-
-%% @doc Retrieve quorum's coefficient which is used at `get_redundancies_by_addr_id`
--define(env_quorum_coefficient(),
-        case application:get_env(?APP, ?PROP_QUORUM_COEFFICIENT) of
-            {ok, _QC} ->
-                _QC;
-            undefined ->
-                ?DEF_QUORUM_COEFFICIENT
         end).
 
 %% @doc Retrieve the log-directory for the ring
