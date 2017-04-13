@@ -652,8 +652,7 @@ get_redundancies_by_addr_id_1({_,Tbl}, AddrId, Options) ->
             RedundantNodes = Redundancies#redundancies.nodes,
             LenNodes = erlang:length(RedundantNodes),
             RedundantNodes_1 =
-                case (LenNodes /= N andalso
-                      LenNodes > N) of
+                case (LenNodes > N) of
                     true ->
                         lists:sublist(RedundantNodes, N);
                     false ->
