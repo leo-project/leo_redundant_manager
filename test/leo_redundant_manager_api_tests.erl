@@ -83,36 +83,43 @@ check_redundancies_2() ->
     Id  = random:uniform(Max),
 
     %% TestCase-1
-    NumOfReplicas_1 = 4,
     {ok, #redundancies{nodes = Nodes_1,
                        n = N_Value_1,
                        r = R_Value_1,
                        w = W_Value_1,
                        d = D_Value_1}} = leo_redundant_manager_api:get_redundancies_by_addr_id(
-                                           default, Id, NumOfReplicas_1),
-
+                                           default, Id, [{?PROP_N, 4},
+                                                         {?PROP_R, 2},
+                                                         {?PROP_W, 3},
+                                                         {?PROP_D, 3}]),
     ?debugVal({Nodes_1, N_Value_1, R_Value_1, W_Value_1, D_Value_1}),
-
-    Q_Value_1 = leo_math:floor(NumOfReplicas_1 * ?env_quorum_coefficient()),
-    ?assertEqual(NumOfReplicas_1, length(Nodes_1)),
-    ?assertEqual(Q_Value_1, R_Value_1),
-    ?assertEqual(Q_Value_1, W_Value_1),
-    ?assertEqual(Q_Value_1, D_Value_1),
+    ?assertEqual(N_Value_1, length(Nodes_1)),
+    ?assertEqual(2, R_Value_1),
+    ?assertEqual(3, W_Value_1),
+    ?assertEqual(3, D_Value_1),
 
     %% TestCase-2
-    NumOfReplicas_2 = 6,
     {ok, #redundancies{nodes = Nodes_2,
                        n = N_Value_2,
                        r = R_Value_2,
                        w = W_Value_2,
                        d = D_Value_2}} = leo_redundant_manager_api:get_redundancies_by_addr_id(
-                                           default, Id, NumOfReplicas_2),
-
+                                           default, Id, [{?PROP_N, 3},
+                                                         {?PROP_R, 1},
+                                                         {?PROP_W, 2},
+                                                         {?PROP_D, 2}]),
     ?debugVal({Nodes_2, N_Value_2, R_Value_2, W_Value_2, D_Value_2}),
-    ?assertEqual(5, length(Nodes_2)),
-    ?assertEqual(3, R_Value_2),
-    ?assertEqual(4, W_Value_2),
-    ?assertEqual(4, D_Value_2),
+    ?assertEqual(3, length(Nodes_2)),
+    ?assertEqual(1, R_Value_2),
+    ?assertEqual(2, W_Value_2),
+    ?assertEqual(2, D_Value_2),
+
+    %% TestCase-3
+    {error, ?ERROR_INVALID_MDCR_CONFIG} = leo_redundant_manager_api:get_redundancies_by_addr_id(
+                                            default, Id, [{?PROP_N, 6},
+                                                          {?PROP_R, 3},
+                                                          {?PROP_W, 4},
+                                                          {?PROP_D, 4}]),
     ok.
 
 
@@ -851,7 +858,11 @@ inspect_redundancies_1(Counter) ->
                        r = 1,
                        w = 1,
                        d = 1}} = leo_redundant_manager_api:get_redundancies_by_key(
-                                   default, integer_to_list(Counter), 2),
+                                   default, integer_to_list(Counter),
+                                   [{?PROP_N, 2},
+                                    {?PROP_R, 1},
+                                    {?PROP_W, 1},
+                                    {?PROP_D, 1}]),
     ?assertEqual(2, length(Nodes1)),
     inspect_redundancies_1(Counter - 1).
 
@@ -883,7 +894,10 @@ inspect_redundancies_2(Counter) ->
                        r = 1,
                        w = 1,
                        d = 1}} = leo_redundant_manager_api:get_redundancies_by_addr_id(
-                                   default, Id, 2),
+                                   default, Id, [{?PROP_N, 2},
+                                                 {?PROP_R, 1},
+                                                 {?PROP_W, 1},
+                                                 {?PROP_D, 1}]),
     ?assertEqual(2, length(Nodes1)),
     inspect_redundancies_2(Counter - 1).
 
