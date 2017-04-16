@@ -32,6 +32,7 @@
 -define(ERROR_COULD_NOT_GET_REDUNDANCIES, "Could not get redundancies").
 -define(ERROR_COULD_NOT_GET_MEMBERS, "Could not get members").
 -define(ERROR_INVALID_CONF, "Invalid configuration").
+-define(ERROR_INVALID_MDCR_CONFIG, "Invalid configurations of mdc-replication").
 
 -define(ERR_TYPE_INCONSISTENT_HASH, inconsistent_hash).
 -define(ERR_TYPE_NODE_DOWN, nodedown).
@@ -45,7 +46,13 @@
 -define(PROP_L1, 'level_1').
 -define(PROP_L2, 'level_2').
 -define(PROP_RING_BIT, 'bit_of_ring').
-
+-type(consistency_item() :: ?PROP_N |
+                            ?PROP_W |
+                            ?PROP_R |
+                            ?PROP_D |
+                            ?PROP_L1 |
+                            ?PROP_L2 |
+                            ?PROP_RING_BIT).
 -define(DEF_MIN_REPLICAS, 1).
 -define(DEF_MAX_REPLICAS, 8).
 
