@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2015 Rakuten, Inc.
+%% Copyright (c) 2012-2017 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -49,21 +49,7 @@ create_table(Mode, Nodes) ->
            [{Mode, Nodes},
             {type, set},
             {record_name, ?SYSTEM_CONF},
-            {attributes, record_info(fields, ?SYSTEM_CONF)},
-            {user_properties,
-             [
-              {version,              pos_integer, primary},
-              {cluster_id,           atom,        false},
-              {dc_id,                atom,        false},
-              {n,                    pos_integer, false},
-              {r,                    pos_integer, false},
-              {w,                    pos_integer, false},
-              {d,                    pos_integer, false},
-              {bit_of_ring,          pos_integer, false},
-              {num_of_dc_replicas,   pos_integer, false},
-              {num_of_rack_replicas, pos_integer, false},
-              {max_mdc_targets,      pos_integer, false}
-             ]}
+            {attributes, record_info(fields, ?SYSTEM_CONF)}
            ]) of
         {atomic, ok} ->
             ok;
@@ -299,4 +285,27 @@ transform(#system_conf_1{version = Vsn,
                   num_of_dc_replicas = Level1,
                   num_of_rack_replicas = Level2,
                   max_mdc_targets = ?DEF_MAX_MDC_TARGETS
+                 };
+transform(#system_conf_2{version = Vsn,
+                         cluster_id = ClusterId,
+                         dc_id = DCId,
+                         n = N,
+                         r = R,
+                         w = W,
+                         d = D,
+                         bit_of_ring = BitOfRing,
+                         num_of_dc_replicas  = Level1,
+                         num_of_rack_replicas = Level2,
+                         max_mdc_targets = MaxMDCTargets}) ->
+    #?SYSTEM_CONF{version = Vsn,
+                  cluster_id = ClusterId,
+                  dc_id = DCId,
+                  n = N,
+                  r = R,
+                  w = W,
+                  d = D,
+                  bit_of_ring = BitOfRing,
+                  num_of_dc_replicas = Level1,
+                  num_of_rack_replicas = Level2,
+                  max_mdc_targets = MaxMDCTargets
                  }.
