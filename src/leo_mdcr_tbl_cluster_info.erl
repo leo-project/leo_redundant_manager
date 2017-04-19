@@ -50,19 +50,7 @@ create_table(Mode, Nodes) ->
            [{Mode, Nodes},
             {type, set},
             {record_name, ?CLUSTER_INFO},
-            {attributes, record_info(fields, ?CLUSTER_INFO)},
-            {user_properties,
-             [{cluster_id,           atom,        primary},
-              {dc_id,                atom,        false  },
-              {n,                    pos_integer, false  },
-              {r,                    pos_integer, false  },
-              {w,                    pos_integer, false  },
-              {d,                    pos_integer, false  },
-              {bit_of_ring,          pos_integer, false  },
-              {num_of_dc_replicas,   pos_integer, false  },
-              {num_of_rack_replicas, pos_integer, false  },
-              {max_mdc_targets,      pos_integer, false  }
-             ]}
+            {attributes, record_info(fields, ?CLUSTER_INFO)}
            ]) of
         {atomic, ok} ->
             ok;
@@ -324,7 +312,30 @@ transform(#cluster_info{cluster_id = ClusterId,
                    num_of_dc_replicas = Level1,
                    num_of_rack_replicas = Level2,
                    max_mdc_targets = ?DEF_MAX_MDC_TARGETS
+                  };
+transform(#cluster_info_1{cluster_id = ClusterId,
+                          dc_id = DCId,
+                          n = N,
+                          r = R,
+                          w = W,
+                          d = D,
+                          bit_of_ring = BitOfRing,
+                          num_of_dc_replicas = Level1,
+                          num_of_rack_replicas = Level2,
+                          max_mdc_targets = MaxMDCTargets
+                         }) ->
+    #?CLUSTER_INFO{cluster_id = ClusterId,
+                   dc_id = DCId,
+                   n = N,
+                   r = R,
+                   w = W,
+                   d = D,
+                   bit_of_ring = BitOfRing,
+                   num_of_dc_replicas = Level1,
+                   num_of_rack_replicas = Level2,
+                   max_mdc_targets = MaxMDCTargets
                   }.
+
 
 %% @private
 transform_2() ->
