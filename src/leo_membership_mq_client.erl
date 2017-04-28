@@ -162,7 +162,13 @@ handle_call({consume, Id, MessageBin}) ->
 
     case leo_redundant_manager_api:get_member_by_node(RemoteNode) of
         {ok, #member{state = State}} ->
-            case leo_misc:node_existence(RemoteNode, timer:seconds(10)) of
+            case catch leo_misc:node_existence(RemoteNode, timer:seconds(10)) of
+                {'EXIT', _} ->
+                    % In order to keep the same behavior with <= 1.3.2.1
+                    % by ignoring errors {cause,{noproc,{gen_server,call,[{rex, ...
+                    % Refer https://github.com/leo-project/leofs/issues/710#issuecomment-297453955
+                    % for more detail.
+                    ok;
                 true when State == ?STATE_STOP ->
                     notify_error_to_manager(Id, RemoteNode, Error);
                 true ->
