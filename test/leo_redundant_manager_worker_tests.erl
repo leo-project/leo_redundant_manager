@@ -141,7 +141,7 @@ collect_redundancies( Tbl,_From, To, Acc) ->
 check_redundancies(0) ->
     ok;
 check_redundancies(Index) ->
-    AddrId = leo_redundant_manager_chash:vnode_id(128, crypto:rand_bytes(64)),
+    AddrId = leo_redundant_manager_chash:vnode_id(128, crypto:strong_rand_bytes(64)),
     {ok, #redundancies{nodes = N8}} =
         leo_redundant_manager_worker:lookup('leo_ring_cur', AddrId),
     ?assertEqual(3, length(N8)),
