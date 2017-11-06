@@ -34,7 +34,7 @@
          all/0, get/0, find_by_ver/1,
          update/1, delete/1,
          checksum/0, synchronize/1,
-         transform/0
+         transform/0, transform/1
         ]).
 
 
@@ -233,7 +233,6 @@ transform() ->
 
 
 %% @doc the record is the current verion
-%% @private
 transform(#?SYSTEM_CONF{} = SystemConf) ->
     SystemConf;
 transform(#system_conf{version = Vsn,
