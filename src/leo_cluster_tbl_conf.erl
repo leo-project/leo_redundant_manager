@@ -34,7 +34,8 @@
          all/0, get/0, find_by_ver/1,
          update/1, delete/1,
          checksum/0, synchronize/1,
-         transform/0, transform/1
+         transform/0, transform/1,
+         transform_to_confv2/1
         ]).
 
 
@@ -308,3 +309,18 @@ transform(#system_conf_2{version = Vsn,
                   num_of_rack_replicas = Level2,
                   max_mdc_targets = MaxMDCTargets
                  }.
+
+%% @doc Transfom System Conf to V2 System Conf (~1.3.2)
+transform_to_confv2(#?SYSTEM_CONF{} = Conf) ->
+    #system_conf_2{version = Conf#?SYSTEM_CONF.version,
+                   cluster_id = Conf#?SYSTEM_CONF.cluster_id,
+                   dc_id = Conf#?SYSTEM_CONF.dc_id,
+                   n = Conf#?SYSTEM_CONF.n,
+                   r = Conf#?SYSTEM_CONF.r,
+                   w = Conf#?SYSTEM_CONF.w,
+                   d = Conf#?SYSTEM_CONF.d,
+                   bit_of_ring = Conf#?SYSTEM_CONF.bit_of_ring,
+                   num_of_dc_replicas = Conf#?SYSTEM_CONF.num_of_dc_replicas,
+                   num_of_rack_replicas = Conf#?SYSTEM_CONF.num_of_rack_replicas,
+                   max_mdc_targets = Conf#?SYSTEM_CONF.max_mdc_targets}.
+
