@@ -463,7 +463,7 @@ check_redundancies_for_rack_awareness(
                                  dict:append(RackId, N, D)
                          end
                  end, dict:new(), ReplicaNodeL),
-    ?assertEqual(true, (NumOfRackAwarenesses =< length(dict:to_list(RackDict)))),
+    ?assertEqual(NumOfRackAwarenesses, length(dict:to_list(RackDict))),
 
     check_redundancies_for_rack_awareness(
       Index - 1, TotalNumOfReplicas, NumOfRackAwarenesses, NodeAndRackL).
