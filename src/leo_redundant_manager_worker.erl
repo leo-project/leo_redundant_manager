@@ -781,6 +781,12 @@ redundancies_4(TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId, Node_1, R) 
                                                    NumOfReplicas - NumOfRAs < 1 ->
                                             redundancies_3(
                                               TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId, R);
+                                        %% Note: maximum total number of asigned racks
+                                        %%       adheres to `consistency.rack_aware_replicas`
+                                        %%       in `leo_manager.conf`
+                                        false when length(RackL) == NumOfRAs ->
+                                            redundancies_3(
+                                              TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId, R);
                                         _ ->
                                             redundancies_3(
                                               TableInfo, NumOfReplicas - 1, NumOfRAs, Members, VNodeId,
