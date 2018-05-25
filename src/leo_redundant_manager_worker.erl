@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2015 Rakuten, Inc.
+%% Copyright (c) 2012-2018 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -66,34 +66,34 @@
 -define(DEF_NUM_OF_DIV, 32).
 
 -record(state, {
-          id :: atom(),
-          cur  = #ring_info{} :: #ring_info{},
-          prev = #ring_info{} :: #ring_info{},
-          num_of_replicas = 0 :: non_neg_integer(),
-          num_of_rack_awareness = 0 :: non_neg_integer(),
-          min_interval = ?DEF_SYNC_MIN_INTERVAL :: non_neg_integer(),
-          max_interval = ?DEF_SYNC_MAX_INTERVAL :: non_neg_integer(),
-          timestamp = 0 :: non_neg_integer(),
-          checksum = {-1,-1} :: {integer(), integer()}
-         }).
+                id :: atom(),
+                cur  = #ring_info{} :: #ring_info{},
+                prev = #ring_info{} :: #ring_info{},
+                num_of_replicas = 0 :: non_neg_integer(),
+                num_of_rack_awareness = 0 :: non_neg_integer(),
+                min_interval = ?DEF_SYNC_MIN_INTERVAL :: non_neg_integer(),
+                max_interval = ?DEF_SYNC_MAX_INTERVAL :: non_neg_integer(),
+                timestamp = 0 :: non_neg_integer(),
+                checksum = {-1,-1} :: {integer(), integer()}
+               }).
 
 -record(ring_conf, {
-          id = 0 :: non_neg_integer(),
-          ring_size = 0  :: non_neg_integer(),
-          group_size = 0  :: non_neg_integer(),
-          group_id = 0  :: non_neg_integer(),
-          addr_id = 0  :: non_neg_integer(),
-          from_addr_id = 0  :: non_neg_integer(),
-          index_list = [] :: list(),
-          table_list = [] :: list(),
-          checksum = -1 :: integer()
-         }).
+                    id = 0 :: non_neg_integer(),
+                    ring_size = 0  :: non_neg_integer(),
+                    group_size = 0  :: non_neg_integer(),
+                    group_id = 0  :: non_neg_integer(),
+                    addr_id = 0  :: non_neg_integer(),
+                    from_addr_id = 0  :: non_neg_integer(),
+                    index_list = [] :: list(),
+                    table_list = [] :: list(),
+                    checksum = -1 :: integer()
+                   }).
 
 -compile({inline, [lookup_fun/5, find_redundancies_by_addr_id/2,
                    reply_redundancies/3,first_fun/1, last_fun/1,
                    gen_routing_table/2, gen_routing_table_1/4, gen_routing_table_2/2,
-                   redundancies/5, redundancies_1/6, redundancies_1_1/7,
-                   redundancies_2/6, redundancies_3/7, get_node_by_vnode_id/2,
+                   redundancies/5, redundancies_1/6, redundancies_2/7,
+                   redundancies_3/6, redundancies_4/7, get_node_by_vnode_id/2,
                    get_redundancies/3, force_sync_fun/2, force_sync_fun_1/3
                   ]}).
 
@@ -669,9 +669,11 @@ check_redandancies_1(NumOfReplicas, [#vnodeid_nodes{nodes = VNodes}|Rest]) ->
 redundancies(_,_,NumOfReplicas,_,_) when NumOfReplicas < ?DEF_MIN_REPLICAS;
                                          NumOfReplicas > ?DEF_MAX_REPLICAS ->
     {error, out_of_renge};
-redundancies(_,_,NumOfReplicas, L2,_) when (NumOfReplicas - L2) < 1 ->
+redundancies(_,_,NumOfReplicas, L2,_) when (NumOfReplicas - L2) < 0 ->
     {error, invalid_level2};
 redundancies(TableInfo, VNodeId_0, NumOfReplicas, L2, Members) ->
+    Members_1 = [{N, RackId} || #member{node = N,
+                                        grp_level_2 = RackId} <- Members],
     case leo_cluster_tbl_ring:lookup(TableInfo, VNodeId_0) of
         {error, Cause} ->
             {error, Cause};
@@ -679,13 +681,13 @@ redundancies(TableInfo, VNodeId_0, NumOfReplicas, L2, Members) ->
             case get_node_by_vnode_id(TableInfo, VNodeId_0) of
                 {ok, VNodeId_1} ->
                     redundancies_1(TableInfo, VNodeId_0, VNodeId_1,
-                                   NumOfReplicas, L2, Members);
+                                   NumOfReplicas, L2, Members_1);
                 {error, Cause} ->
                     {error, Cause}
             end;
         #?RING{node = Node} ->
-            redundancies_1_1(TableInfo, VNodeId_0, VNodeId_0,
-                             NumOfReplicas, L2, Members, Node)
+            redundancies_2(TableInfo, VNodeId_0, VNodeId_0,
+                           NumOfReplicas, L2, Members_1, Node)
     end.
 
 %% @private
@@ -696,17 +698,17 @@ redundancies_1(TableInfo, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members) 
         not_found ->
             {error, ring_not_found};
         #?RING{node = Node} ->
-            redundancies_1_1(TableInfo, VNodeId_Org, VNodeId_Hop,
-                             NumOfReplicas, L2, Members, Node)
+            redundancies_2(TableInfo, VNodeId_Org, VNodeId_Hop,
+                           NumOfReplicas, L2, Members, Node)
     end.
 
 %% @private
-redundancies_1_1(TableInfo, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, Node) ->
+redundancies_2(TableInfo, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members, Node) ->
     case get_redundancies(Members, Node, []) of
         not_found ->
             {error, ?ERROR_COULD_NOT_GET_REDUNDANCIES};
         {Node, SetsL2} ->
-            redundancies_2(TableInfo, NumOfReplicas-1, L2, Members, VNodeId_Hop,
+            redundancies_3(TableInfo, NumOfReplicas - 1, L2, Members, VNodeId_Hop,
                            #redundancies{id = VNodeId_Org,
                                          vnode_id_to = VNodeId_Hop,
                                          temp_nodes = [Node],
@@ -715,13 +717,13 @@ redundancies_1_1(TableInfo, VNodeId_Org, VNodeId_Hop, NumOfReplicas, L2, Members
     end.
 
 %% @private
-redundancies_2(_TableInfo,_,_L2,_Members,-1,_R) ->
+redundancies_3(_TableInfo,_,_L2,_Members,-1,_R) ->
     {error,  invalid_vnode};
-redundancies_2(_TableInfo,0,_L2,_Members,_VNodeId, #redundancies{nodes = Acc} = R) ->
+redundancies_3(_TableInfo,0,_L2,_Members,_VNodeId, #redundancies{nodes = Acc} = R) ->
     {ok, R#redundancies{temp_nodes = [],
                         temp_level_2 = [],
                         nodes = lists:reverse(Acc)}};
-redundancies_2(TableInfo, NumOfReplicas, L2, Members, VNodeId_0, R) ->
+redundancies_3(TableInfo, NumOfReplicas, L2, Members, VNodeId_0, R) ->
     case get_node_by_vnode_id(TableInfo, VNodeId_0) of
         {ok, VNodeId_1} ->
             case leo_cluster_tbl_ring:lookup(TableInfo, VNodeId_1) of
@@ -730,39 +732,66 @@ redundancies_2(TableInfo, NumOfReplicas, L2, Members, VNodeId_0, R) ->
                 not_found ->
                     case get_node_by_vnode_id(TableInfo, VNodeId_1) of
                         {ok, Node} ->
-                            redundancies_3(TableInfo, NumOfReplicas, L2, Members, VNodeId_1, Node, R);
+                            redundancies_4(TableInfo, NumOfReplicas, L2, Members, VNodeId_1, Node, R);
                         {error, Cause} ->
                             {error, Cause}
                     end;
                 #?RING{node = Node} ->
-                    redundancies_3(TableInfo, NumOfReplicas, L2, Members, VNodeId_1, Node, R)
+                    redundancies_4(TableInfo, NumOfReplicas, L2, Members, VNodeId_1, Node, R)
             end;
         _ ->
             {error, out_of_range}
     end.
 
-redundancies_3(TableInfo, NumOfReplicas, L2, Members, VNodeId, Node_1, R) ->
+redundancies_4(TableInfo, NumOfReplicas, L2, Members, VNodeId, Node_1, R) ->
     AccTempNode = R#redundancies.temp_nodes,
     AccLevel2 = R#redundancies.temp_level_2,
     AccNodes = R#redundancies.nodes,
 
     case lists:member(Node_1, AccTempNode) of
         true  ->
-            redundancies_2(TableInfo, NumOfReplicas, L2, Members, VNodeId, R);
+            redundancies_3(TableInfo, NumOfReplicas, L2, Members, VNodeId, R);
         false ->
             case get_redundancies(Members, Node_1, AccLevel2) of
                 not_found ->
                     {error, ?ERROR_COULD_NOT_GET_REDUNDANCIES};
                 {Node_2, AccLevel2_1} ->
+                    LenAccLevel2 = length(AccLevel2_1),
+
                     case (L2 /= 0 andalso L2 == length(AccNodes)) of
-                        true when length(AccLevel2_1) < (L2 + 1) ->
-                            redundancies_2(TableInfo, NumOfReplicas, L2, Members, VNodeId, R);
+                        true when LenAccLevel2 < L2 ->
+                            redundancies_3(TableInfo, NumOfReplicas, L2, Members, VNodeId, R);
                         _ ->
-                            redundancies_2(TableInfo, NumOfReplicas-1, L2, Members, VNodeId,
-                                           R#redundancies{temp_nodes = [Node_2|AccTempNode],
-                                                          temp_level_2 = AccLevel2_1,
-                                                          nodes = [#redundant_node{node = Node_2}
-                                                                   |AccNodes]})
+                            RackDict =
+                                lists:foldl(
+                                  fun(#redundant_node{node = N}, D) ->
+                                          case lists:keyfind(N, 1, Members) of
+                                              false ->
+                                                  D;
+                                              {_, RackId} ->
+                                                  dict:append(RackId, N, D)
+                                          end
+                                  end, dict:new(), AccNodes),
+                            RackL = dict:to_list(RackDict),
+
+                            case lists:keyfind(Node_2, 1, Members) of
+                                false ->
+                                    {error, []};
+                                {_, RackId} ->
+                                    case lists:keyfind(RackId, 1, RackL) of
+                                        {_,_} when length(RackL) /= L2 andalso
+                                                   NumOfReplicas - L2 < 1 ->
+                                            redundancies_3(
+                                              TableInfo, NumOfReplicas, L2, Members, VNodeId, R);
+                                        _ ->
+                                            redundancies_3(
+                                              TableInfo, NumOfReplicas -1, L2, Members, VNodeId,
+                                              R#redundancies{
+                                                temp_nodes = [Node_2|AccTempNode],
+                                                temp_level_2 = AccLevel2_1,
+                                                nodes = [#redundant_node{node = Node_2} | AccNodes]})
+                                    end
+                            end
                     end
             end
     end.
@@ -790,19 +819,19 @@ get_node_by_vnode_id(TableInfo, VNodeId) ->
 
 %% @doc Retrieve a member from an argument.
 %% @private
--spec(get_redundancies([#member{}], atom(), [string()]) ->
-             {atom, [string()]} | not_found).
+-spec(get_redundancies([{Node, RackId}], atom(), [string()]) ->
+             {atom, [string()]} | not_found when Node::node(),
+                                                 RackId::string()).
 get_redundancies([],_,_) ->
     not_found;
-get_redundancies([#member{node = Node_0,
-                          grp_level_2 = L2}|_], Node_1, SetL2) when Node_0 == Node_1 ->
+get_redundancies([{Node_0, L2}|_], Node_1, SetL2) when Node_0 == Node_1 ->
     case lists:member(L2, SetL2) of
         false  ->
             {Node_0, [L2|SetL2]};
         _Other ->
             {Node_0, SetL2}
     end;
-get_redundancies([#member{node = Node_0}|T], Node_1, SetL2) when Node_0 /= Node_1 ->
+get_redundancies([{Node_0,_}|T], Node_1, SetL2) when Node_0 /= Node_1 ->
     get_redundancies(T, Node_1, SetL2).
 
 
