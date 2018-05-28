@@ -25,9 +25,6 @@
 -include("leo_redundant_manager.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
-%%--------------------------------------------------------------------
-%% TEST FUNCTIONS
-%%--------------------------------------------------------------------
 -ifdef(EUNIT).
 
 -define(TWO_REPLICAS, 2).
@@ -35,6 +32,7 @@
 
 -define(TWO_RA, 2).
 -define(THREE_RA, 3).
+-define(FOUR_RA, 4).
 
 -define(RACK_1, "R1").
 -define(RACK_2, "R2").
@@ -57,9 +55,17 @@
                                     {r, 1}, {w ,2},{d, 2},
                                     {bit_of_ring, 128},
                                     {level_2, ?THREE_RA}]).
+-define(CONSISTENCY_LEVEL_OF_RA_ERROR, [{n, ?THREE_REPLICAS},
+                                        {r, 1}, {w ,2},{d, 2},
+                                        {bit_of_ring, 128},
+                                        {level_2, ?FOUR_RA}]).
+
 -define(NUM_OF_CHECK_REDUNDANCIES, 10000).
 
 
+%%--------------------------------------------------------------------
+%% Basic
+%%--------------------------------------------------------------------
 %% @doc Basic Test
 suite_basic_test_() ->
     {setup,
@@ -161,6 +167,9 @@ suite_basic() ->
     ok.
 
 
+%%--------------------------------------------------------------------
+%% Rack Awareness Replication
+%%--------------------------------------------------------------------
 %% @doc Rack-awareness Replication Test
 %%      - Case 1: N=2, RA=2, Total Number of Racks:2
 suite_rack_awareness_1_test_() ->
@@ -171,7 +180,7 @@ suite_rack_awareness_1_test_() ->
      fun (Pid) ->
              teardown(Pid)
      end,
-     [{"test rack-awareness functions",
+     [{"test rack-awareness functions #1",
        {timeout, 30000, fun suite_rack_awareness/0}}
      ]}.
 
@@ -187,12 +196,13 @@ setup_rack_awareness_1() ->
     leo_misc:set_env(leo_redundant_manager, 'server_type', ?WORKER_NODE),
     {ok, Pid} = leo_redundant_manager_sup:start_link(?WORKER_NODE),
     leo_redundant_manager_api:set_options(?CONSISTENCY_LEVEL_OF_RA_1),
+    ?debugVal(leo_redundant_manager_api:get_options()),
+
     leo_redundant_manager_api:attach('node_0@127.0.0.1', ?RACK_1),
     leo_redundant_manager_api:attach('node_1@127.0.0.1', ?RACK_1),
     leo_redundant_manager_api:attach('node_2@127.0.0.1', ?RACK_1),
     leo_redundant_manager_api:attach('node_3@127.0.0.1', ?RACK_2),
     leo_redundant_manager_api:attach('node_4@127.0.0.1', ?RACK_2),
-    ?debugVal(leo_redundant_manager_api:get_options()),
 
     leo_redundant_manager_api:create(?VER_CUR),
     leo_redundant_manager_api:create(?VER_PREV),
@@ -216,7 +226,7 @@ suite_rack_awareness_2_test_() ->
      fun (Pid) ->
              teardown(Pid)
      end,
-     [{"test rack-awareness functions",
+     [{"test rack-awareness functions #2",
        {timeout, 30000, fun suite_rack_awareness/0}}
      ]}.
 
@@ -232,12 +242,13 @@ setup_rack_awareness_2() ->
     leo_misc:set_env(leo_redundant_manager, 'server_type', ?WORKER_NODE),
     {ok, Pid} = leo_redundant_manager_sup:start_link(?WORKER_NODE),
     leo_redundant_manager_api:set_options(?CONSISTENCY_LEVEL_OF_RA_2),
+    ?debugVal(leo_redundant_manager_api:get_options()),
+
     leo_redundant_manager_api:attach('node_0@127.0.0.1', ?RACK_1),
     leo_redundant_manager_api:attach('node_1@127.0.0.1', ?RACK_1),
     leo_redundant_manager_api:attach('node_2@127.0.0.1', ?RACK_1),
     leo_redundant_manager_api:attach('node_3@127.0.0.1', ?RACK_2),
     leo_redundant_manager_api:attach('node_4@127.0.0.1', ?RACK_2),
-    ?debugVal(leo_redundant_manager_api:get_options()),
 
     leo_redundant_manager_api:create(?VER_CUR),
     leo_redundant_manager_api:create(?VER_PREV),
@@ -261,7 +272,7 @@ suite_rack_awareness_3_test_() ->
      fun (Pid) ->
              teardown(Pid)
      end,
-     [{"test rack-awareness functions",
+     [{"test rack-awareness functions #3",
        {timeout, 30000, fun suite_rack_awareness/0}}
      ]}.
 
@@ -277,6 +288,8 @@ setup_rack_awareness_3() ->
     leo_misc:set_env(leo_redundant_manager, 'server_type', ?WORKER_NODE),
     {ok, Pid} = leo_redundant_manager_sup:start_link(?WORKER_NODE),
     leo_redundant_manager_api:set_options(?CONSISTENCY_LEVEL_OF_RA_2),
+    ?debugVal(leo_redundant_manager_api:get_options()),
+
     leo_redundant_manager_api:attach('node_0@127.0.0.1', ?RACK_1),
     leo_redundant_manager_api:attach('node_1@127.0.0.1', ?RACK_2),
     leo_redundant_manager_api:attach('node_2@127.0.0.1', ?RACK_3),
@@ -292,8 +305,6 @@ setup_rack_awareness_3() ->
     leo_redundant_manager_api:attach('node_12@127.0.0.1', ?RACK_1),
     leo_redundant_manager_api:attach('node_13@127.0.0.1', ?RACK_2),
     leo_redundant_manager_api:attach('node_14@127.0.0.1', ?RACK_3),
-
-    ?debugVal(leo_redundant_manager_api:get_options()),
 
     leo_redundant_manager_api:create(?VER_CUR),
     leo_redundant_manager_api:create(?VER_PREV),
@@ -316,7 +327,7 @@ suite_rack_awareness_4_test_() ->
      fun (Pid) ->
              teardown(Pid)
      end,
-     [{"test rack-awareness functions",
+     [{"test rack-awareness functions #4",
        {timeout, 30000, fun suite_rack_awareness/0}}
      ]}.
 
@@ -332,6 +343,8 @@ setup_rack_awareness_4() ->
     leo_misc:set_env(leo_redundant_manager, 'server_type', ?WORKER_NODE),
     {ok, Pid} = leo_redundant_manager_sup:start_link(?WORKER_NODE),
     leo_redundant_manager_api:set_options(?CONSISTENCY_LEVEL_OF_RA_3),
+    ?debugVal(leo_redundant_manager_api:get_options()),
+
     leo_redundant_manager_api:attach('node_0@127.0.0.1', ?RACK_1),
     leo_redundant_manager_api:attach('node_1@127.0.0.1', ?RACK_2),
     leo_redundant_manager_api:attach('node_2@127.0.0.1', ?RACK_3),
@@ -347,8 +360,6 @@ setup_rack_awareness_4() ->
     leo_redundant_manager_api:attach('node_12@127.0.0.1', ?RACK_1),
     leo_redundant_manager_api:attach('node_13@127.0.0.1', ?RACK_2),
     leo_redundant_manager_api:attach('node_14@127.0.0.1', ?RACK_3),
-
-    ?debugVal(leo_redundant_manager_api:get_options()),
 
     leo_redundant_manager_api:create(?VER_CUR),
     leo_redundant_manager_api:create(?VER_PREV),
@@ -424,6 +435,65 @@ suite_rack_awareness() ->
     ok.
 
 
+%% @doc Rack-awareness Replication Test
+%%      - Case 4: N=3, RA=2, Total Number of Racks:4
+suite_rack_awareness_error_test_() ->
+    {setup,
+     fun () ->
+             setup_rack_awareness_error()
+     end,
+     fun (Pid) ->
+             teardown(Pid)
+     end,
+     [{"test rack-awareness functions - ERROR",
+       {timeout, 30000, fun rack_awareness_error/0}}
+     ]}.
+
+setup_rack_awareness_error() ->
+    application:start(crypto),
+
+    catch ets:delete_all_objects(?MEMBER_TBL_CUR),
+    catch ets:delete_all_objects(?MEMBER_TBL_PREV),
+    catch ets:delete_all_objects('leo_ring_cur'),
+    catch ets:delete_all_objects('leo_ring_prv'),
+
+    leo_misc:init_env(),
+    leo_misc:set_env(leo_redundant_manager, 'server_type', ?WORKER_NODE),
+    {ok, Pid} = leo_redundant_manager_sup:start_link(?WORKER_NODE),
+
+    timer:sleep(1000),
+    Pid.
+
+
+rack_awareness_error() ->
+    ?debugVal("=== START - Rack Awareness Replication ERROR Test: ==="),
+    leo_redundant_manager_api:set_options(?CONSISTENCY_LEVEL_OF_RA_ERROR),
+    ?debugVal(leo_redundant_manager_api:get_options()),
+
+    leo_redundant_manager_api:attach('node_0@127.0.0.1', ?RACK_1),
+    leo_redundant_manager_api:attach('node_1@127.0.0.1', ?RACK_2),
+    leo_redundant_manager_api:attach('node_2@127.0.0.1', ?RACK_3),
+    leo_redundant_manager_api:attach('node_3@127.0.0.1', ?RACK_4),
+    leo_redundant_manager_api:attach('node_4@127.0.0.1', ?RACK_1),
+    leo_redundant_manager_api:attach('node_5@127.0.0.1', ?RACK_2),
+    leo_redundant_manager_api:attach('node_6@127.0.0.1', ?RACK_3),
+    leo_redundant_manager_api:attach('node_7@127.0.0.1', ?RACK_4),
+    leo_redundant_manager_api:attach('node_8@127.0.0.1', ?RACK_1),
+    leo_redundant_manager_api:attach('node_9@127.0.0.1', ?RACK_2),
+    leo_redundant_manager_api:attach('node_10@127.0.0.1', ?RACK_3),
+    leo_redundant_manager_api:attach('node_11@127.0.0.1', ?RACK_4),
+    leo_redundant_manager_api:attach('node_12@127.0.0.1', ?RACK_1),
+    leo_redundant_manager_api:attach('node_13@127.0.0.1', ?RACK_2),
+    leo_redundant_manager_api:attach('node_14@127.0.0.1', ?RACK_3),
+
+    {error,invalid_consistency_level} = leo_redundant_manager_api:create(?VER_CUR),
+    {error,invalid_consistency_level} = leo_redundant_manager_api:create(?VER_PREV),
+    ok.
+
+
+%%--------------------------------------------------------------------
+%% Common Inner Functions
+%%--------------------------------------------------------------------
 %% @private
 collect_redundancies(_Tbl,0,_To,Acc) ->
     length(Acc);
@@ -442,6 +512,13 @@ check_redundancies(Index) ->
     {ok, #redundancies{nodes = ReplicaNodeL}} =
         leo_redundant_manager_worker:lookup('leo_ring_cur', AddrId),
     ?assertEqual(3, length(ReplicaNodeL)),
+
+    Sets = lists:foldl(
+             fun(#redundant_node{node = N}, S) ->
+                     sets:add_element(N, S)
+             end, sets:new(), ReplicaNodeL),
+    ?assertEqual(3, sets:size(Sets)),
+
     check_redundancies(Index - 1).
 
 %% @private
@@ -454,6 +531,12 @@ check_redundancies_for_rack_awareness(
         leo_redundant_manager_worker:lookup('leo_ring_cur', AddrId),
     ?assertEqual(TotalNumOfReplicas, length(ReplicaNodeL)),
 
+    Sets = lists:foldl(
+             fun(#redundant_node{node = N}, S) ->
+                     sets:add_element(N, S)
+             end, sets:new(), ReplicaNodeL),
+    ?assertEqual(TotalNumOfReplicas, sets:size(Sets)),
+
     RackDict = lists:foldl(
                  fun(#redundant_node{node = N}, D) ->
                          case lists:keyfind(N, 1, NodeAndRackL) of
@@ -463,7 +546,7 @@ check_redundancies_for_rack_awareness(
                                  dict:append(RackId, N, D)
                          end
                  end, dict:new(), ReplicaNodeL),
-    ?assertEqual(NumOfRackAwarenesses, length(dict:to_list(RackDict))),
+    ?assertEqual(NumOfRackAwarenesses, dict:size(RackDict)),
 
     check_redundancies_for_rack_awareness(
       Index - 1, TotalNumOfReplicas, NumOfRackAwarenesses, NodeAndRackL).
