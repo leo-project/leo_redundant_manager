@@ -457,30 +457,35 @@ gen_routing_table(#sync_info{target = Target},_) when Target /= ?SYNC_TARGET_RIN
                                                       Target /= ?SYNC_TARGET_RING_PREV ->
     {error, invalid_target_ring};
 gen_routing_table(#sync_info{target = Target} = SyncInfo, State) ->
-    %% Retrieve ring from local's master [etc|mnesia]
-    {ok, Ring_1} = leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR),
-    RingSize  = length(Ring_1),
-    GroupSize = leo_math:ceiling(RingSize / ?DEF_NUM_OF_DIV),
+    case ?validate_consistency_level() of
+        ok ->
+            %% Retrieve ring from local's master [etc|mnesia]
+            {ok, Ring_1} = leo_redundant_manager_api:get_ring(?SYNC_TARGET_RING_CUR),
+            RingSize  = length(Ring_1),
+            GroupSize = leo_math:ceiling(RingSize / ?DEF_NUM_OF_DIV),
 
-    %% Calculate ring's checksum
-    Ring_2 = case Target of
-                 ?SYNC_TARGET_RING_CUR ->
-                     Ring_1;
-                 _ ->
-                     {ok, RingPrev} = leo_redundant_manager_api:get_ring(Target),
-                     RingPrev
-             end,
-    Checksum = erlang:crc32(term_to_binary(Ring_2)),
+            %% Calculate ring's checksum
+            Ring_2 = case Target of
+                         ?SYNC_TARGET_RING_CUR ->
+                             Ring_1;
+                         _ ->
+                             {ok, RingPrev} = leo_redundant_manager_api:get_ring(Target),
+                             RingPrev
+                     end,
+            Checksum = erlang:crc32(term_to_binary(Ring_2)),
 
-    %% Retrieve redundancies by addr-id
-    gen_routing_table_1(Ring_1, SyncInfo, #ring_conf{id = 0,
-                                                     group_id = 0,
-                                                     ring_size = RingSize,
-                                                     group_size = GroupSize,
-                                                     index_list = [],
-                                                     table_list = [],
-                                                     from_addr_id = 0,
-                                                     checksum = Checksum}, State).
+            %% Retrieve redundancies by addr-id
+            gen_routing_table_1(Ring_1, SyncInfo, #ring_conf{id = 0,
+                                                             group_id = 0,
+                                                             ring_size = RingSize,
+                                                             group_size = GroupSize,
+                                                             index_list = [],
+                                                             table_list = [],
+                                                             from_addr_id = 0,
+                                                             checksum = Checksum}, State);
+        Error ->
+            Error
+    end.
 
 %% @private
 -spec(gen_routing_table_1([]|[{integer(),atom(),integer()}],
