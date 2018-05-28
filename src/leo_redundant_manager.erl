@@ -276,8 +276,13 @@ handle_call(stop,_From,State) ->
 
 handle_call({create, Ver}, _From, State) when Ver == ?VER_CUR;
                                               Ver == ?VER_PREV ->
-    Reply = create_1(Ver),
-    {reply, Reply, State};
+    case ?validate_consistency_level() of
+        ok ->
+            Reply = create_1(Ver),
+            {reply, Reply, State};
+        Error ->
+            {reply, Error, State}
+        end;
 
 handle_call({create,_Ver}, _From, State) ->
     {reply, {error, invalid_version}, State};
