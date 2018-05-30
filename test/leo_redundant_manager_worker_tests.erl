@@ -80,6 +80,7 @@ suite_basic_test_() ->
      ]}.
 
 setup_basic() ->
+    ?debugVal("=== START - Basic Test ==="),
     application:start(crypto),
 
     catch ets:delete_all_objects(?MEMBER_TBL_CUR),
@@ -117,12 +118,10 @@ teardown(Pid) ->
     ok.
 
 suite_basic() ->
-    ?debugVal("=== START - Basic Test ==="),
     ?debugVal(leo_redundant_manager_worker:checksum()),
 
     {ok, SystemConf} = leo_redundant_manager_api:get_options(),
     TotalReplicas = leo_misc:get_value('n', SystemConf),
-
 
     {ok, #redundancies{vnode_id_from = 0,
                        vnode_id_to   = VNodeIdTo1,
@@ -161,8 +160,9 @@ suite_basic() ->
     St = leo_date:clock(),
     ok = check_redundancies(?NUM_OF_CHECK_REDUNDANCIES),
     End = leo_date:clock(),
-
     ?debugVal((End - St) / 1000),
+
+    ok = leo_redundant_manager_worker:dump(),
     ?debugVal("=== END ==="),
     ok.
 
@@ -181,10 +181,11 @@ suite_rack_awareness_1_test_() ->
              teardown(Pid)
      end,
      [{"test rack-awareness functions #1",
-       {timeout, 30000, fun suite_rack_awareness/0}}
+       {timeout, 60000, fun suite_rack_awareness/0}}
      ]}.
 
 setup_rack_awareness_1() ->
+    ?debugVal("=== START - Rack Awareness Replication Test#1: N=2, RA=2 ==="),
     application:start(crypto),
 
     catch ets:delete_all_objects(?MEMBER_TBL_CUR),
@@ -213,6 +214,7 @@ setup_rack_awareness_1() ->
     ?assertEqual((?DEF_NUMBER_OF_VNODES * 5), length(PrevRows_2)),
 
     timer:sleep(1000),
+    ok = leo_redundant_manager_worker:dump(),
     Pid.
 
 
@@ -227,10 +229,11 @@ suite_rack_awareness_2_test_() ->
              teardown(Pid)
      end,
      [{"test rack-awareness functions #2",
-       {timeout, 30000, fun suite_rack_awareness/0}}
+       {timeout, 60000, fun suite_rack_awareness/0}}
      ]}.
 
 setup_rack_awareness_2() ->
+    ?debugVal("=== START - Rack Awareness Replication Test#2: N=3, RA=2 ==="),
     application:start(crypto),
 
     catch ets:delete_all_objects(?MEMBER_TBL_CUR),
@@ -259,6 +262,7 @@ setup_rack_awareness_2() ->
     ?assertEqual((?DEF_NUMBER_OF_VNODES * 5), length(PrevRows_2)),
 
     timer:sleep(1000),
+    ok = leo_redundant_manager_worker:dump(),
     Pid.
 
 
@@ -273,10 +277,11 @@ suite_rack_awareness_3_test_() ->
              teardown(Pid)
      end,
      [{"test rack-awareness functions #3",
-       {timeout, 30000, fun suite_rack_awareness/0}}
+       {timeout, 60000, fun suite_rack_awareness/0}}
      ]}.
 
 setup_rack_awareness_3() ->
+    ?debugVal("=== START - Rack Awareness Replication Test#3: N=3, RA=2 ==="),
     application:start(crypto),
 
     catch ets:delete_all_objects(?MEMBER_TBL_CUR),
@@ -315,6 +320,7 @@ setup_rack_awareness_3() ->
     ?assertEqual((?DEF_NUMBER_OF_VNODES * 15), length(PrevRows_2)),
 
     timer:sleep(1000),
+    ok = leo_redundant_manager_worker:dump(),
     Pid.
 
 %% @doc Rack-awareness Replication Test
@@ -328,10 +334,11 @@ suite_rack_awareness_4_test_() ->
              teardown(Pid)
      end,
      [{"test rack-awareness functions #4",
-       {timeout, 30000, fun suite_rack_awareness/0}}
+       {timeout, 60000, fun suite_rack_awareness/0}}
      ]}.
 
 setup_rack_awareness_4() ->
+    ?debugVal("=== START - Rack Awareness Replication Test#4: N=3, RA=3 ==="),
     application:start(crypto),
 
     catch ets:delete_all_objects(?MEMBER_TBL_CUR),
@@ -370,6 +377,7 @@ setup_rack_awareness_4() ->
     ?assertEqual((?DEF_NUMBER_OF_VNODES * 15), length(PrevRows_2)),
 
     timer:sleep(1000),
+    ok = leo_redundant_manager_worker:dump(),
     Pid.
 
 
@@ -379,10 +387,8 @@ suite_rack_awareness() ->
     TotalReplicas = leo_misc:get_value('n', SystemConf),
     NumOfRA = leo_misc:get_value('level_2', SystemConf),
 
-    ?debugVal("=== START - Rack Awareness Replication Test: ==="),
     ?debugVal(TotalReplicas),
     ?debugVal(NumOfRA),
-
     ?debugVal(leo_redundant_manager_worker:checksum()),
 
     {ok, #redundancies{vnode_id_from = 0,
