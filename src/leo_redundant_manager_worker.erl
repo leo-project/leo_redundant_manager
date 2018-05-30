@@ -768,7 +768,7 @@ redundancies_4(TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId, Node_1, R) 
                     %%   in `leo_manager.conf`
                     %%
                     %% Note: When num-of-rack-awareness equals num-of-replicas,
-                    %%       repleatedly look up vnode-id and its replicat-nodes
+                    %%       repeatedly look up vnode-id and its replicat-nodes
                     %%       to satisfy that all nodes belong to each different rack
                     %%
                     %% Note: `LenRackIdLBefore` equals `LenRackIdLAfter`
@@ -782,7 +782,7 @@ redundancies_4(TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId, Node_1, R) 
                             redundancies_3(
                               TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId, R);
                         %% 2. Need another node in the redundancies,
-                        %%    which belongs to existing racks
+                        %%    which belongs to one collected rack
                         false when LenRackIdLBefore == NumOfRAs ->
                             redundancies_3(
                               TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId, R);
