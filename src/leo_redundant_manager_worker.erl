@@ -671,25 +671,25 @@ check_redandancies_1(NumOfReplicas, [#vnodeid_nodes{nodes = VNodes}|Rest]) ->
                                  Members::[#member{}]).
 redundancies(_,_,NumOfReplicas,_,_) when NumOfReplicas < ?DEF_MIN_REPLICAS;
                                          NumOfReplicas > ?DEF_MAX_REPLICAS ->
-    {error, out_of_renge};
+    {error, out_of_range};
 redundancies(_,_,NumOfReplicas, NumOfRAs,_) when (NumOfReplicas - NumOfRAs) < 0 ->
     {error, invalid_level2};
-redundancies(TableInfo, VNodeId_0, NumOfReplicas, NumOfRAs, Members) ->
+redundancies(TableInfo, VNodeId, NumOfReplicas, NumOfRAs, Members) ->
     Members_1 = [{N, RackId} || #member{node = N,
                                         grp_level_2 = RackId} <- Members],
-    case leo_cluster_tbl_ring:lookup(TableInfo, VNodeId_0) of
+    case leo_cluster_tbl_ring:lookup(TableInfo, VNodeId) of
         {error, Cause} ->
             {error, Cause};
         not_found ->
-            case get_node_by_vnode_id(TableInfo, VNodeId_0) of
+            case get_node_by_vnode_id(TableInfo, VNodeId) of
                 {ok, VNodeId_1} ->
-                    redundancies_1(TableInfo, VNodeId_0, VNodeId_1,
+                    redundancies_1(TableInfo, VNodeId, VNodeId_1,
                                    NumOfReplicas, NumOfRAs, Members_1);
                 {error, Cause} ->
                     {error, Cause}
             end;
         #?RING{node = Node} ->
-            redundancies_2(TableInfo, VNodeId_0, VNodeId_0,
+            redundancies_2(TableInfo, VNodeId, VNodeId,
                            NumOfReplicas, NumOfRAs, Members_1, Node)
     end.
 
@@ -726,8 +726,8 @@ redundancies_3(_TableInfo, 0,_NumOfRAs,_Members,_VNodeId, #redundancies{nodes = 
     {ok, R#redundancies{temp_nodes = [],
                         temp_level_2 = [],
                         nodes = lists:reverse(Acc)}};
-redundancies_3(TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId_0, R) ->
-    case get_node_by_vnode_id(TableInfo, VNodeId_0) of
+redundancies_3(TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId, R) ->
+    case get_node_by_vnode_id(TableInfo, VNodeId) of
         {ok, VNodeId_1} ->
             case leo_cluster_tbl_ring:lookup(TableInfo, VNodeId_1) of
                 {error, Cause} ->
@@ -748,59 +748,54 @@ redundancies_3(TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId_0, R) ->
 
 redundancies_4(TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId, Node_1, R) ->
     AccTempNode = R#redundancies.temp_nodes,
-    AccLevel2 = R#redundancies.temp_level_2,
+    AccRackId = R#redundancies.temp_level_2,
     AccNodes = R#redundancies.nodes,
 
     case lists:member(Node_1, AccTempNode) of
         true  ->
             redundancies_3(TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId, R);
         false ->
-            case get_redundancies(Members, Node_1, AccLevel2) of
+            case get_redundancies(Members, Node_1, AccRackId) of
                 not_found ->
                     {error, ?ERROR_COULD_NOT_GET_REDUNDANCIES};
-                {Node_2, AccLevel2_1} ->
-                    LenAccLevel2 = length(AccLevel2_1),
+                {Node_2, AccRackId_1} ->
+                    LenRackIdLBefore = length(AccRackId),
+                    LenRackIdLAfter = length(AccRackId_1),
 
-                    case (NumOfRAs /= 0 andalso NumOfRAs == length(AccNodes)) of
-                        true when LenAccLevel2 < NumOfRAs ->
-                            redundancies_3(TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId, R);
+                    %% [Prerequisites]
+                    %%   Maximum total number of asigned racks
+                    %%   adheres to `consistency.rack_aware_replicas`
+                    %%   in `leo_manager.conf`
+                    %%
+                    %% Note: When num-of-rack-awareness equals num-of-replicas,
+                    %%       repleatedly look up vnode-id and its replicat-nodes
+                    %%       to satisfy that all nodes belong to each different rack
+                    %%
+                    %% Note: `LenRackIdLBefore` equals `LenRackIdLAfter`
+                    %%        that means not found "new rack-id"
+                    %%
+                    case (LenRackIdLBefore == LenRackIdLAfter) of
+                        %% 1. Need another node in the redundancies,
+                        %%    which belongs to another rack
+                        true when LenRackIdLBefore /= NumOfRAs andalso
+                                  NumOfReplicas - NumOfRAs < 1 ->
+                            redundancies_3(
+                              TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId, R);
+                        %% 2. Need another node in the redundancies,
+                        %%    which belongs to existing racks
+                        false when LenRackIdLBefore == NumOfRAs ->
+                            redundancies_3(
+                              TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId, R);
+                        %% 3. Others:
+                        %%    * not rack-awareness
+                        %%    * not both (1) and (2)
                         _ ->
-                            RackDict =
-                                lists:foldl(
-                                  fun(#redundant_node{node = N}, D) ->
-                                          case lists:keyfind(N, 1, Members) of
-                                              false ->
-                                                  D;
-                                              {_, RackId} ->
-                                                  dict:append(RackId, N, D)
-                                          end
-                                  end, dict:new(), AccNodes),
-                            RackL = dict:to_list(RackDict),
-
-                            case lists:keyfind(Node_2, 1, Members) of
-                                false ->
-                                    {error, []};
-                                {_, RackId} ->
-                                    case lists:keyfind(RackId, 1, RackL) of
-                                        {_,_} when length(RackL) /= NumOfRAs andalso
-                                                   NumOfReplicas - NumOfRAs < 1 ->
-                                            redundancies_3(
-                                              TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId, R);
-                                        %% Note: maximum total number of asigned racks
-                                        %%       adheres to `consistency.rack_aware_replicas`
-                                        %%       in `leo_manager.conf`
-                                        false when length(RackL) == NumOfRAs ->
-                                            redundancies_3(
-                                              TableInfo, NumOfReplicas, NumOfRAs, Members, VNodeId, R);
-                                        _ ->
-                                            redundancies_3(
-                                              TableInfo, NumOfReplicas - 1, NumOfRAs, Members, VNodeId,
-                                              R#redundancies{
-                                                temp_nodes = [Node_2|AccTempNode],
-                                                temp_level_2 = AccLevel2_1,
-                                                nodes = [#redundant_node{node = Node_2} | AccNodes]})
-                                    end
-                            end
+                            redundancies_3(
+                              TableInfo, NumOfReplicas - 1, NumOfRAs, Members, VNodeId,
+                              R#redundancies{
+                                temp_nodes = [Node_2|AccTempNode],
+                                temp_level_2 = AccRackId_1,
+                                nodes = [#redundant_node{node = Node_2} | AccNodes]})
                     end
             end
     end.
@@ -828,15 +823,17 @@ get_node_by_vnode_id(TableInfo, VNodeId) ->
 
 %% @doc Retrieve a member from an argument.
 %% @private
--spec(get_redundancies([{Node, RackId}], atom(), [string()]) ->
-             {atom, [string()]} | not_found when Node::node(),
+-spec(get_redundancies([Member], Node_1, [RackId]) ->
+             {atom, [string()]} | not_found when Member::{Node_0, RackId},
+                                                 Node_0::node(),
+                                                 Node_1::node(),
                                                  RackId::string()).
 get_redundancies([],_,_) ->
     not_found;
-get_redundancies([{Node_0, NumOfRAs}|_], Node_1, RackIdL) when Node_0 == Node_1 ->
-    case lists:member(NumOfRAs, RackIdL) of
+get_redundancies([{Node_0, RackId}|_], Node_1, RackIdL) when Node_0 == Node_1 ->
+    case lists:member(RackId, RackIdL) of
         false  ->
-            {Node_0, [NumOfRAs|RackIdL]};
+            {Node_0, [RackId|RackIdL]};
         _Other ->
             {Node_0, RackIdL}
     end;
