@@ -618,10 +618,11 @@
                 _R = leo_misc:get_value('r',_CL, 0),
                 _D = leo_misc:get_value('d',_CL, 0),
                 _RA = leo_misc:get_value('level_2',_CL, 0),
+
                 case lists:all(
-                       fun({_N1,_C}) ->
-                               _N1 >= _C
-                       end, [{_N,_W}, {_N,_R}, {_N,_R}, {_N,_D}, {_N,_RA}]) of
+                       fun(_C) ->
+                               _N >= _C
+                       end, [_W,_R,_D,_RA]) of
                     true ->
                         ok;
                     false ->
