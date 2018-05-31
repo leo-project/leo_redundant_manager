@@ -2,7 +2,7 @@
 %%
 %% Leo Redundant Manager
 %%
-%% Copyright (c) 2012-2017 Rakuten, Inc.
+%% Copyright (c) 2012-2018 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -508,7 +508,7 @@ rack_aware_1() ->
                                            {w ,2},
                                            {d, 2},
                                            {bit_of_ring, 128},
-                                           {level_2, 1}
+                                           {level_2, 2}
                                           ]),
     Node0  = list_to_atom("node_0@"  ++ Hostname),
     Node1  = list_to_atom("node_1@"  ++ Hostname),
@@ -605,7 +605,7 @@ rack_aware_2() ->
                                            {w ,2},
                                            {d, 2},
                                            {bit_of_ring, 128},
-                                           {level_2, 1}
+                                           {level_2, 2}
                                           ]),
     Node0  = list_to_atom("node_0@"  ++ Hostname),
     Node1  = list_to_atom("node_1@"  ++ Hostname),
