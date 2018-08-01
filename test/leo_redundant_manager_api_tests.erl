@@ -69,7 +69,7 @@ check_redundancies_2_test_() ->
      end,
      [
       {"check redundancies_2",
-       {timeout, 5000, fun check_redundancies_2/0}}
+       {timeout, 10000, fun check_redundancies_2/0}}
      ]}.
 
 check_redundancies_2() ->
@@ -130,14 +130,14 @@ suite_1_test_() ->
      fun ( ) -> setup(),      ok end,
      fun (_) -> teardown([]), ok end,
      [
-      {"",{timeout, 5000, fun redundant_manager_0/0}}
+      {"",{timeout, 10000, fun redundant_manager_0/0}}
      ]}.
 suite_2_test_() ->
     {setup,
      fun ( ) -> setup(),      ok end,
      fun (_) -> teardown([]), ok end,
      [
-      {"",{timeout, 5000, fun redundant_manager_1/0}}
+      {"",{timeout, 10000, fun redundant_manager_1/0}}
      ]}.
 suite_3_test_() ->
     {setup,
@@ -151,7 +151,7 @@ suite_3_test_() ->
              ok
      end,
      [
-      {"",{timeout, 5000, fun attach_1/0}}
+      {"",{timeout, 10000, fun attach_1/0}}
      ]}.
 suite_4_test_() ->
     {setup,
@@ -165,7 +165,7 @@ suite_4_test_() ->
              ok
      end,
      [
-      {"",{timeout, 5000, fun attach_2/0}}
+      {"",{timeout, 10000, fun attach_2/0}}
      ]}.
 suite_5_test_() ->
     {setup,
@@ -178,7 +178,7 @@ suite_5_test_() ->
              ok
      end,
      [
-      {"",{timeout, 5000, fun detach/0}}
+      {"",{timeout, 10000, fun detach/0}}
      ]}.
 suite_7_test_() ->
     {setup,
@@ -192,7 +192,7 @@ suite_7_test_() ->
              ok
      end,
      [
-      {"",{timeout, 5000, fun members_table/0}}
+      {"",{timeout, 10000, fun members_table/0}}
      ]}.
 suite_8_test_() ->
     {setup,
@@ -206,7 +206,7 @@ suite_8_test_() ->
              ok
      end,
      [
-      {"",{timeout, 5000, fun rack_aware_1/0}}
+      {"",{timeout, 10000, fun rack_aware_1/0}}
      ]}.
 suite_9_test_() ->
     {setup,
@@ -220,7 +220,7 @@ suite_9_test_() ->
              ok
      end,
      [
-      {"",{timeout, 5000, fun rack_aware_2/0}}
+      {"",{timeout, 10000, fun rack_aware_2/0}}
      ]}.
 
 setup() ->
