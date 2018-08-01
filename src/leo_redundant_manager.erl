@@ -397,41 +397,7 @@ handle_call({delete_member_by_node, Node}, _From, State) ->
     {reply, Reply, State};
 
 handle_call({dump, member}, _From, State) ->
-    LogDir = case application:get_env(leo_redundant_manager,
-                                      log_dir_member) of
-                 undefined ->
-                     ?DEF_LOG_DIR_MEMBERS;
-                 {ok, Dir} ->
-                     case (string:len(Dir) == string:rstr(Dir, "/")) of
-                         true  -> Dir;
-                         false -> Dir ++ "/"
-                     end
-             end,
-    _ = filelib:ensure_dir(LogDir),
-
-    Reply = case leo_cluster_tbl_member:find_all(?MEMBER_TBL_CUR) of
-                {ok, MembersCur} ->
-                    Path_1 = lists:append([LogDir,
-                                           ?DUMP_FILE_MEMBERS_CUR,
-                                           integer_to_list(leo_date:now())]),
-                    leo_file:file_unconsult(Path_1, MembersCur),
-
-                    case leo_cluster_tbl_member:find_all(?MEMBER_TBL_PREV) of
-                        {ok, MembersPrev} ->
-                            Path_2 = lists:append([LogDir,
-                                                   ?DUMP_FILE_MEMBERS_PREV,
-                                                   integer_to_list(leo_date:now())]),
-                            leo_file:file_unconsult(Path_2, MembersPrev);
-                        not_found = Cause ->
-                            {error, Cause};
-                        Error ->
-                            Error
-                    end;
-                not_found = Cause ->
-                    {error, Cause};
-                Error ->
-                    Error
-            end,
+    Reply = dump_member_tabs(),
     {reply, Reply, State};
 
 handle_call({dump, ring}, _From, State) ->
@@ -578,6 +544,10 @@ create_2(Ver,[], Acc) ->
         ok ->
             ok = leo_redundant_manager_worker:force_sync(?RING_TBL_CUR),
             ok = leo_redundant_manager_worker:force_sync(?RING_TBL_PREV),
+
+            %% dump both ring and member tables
+            _ = dump_ring_tabs(),
+            _ = dump_member_tabs(),
             ok;
         Other ->
             Other
@@ -748,3 +718,45 @@ dump_ring_tabs() ->
     Res1 = leo_redundant_manager_chash:export(
              leo_redundant_manager_api:table_info(?VER_PREV), File_2),
     {Res0, Res1}.
+
+
+%% @doc Export 'Member' from a table
+%% @private
+dump_member_tabs() ->
+    LogDir = case application:get_env(leo_redundant_manager,
+                                      log_dir_member) of
+                 undefined ->
+                     ?DEF_LOG_DIR_MEMBERS;
+                 {ok, Dir} ->
+                     case (string:len(Dir) == string:rstr(Dir, "/")) of
+                         true ->
+                             Dir;
+                         false ->
+                             Dir ++ "/"
+                     end
+             end,
+    _ = filelib:ensure_dir(LogDir),
+
+    case leo_cluster_tbl_member:find_all(?MEMBER_TBL_CUR) of
+        {ok, MembersCur} ->
+            Path_1 = lists:append([LogDir,
+                                   ?DUMP_FILE_MEMBERS_CUR,
+                                   integer_to_list(leo_date:now())]),
+            leo_file:file_unconsult(Path_1, MembersCur),
+
+            case leo_cluster_tbl_member:find_all(?MEMBER_TBL_PREV) of
+                {ok, MembersPrev} ->
+                    Path_2 = lists:append([LogDir,
+                                           ?DUMP_FILE_MEMBERS_PREV,
+                                           integer_to_list(leo_date:now())]),
+                    leo_file:file_unconsult(Path_2, MembersPrev);
+                not_found = Cause ->
+                    {error, Cause};
+                Error ->
+                    Error
+            end;
+        not_found = Cause ->
+            {error, Cause};
+        Error ->
+            Error
+    end.
