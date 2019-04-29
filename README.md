@@ -7,7 +7,7 @@
 * "leo_redundant_manager" monitors Gateway-node(s) and Storage-node(s) for keeping availability and consistency.
 * "leo_redundant_manager" manages and provide routing-table(RING).
 * "leo_redundant_manager" uses [rebar](https://github.com/rebar/rebar) build system. Makefile so that simply running "make" at the top level should work.
-* "leo_redundant_manager" requires Erlang R16B03-1 or later.
+* "leo_redundant_manager" requires Erlang/OTP 19.3 or later.
 
 ## Usage in Leo Project
 
@@ -16,4 +16,6 @@ It is used to distribute a routing table and manage members of a cluster.
 
 ## Sponsors
 
-LeoProject/LeoFS is sponsored by [Rakuten, Inc.](http://global.rakuten.com/corp/) and supported by [Rakuten Institute of Technology](http://rit.rakuten.co.jp/).
+* LeoProject/LeoFS was sponsored by [Rakuten, Inc.](https://global.rakuten.com/corp/) from 2012 to Dec of 2018.
+* LeoProject/LeoFS is sponsored by [Lions Data, Ltd.](https://lions-data.com/) from Jan of 2019.
+
