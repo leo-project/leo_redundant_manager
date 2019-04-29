@@ -10,7 +10,6 @@ CALL_GRAPH_FILE = leo_redundant_manager.png
 
 all:
 	@$(REBAR) get-deps
-	$(SHELL) -c ./replace_otp_vsn.sh
 	@$(REBAR) compile
 	@$(REBAR) xref skip_deps=true
 	@$(REBAR) eunit suites=leo_mdcr_tbl_cluster_info
@@ -22,7 +21,6 @@ all:
 	@$(REBAR) eunit suites=leo_membership_cluster_local
 	@$(REBAR) eunit suites=leo_membership_mq_client
 compile:
-	$(SHELL) -c ./replace_otp_vsn.sh
 	@$(REBAR) compile
 xref:
 	@$(REBAR) xref skip_deps=true
