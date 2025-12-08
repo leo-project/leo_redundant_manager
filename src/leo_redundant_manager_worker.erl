@@ -87,8 +87,10 @@
                     checksum = -1 :: integer()
                    }).
 
--compile({inline, [lookup_fun/5, find_redundancies_by_addr_id/2,
-                   reply_redundancies/3,first_fun/1, last_fun/1,
+-compile({inline, [lookup_fun/6, find_redundancies_by_addr_id/3,
+                   bsearch_ring_group/3, bsearch_vnodeid_nodes/3,
+                   build_ring_group_array/1, build_vnodeid_nodes_array/1,
+                   reply_redundancies/3, first_fun/1, last_fun/1,
                    gen_routing_table/2, gen_routing_table_1/4, gen_routing_table_2/2,
                    redundancies/5, redundancies_1/6, redundancies_2/7,
                    redundancies_3/6, redundancies_4/7, get_node_by_vnode_id/2,
@@ -205,10 +207,12 @@ handle_call({lookup, Tbl,_AddrId},_From, State) when Tbl /= ?RING_TBL_CUR,
     {reply, {error, invalid_table}, State};
 
 handle_call({lookup, Tbl, AddrId},_From, State) ->
+    RingInfo = ring_info(Tbl, State),
     #ring_info{ring_group_list = RingGroupList,
+               ring_group_array = RingGroupArray,
                first_vnode_id  = FirstVNodeId,
-               last_vnode_id   = LastVNodeId} = ring_info(Tbl, State),
-    Reply = lookup_fun(RingGroupList, FirstVNodeId,
+               last_vnode_id   = LastVNodeId} = RingInfo,
+    Reply = lookup_fun(RingGroupList, RingGroupArray, FirstVNodeId,
                        LastVNodeId, AddrId, State),
     {reply, Reply, State};
 
@@ -521,9 +525,12 @@ gen_routing_table_1([], #sync_info{target = Target},
             timer:apply_after(250, ?MODULE,
                               force_sync, [?sync_target_to_table(Target)])
     end,
+    %% Build arrays for binary search
+    {IdxAcc_2, RingGroupArray} = build_ring_group_array(IdxAcc_1),
     {ok, #ring_info{
             checksum = Checksum,
-            ring_group_list = IdxAcc_1,
+            ring_group_list = IdxAcc_2,
+            ring_group_array = RingGroupArray,
             first_vnode_id = FirstAddrId,
             last_vnode_id = LastAddrId,
             members = Members}};
@@ -921,53 +928,124 @@ last_fun(RingGroupList) ->
     end.
 
 
-%% @doc Retrieve redundancies by vnode-id
+%% @doc Retrieve redundancies by vnode-id (with binary search support)
 %% @private
--spec(lookup_fun(list(#ring_group{}), integer(), integer(), integer(), #state{}) ->
+-spec(lookup_fun(list(#ring_group{}), tuple() | undefined,
+                 integer(), integer(), integer(), #state{}) ->
              not_found | {ok, #redundancies{}}).
-lookup_fun([],_,_,_AddrId,_) ->
+lookup_fun([], _, _, _, _AddrId, _) ->
     not_found;
-lookup_fun(RingGroupList, FirstVNodeId,
+lookup_fun(RingGroupList, _RingGroupArray, FirstVNodeId,
            _LastVNodeId, AddrId, State) when FirstVNodeId >= AddrId ->
     Ret = first_fun(RingGroupList),
     reply_redundancies(Ret, AddrId, State);
-lookup_fun(RingGroupList,_FirstVNodeId,
+lookup_fun(RingGroupList, _RingGroupArray, _FirstVNodeId,
            LastVNodeId, AddrId, State) when LastVNodeId < AddrId ->
     Ret = first_fun(RingGroupList),
     reply_redundancies(Ret, AddrId, State);
-lookup_fun(RingGroupList,_,_, AddrId, State) ->
-    Ret = find_redundancies_by_addr_id(RingGroupList, AddrId),
+lookup_fun(RingGroupList, RingGroupArray, _, _, AddrId, State) ->
+    Ret = find_redundancies_by_addr_id(RingGroupList, RingGroupArray, AddrId),
     reply_redundancies(Ret, AddrId, State).
 
 
-%% @doc Find redundanciess by vnodeid
+%% @doc Find redundancies by vnodeid using binary search
 %% @private
--spec(find_redundancies_by_addr_id(list(#ring_group{}), integer()) ->
+-spec(find_redundancies_by_addr_id(list(#ring_group{}), tuple() | undefined, integer()) ->
              not_found | {ok, #redundancies{}}).
-find_redundancies_by_addr_id([],_AddrId) ->
+find_redundancies_by_addr_id([], _, _AddrId) ->
     not_found;
-find_redundancies_by_addr_id(
+%% Use binary search when array is available
+find_redundancies_by_addr_id(_RingGroupList, RingGroupArray, AddrId)
+  when is_tuple(RingGroupArray), tuple_size(RingGroupArray) > 0 ->
+    case bsearch_ring_group(RingGroupArray, AddrId, tuple_size(RingGroupArray)) of
+        not_found ->
+            not_found;
+        {ok, #ring_group{vnodeid_nodes_array = VNodeArray}}
+          when is_tuple(VNodeArray), tuple_size(VNodeArray) > 0 ->
+            bsearch_vnodeid_nodes(VNodeArray, AddrId, tuple_size(VNodeArray));
+        {ok, #ring_group{vnodeid_nodes_list = List}} ->
+            find_redundancies_by_addr_id_1_linear(List, AddrId)
+    end;
+%% Fallback to linear search
+find_redundancies_by_addr_id(RingGroupList, _RingGroupArray, AddrId) ->
+    find_redundancies_by_addr_id_linear(RingGroupList, AddrId).
+
+%% @doc Linear search for ring_group (fallback)
+%% @private
+find_redundancies_by_addr_id_linear([], _AddrId) ->
+    not_found;
+find_redundancies_by_addr_id_linear(
   [#ring_group{index_from = From,
                index_to = To,
-               vnodeid_nodes_list = List}|_Rest], AddrId) when From =< AddrId,
-                                                               To   >= AddrId ->
-    find_redundancies_by_addr_id_1(List, AddrId);
-find_redundancies_by_addr_id([_|Rest], AddrId) ->
-    find_redundancies_by_addr_id(Rest, AddrId).
+               vnodeid_nodes_array = VNodeArray}|_], AddrId)
+  when From =< AddrId, To >= AddrId, is_tuple(VNodeArray), tuple_size(VNodeArray) > 0 ->
+    bsearch_vnodeid_nodes(VNodeArray, AddrId, tuple_size(VNodeArray));
+find_redundancies_by_addr_id_linear(
+  [#ring_group{index_from = From,
+               index_to = To,
+               vnodeid_nodes_list = List}|_], AddrId) when From =< AddrId, To >= AddrId ->
+    find_redundancies_by_addr_id_1_linear(List, AddrId);
+find_redundancies_by_addr_id_linear([_|Rest], AddrId) ->
+    find_redundancies_by_addr_id_linear(Rest, AddrId).
 
-
-find_redundancies_by_addr_id_1([],_AddrId) ->
+%% @doc Linear search for vnodeid_nodes (fallback)
+%% @private
+find_redundancies_by_addr_id_1_linear([], _AddrId) ->
     not_found;
-find_redundancies_by_addr_id_1(
+find_redundancies_by_addr_id_1_linear(
   [#vnodeid_nodes{vnode_id_from = From,
                   vnode_id_to = To,
-                  nodes = Nodes}|_], AddrId) when From =< AddrId,
-                                                  To   >= AddrId ->
+                  nodes = Nodes}|_], AddrId) when From =< AddrId, To >= AddrId ->
     {ok, #redundancies{vnode_id_from = From,
                        vnode_id_to = To,
                        nodes = Nodes}};
-find_redundancies_by_addr_id_1([_|Rest], AddrId) ->
-    find_redundancies_by_addr_id_1(Rest, AddrId).
+find_redundancies_by_addr_id_1_linear([_|Rest], AddrId) ->
+    find_redundancies_by_addr_id_1_linear(Rest, AddrId).
+
+%% @doc Binary search for ring_group
+%% @private
+-spec(bsearch_ring_group(tuple(), integer(), pos_integer()) ->
+             not_found | {ok, #ring_group{}}).
+bsearch_ring_group(Array, AddrId, Size) ->
+    bsearch_ring_group(Array, AddrId, 1, Size).
+
+bsearch_ring_group(_Array, _AddrId, Low, High) when Low > High ->
+    not_found;
+bsearch_ring_group(Array, AddrId, Low, High) ->
+    Mid = (Low + High) div 2,
+    {IndexTo, RingGroup} = element(Mid, Array),
+    #ring_group{index_from = IndexFrom} = RingGroup,
+    if
+        AddrId > IndexTo ->
+            bsearch_ring_group(Array, AddrId, Mid + 1, High);
+        AddrId < IndexFrom ->
+            bsearch_ring_group(Array, AddrId, Low, Mid - 1);
+        true ->
+            {ok, RingGroup}
+    end.
+
+%% @doc Binary search for vnodeid_nodes
+%% @private
+-spec(bsearch_vnodeid_nodes(tuple(), integer(), pos_integer()) ->
+             not_found | {ok, #redundancies{}}).
+bsearch_vnodeid_nodes(Array, AddrId, Size) ->
+    bsearch_vnodeid_nodes(Array, AddrId, 1, Size).
+
+bsearch_vnodeid_nodes(_Array, _AddrId, Low, High) when Low > High ->
+    not_found;
+bsearch_vnodeid_nodes(Array, AddrId, Low, High) ->
+    Mid = (Low + High) div 2,
+    {VNodeIdTo, VNodeIdFrom, Nodes} = element(Mid, Array),
+    if
+        AddrId > VNodeIdTo ->
+            bsearch_vnodeid_nodes(Array, AddrId, Mid + 1, High);
+        AddrId < VNodeIdFrom ->
+            bsearch_vnodeid_nodes(Array, AddrId, Low, Mid - 1);
+        true ->
+            {ok, #redundancies{vnode_id_from = VNodeIdFrom,
+                               vnode_id_to = VNodeIdTo,
+                               nodes = Nodes}}
+    end.
 
 
 %% @doc Force sync
@@ -1032,10 +1110,11 @@ collect_fun(NumOfReplicas,_RingInfo, _AddrIdAndKey,_TotalMembers,
     Acc_1 = lists:sublist(Acc, NumOfReplicas),
     {ok, Acc_1};
 collect_fun(NumOfReplicas, #ring_info{ring_group_list = RingGroupList,
+                                      ring_group_array = RingGroupArray,
                                       first_vnode_id = FirstVNodeId,
                                       last_vnode_id = LastVNodeId} = RingInfo,
             {AddrId, Key}, TotalMembers, MaxNumOfDuplicate, State, Acc) ->
-    case lookup_fun(RingGroupList, FirstVNodeId,
+    case lookup_fun(RingGroupList, RingGroupArray, FirstVNodeId,
                     LastVNodeId, AddrId, State) of
         {ok, #redundancies{nodes = RedundantNodeL}} ->
             ChildId = erlang:length(Acc) + 1,
@@ -1088,3 +1167,36 @@ ring_info(?RING_TBL_PREV, State) ->
     State#state.prev;
 ring_info(_,_) ->
     {error, invalid_table}.
+
+
+%%--------------------------------------------------------------------
+%% Binary Search Array Construction
+%%--------------------------------------------------------------------
+%% @doc Build arrays for binary search from ring_group_list
+%% @private
+-spec(build_ring_group_array([#ring_group{}]) ->
+             {[#ring_group{}], tuple()}).
+build_ring_group_array([]) ->
+    {[], {}};
+build_ring_group_array(RingGroupList) ->
+    %% First, build vnodeid_nodes_array for each ring_group
+    RingGroupList_1 = [RG#ring_group{
+                         vnodeid_nodes_array = build_vnodeid_nodes_array(
+                                                 RG#ring_group.vnodeid_nodes_list)
+                        } || RG <- RingGroupList],
+    %% Build ring_group_array: tuple of {index_to, #ring_group{}}
+    RingGroupArray = list_to_tuple(
+                       [{RG#ring_group.index_to, RG} || RG <- RingGroupList_1]),
+    {RingGroupList_1, RingGroupArray}.
+
+%% @doc Build array for binary search from vnodeid_nodes_list
+%% @private
+-spec(build_vnodeid_nodes_array([#vnodeid_nodes{}]) -> tuple()).
+build_vnodeid_nodes_array([]) ->
+    {};
+build_vnodeid_nodes_array(VNodeIdNodesList) ->
+    %% Build tuple of {vnode_id_to, vnode_id_from, nodes}
+    list_to_tuple(
+      [{VN#vnodeid_nodes.vnode_id_to,
+        VN#vnodeid_nodes.vnode_id_from,
+        VN#vnodeid_nodes.nodes} || VN <- VNodeIdNodesList]).

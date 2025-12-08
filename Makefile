@@ -1,4 +1,4 @@
-.PHONY: all compile xref eunit check_plt build_plt dialyzer doc callgraph graphviz clean distclean
+.PHONY: all compile xref eunit bench check_plt build_plt dialyzer doc callgraph graphviz clean distclean
 
 REBAR := rebar3
 APPS = erts kernel stdlib sasl crypto compiler inets mnesia public_key runtime_tools snmp syntax_tools tools xmerl webtool ssl
@@ -17,6 +17,9 @@ xref:
 
 eunit:
 	@$(REBAR) eunit
+
+bench:
+	@$(REBAR) eunit --module=leo_redundant_manager_worker_bench --verbose
 
 check_plt:
 	@$(REBAR) compile

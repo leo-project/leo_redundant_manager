@@ -472,7 +472,9 @@
 -record(ring_group,
         {index_from = 0 :: non_neg_integer(),          %% group-index's from
          index_to = 0 :: non_neg_integer(),            %% group-index's to
-         vnodeid_nodes_list = [] :: [#vnodeid_nodes{}] %% list of vnodeid(s)
+         vnodeid_nodes_list = [] :: [#vnodeid_nodes{}], %% list of vnodeid(s)
+         %% For binary search (tuple of {vnode_id_to, #vnodeid_nodes{}})
+         vnodeid_nodes_array :: tuple() | undefined
         }).
 
 -record(ring_info,
@@ -480,7 +482,9 @@
          first_vnode_id = 0 :: non_neg_integer(), %% start vnode-id
          last_vnode_id = 0 :: non_neg_integer(),  %% end vnode-id
          ring_group_list :: [#ring_group{}],      %% list of groups
-         members = [] :: [#member{}]              %% cluster-members
+         members = [] :: [#member{}],             %% cluster-members
+         %% For binary search (tuple of {index_to, #ring_group{}})
+         ring_group_array :: tuple() | undefined
         }).
 
 -record(node_state,
