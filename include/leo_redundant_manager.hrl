@@ -224,6 +224,14 @@
                 ?SYNC_TARGET_RING_PREV
         end).
 
+-define(sync_target_to_member_tbl(_Target),
+        case _Target of
+            ?SYNC_TARGET_RING_CUR ->
+                ?MEMBER_TBL_CUR;
+            ?SYNC_TARGET_RING_PREV ->
+                ?MEMBER_TBL_PREV
+        end).
+
 
 %% Synchronization
 -define(SYNC_TARGET_BOTH, 'both').

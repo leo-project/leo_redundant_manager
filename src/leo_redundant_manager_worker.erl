@@ -94,7 +94,8 @@
                    gen_routing_table/2, gen_routing_table_1/4, gen_routing_table_2/2,
                    redundancies/5, redundancies_1/6, redundancies_2/7,
                    redundancies_3/6, redundancies_4/7, get_node_by_vnode_id/2,
-                   get_redundancies/3, force_sync_fun/2, force_sync_fun_1/3
+                   get_redundancies/3, force_sync_fun/2,
+                   set_ring_members/3, update_ring_state/3
                   ]}).
 
 
@@ -431,26 +432,9 @@ maybe_sync_2(RingVer, Hash_Now, Hash_Old, State) ->
 maybe_sync_2_1(#sync_info{org_checksum = OrgChecksum,
                           cur_checksum = CurChecksum}, State) when OrgChecksum == CurChecksum ->
     State;
-maybe_sync_2_1(#sync_info{target = TargetRing} = SyncInfo, #state{checksum = WorkerChecksum} = State) ->
-    case gen_routing_table(SyncInfo, State) of
-        {ok, #ring_info{ring_group_list = RetL} = RingInfo} ->
-            case TargetRing of
-                ?SYNC_TARGET_RING_CUR ->
-                    {PrevHash,_} = WorkerChecksum,
-                    CurHash = erlang:crc32(
-                                term_to_binary(RetL)),
-                    State#state{cur = RingInfo,
-                                checksum = {PrevHash, CurHash}};
-                ?SYNC_TARGET_RING_PREV ->
-                    {_,CurHash} = WorkerChecksum,
-                    PrevHash = erlang:crc32(
-                                 term_to_binary(RetL)),
-                    State#state{prev = RingInfo,
-                                checksum = {PrevHash, CurHash}}
-            end;
-        {error,_} ->
-            State
-    end.
+maybe_sync_2_1(#sync_info{target = TargetRing} = SyncInfo, State) ->
+    Ret = gen_routing_table(SyncInfo, State),
+    update_ring_state(Ret, TargetRing, State).
 
 
 %% @doc Generate RING for this process
@@ -1055,22 +1039,12 @@ bsearch_vnodeid_nodes(Array, AddrId, Low, High) ->
 force_sync_fun(TargetRing, State) ->
     case update_state(State) of
         #state{num_of_replicas = NumOfReplica} = State_1 when NumOfReplica > 0 ->
-            Tbl = case TargetRing of
-                      ?SYNC_TARGET_RING_CUR ->
-                          ?MEMBER_TBL_CUR;
-                      ?SYNC_TARGET_RING_PREV ->
-                          ?MEMBER_TBL_PREV
-                  end,
+            Tbl = ?sync_target_to_member_tbl(TargetRing),
             case leo_cluster_tbl_member:find_all(Tbl) of
                 {ok, Members} ->
-                    State_2 = case TargetRing of
-                                  ?SYNC_TARGET_RING_CUR ->
-                                      State_1#state{cur = #ring_info{members = Members}};
-                                  ?SYNC_TARGET_RING_PREV ->
-                                      State_1#state{prev = #ring_info{members = Members}}
-                              end,
+                    State_2 = set_ring_members(TargetRing, Members, State_1),
                     Ret = gen_routing_table(#sync_info{target = TargetRing}, State_2),
-                    force_sync_fun_1(Ret, TargetRing, State_2);
+                    update_ring_state(Ret, TargetRing, State_2);
                 _Other ->
                     State_1
             end;
@@ -1078,20 +1052,32 @@ force_sync_fun(TargetRing, State) ->
             State
     end.
 
+%% @doc Set members to ring_info based on target ring
 %% @private
-force_sync_fun_1({ok, #ring_info{ring_group_list = RetL} = RingInfo}, ?SYNC_TARGET_RING_CUR,
-                 #state{checksum = Checksum} = State) ->
-    {PrevHash,_} = Checksum,
-    CurHash = erlang:crc32(term_to_binary(RetL)),
-    State#state{cur = RingInfo,
-                checksum = {PrevHash, CurHash}};
-force_sync_fun_1({ok, #ring_info{ring_group_list = RetL} = RingInfo}, ?SYNC_TARGET_RING_PREV,
-                 #state{checksum = Checksum} = State) ->
-    {_,CurHash} = Checksum,
-    PrevHash = erlang:crc32(term_to_binary(RetL)),
-    State#state{prev = RingInfo,
-                checksum = {PrevHash, CurHash}};
-force_sync_fun_1(_,_,State) ->
+-spec(set_ring_members(?SYNC_TARGET_RING_CUR|?SYNC_TARGET_RING_PREV, [#member{}], #state{}) ->
+             #state{}).
+set_ring_members(?SYNC_TARGET_RING_CUR, Members, State) ->
+    State#state{cur = #ring_info{members = Members}};
+set_ring_members(?SYNC_TARGET_RING_PREV, Members, State) ->
+    State#state{prev = #ring_info{members = Members}}.
+
+%% @doc Update state with new ring_info and recalculate checksum
+%% @private
+-spec(update_ring_state({ok, #ring_info{}} | {error, any()},
+                        ?SYNC_TARGET_RING_CUR|?SYNC_TARGET_RING_PREV, #state{}) ->
+             #state{}).
+update_ring_state({ok, #ring_info{ring_group_list = RetL} = RingInfo}, TargetRing, State) ->
+    #state{checksum = {PrevHash, CurHash}} = State,
+    NewHash = erlang:crc32(term_to_binary(RetL)),
+    case TargetRing of
+        ?SYNC_TARGET_RING_CUR ->
+            State#state{cur = RingInfo,
+                        checksum = {PrevHash, NewHash}};
+        ?SYNC_TARGET_RING_PREV ->
+            State#state{prev = RingInfo,
+                        checksum = {NewHash, CurHash}}
+    end;
+update_ring_state(_, _, State) ->
     State.
 
 
