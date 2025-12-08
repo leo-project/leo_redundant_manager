@@ -80,9 +80,9 @@ start(_,_) ->
     {error, badarg}.
 
 start1(InstanceId, RootPath0) ->
-    RootPath1 = case (string:len(RootPath0) == string:rstr(RootPath0, "/")) of
-                    true  -> RootPath0;
-                    false -> RootPath0 ++ "/"
+    RootPath1 = case lists:last(RootPath0) of
+                    $/ -> RootPath0;
+                    _  -> RootPath0 ++ "/"
                 end,
     leo_mq_api:new(leo_mq_sup, InstanceId, [{?MQ_PROP_MOD, ?MODULE},
                                             {?MQ_PROP_DB_PROCS, 3},

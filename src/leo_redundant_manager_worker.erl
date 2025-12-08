@@ -711,12 +711,12 @@ redundancies_2(TableInfo, VNodeId_Org, VNodeId_Hop, NumOfReplicas, NumOfRAs, Mem
         not_found ->
             {error, ?ERROR_COULD_NOT_GET_REDUNDANCIES};
         {Node, RackIdL} ->
-            redundancies_3(TableInfo, NumOfReplicas - 1, NumOfRAs, Members, VNodeId_Hop,
-                           #redundancies{id = VNodeId_Org,
+            Redundancies = #redundancies{id = VNodeId_Org,
                                          vnode_id_to = VNodeId_Hop,
                                          temp_nodes = [Node],
                                          temp_level_2 = RackIdL,
-                                         nodes = [#redundant_node{node = Node}]})
+                                         nodes = [#redundant_node{node = Node}]},
+            redundancies_3(TableInfo, NumOfReplicas - 1, NumOfRAs, Members, VNodeId_Hop, Redundancies)
     end.
 
 %% @private

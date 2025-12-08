@@ -271,12 +271,11 @@ init_tables(_Other) ->
 close_db([]) ->
     ok;
 close_db([{Id,_Pid, worker, ['leo_mq_server' = Mod|_]}|T]) ->
-    case (string:str(atom_to_list(Id),
-                     "membership") > 0) of
-        true ->
-            ok = Mod:close(Id);
-        false ->
-            void
+    case string:find(atom_to_list(Id), "membership") of
+        nomatch ->
+            void;
+        _ ->
+            ok = Mod:close(Id)
     end,
     close_db(T);
 close_db([_|T]) ->

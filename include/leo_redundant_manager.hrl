@@ -556,7 +556,7 @@
         begin
             {ok,_Options} = leo_redundant_manager_api:get_options(),
             _BitOfRing = leo_misc:get_value('bit_of_ring',_Options),
-            _AddrId    = random:uniform(leo_math:power(2,_BitOfRing)),
+            _AddrId    = rand:uniform(leo_math:power(2,_BitOfRing)),
 
             case leo_redundant_manager_api:get_redundancies_by_addr_id(_AddrId) of
                 {ok, #redundancies{nodes = _Redundancies}} ->
@@ -601,9 +601,9 @@
             case application:get_env(leo_redundant_manager, log_dir_ring) of
                 undefined -> ?DEF_LOG_DIR_RING;
                 {ok, _Dir} ->
-                    case (string:len(_Dir) == string:rstr(_Dir, "/")) of
-                        true  -> _Dir;
-                        false -> _Dir ++ "/"
+                    case lists:last(_Dir) of
+                        $/ -> _Dir;
+                        _  -> _Dir ++ "/"
                     end
             end
         end).
