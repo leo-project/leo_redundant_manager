@@ -70,19 +70,18 @@
 -spec(start(ServerType, RootPath) ->
              ok | {error, any()} when ServerType::node_type()|atom(),
                                       RootPath::string()).
-start(?MONITOR_NODE, RootPath) ->
-    start1(?MQ_MONITOR_NODE, RootPath);
-start(?PERSISTENT_NODE, RootPath) ->
-    start1(?MQ_PERSISTENT_NODE, RootPath);
-start(?WORKER_NODE, RootPath) ->
-    start1(?MQ_WORKER_NODE, RootPath);
-start(_,_) ->
-    {error, badarg}.
+start(ServerType, RootPath) ->
+    case server_type_to_instance_id(ServerType) of
+        {ok, InstanceId} ->
+            start1(InstanceId, RootPath);
+        {error, _} = Error ->
+            Error
+    end.
 
 start1(InstanceId, RootPath0) ->
-    RootPath1 = case (string:len(RootPath0) == string:rstr(RootPath0, "/")) of
-                    true  -> RootPath0;
-                    false -> RootPath0 ++ "/"
+    RootPath1 = case lists:last(RootPath0) of
+                    $/ -> RootPath0;
+                    _  -> RootPath0 ++ "/"
                 end,
     leo_mq_api:new(leo_mq_sup, InstanceId, [{?MQ_PROP_MOD, ?MODULE},
                                             {?MQ_PROP_DB_PROCS, 3},
@@ -125,18 +124,13 @@ publish(ServerType, Node, Error, Times) ->
 -spec(publish(ServerType, KeyAndMessage) ->
              ok | {error, any()} when ServerType::node_type(),
                                       KeyAndMessage::{binary(),binary()}).
-publish(?MONITOR_NODE, {KeyBin, MessageBin}) ->
-    leo_mq_api:publish(?MQ_MONITOR_NODE, KeyBin, MessageBin);
-publish(?PERSISTENT_NODE, {KeyBin, MessageBin}) ->
-    leo_mq_api:publish(?MQ_PERSISTENT_NODE, KeyBin, MessageBin);
-publish(?WORKER_NODE, {KeyBin, MessageBin}) ->
-    leo_mq_api:publish(?MQ_WORKER_NODE, KeyBin, MessageBin);
-publish(InstanceId, {KeyBin, MessageBin}) when InstanceId == ?MQ_MONITOR_NODE;
-                                               InstanceId == ?MQ_WORKER_NODE;
-                                               InstanceId == ?MQ_PERSISTENT_NODE ->
-    leo_mq_api:publish(InstanceId, KeyBin, MessageBin);
-publish(_,_) ->
-    {error, badarg}.
+publish(ServerTypeOrInstanceId, {KeyBin, MessageBin}) ->
+    case resolve_instance_id(ServerTypeOrInstanceId) of
+        {ok, InstanceId} ->
+            leo_mq_api:publish(InstanceId, KeyBin, MessageBin);
+        {error, _} = Error ->
+            Error
+    end.
 
 
 %%--------------------------------------------------------------------
@@ -226,3 +220,24 @@ notify_error_to_manager(?MQ_MONITOR_NODE, RemoteNode, Error) ->
     ok;
 notify_error_to_manager(_,_,_) ->
     {error, badarg}.
+
+
+%% @doc Convert server type to MQ instance ID
+%% @private
+-spec(server_type_to_instance_id(ServerType) ->
+             {ok, atom()} | {error, badarg} when ServerType::node_type()|atom()).
+server_type_to_instance_id(?MONITOR_NODE)    -> {ok, ?MQ_MONITOR_NODE};
+server_type_to_instance_id(?PERSISTENT_NODE) -> {ok, ?MQ_PERSISTENT_NODE};
+server_type_to_instance_id(?WORKER_NODE)     -> {ok, ?MQ_WORKER_NODE};
+server_type_to_instance_id(_)                -> {error, badarg}.
+
+
+%% @doc Resolve server type or instance ID to instance ID
+%% @private
+-spec(resolve_instance_id(ServerTypeOrInstanceId) ->
+             {ok, atom()} | {error, badarg} when ServerTypeOrInstanceId::atom()).
+resolve_instance_id(?MQ_MONITOR_NODE)    -> {ok, ?MQ_MONITOR_NODE};
+resolve_instance_id(?MQ_PERSISTENT_NODE) -> {ok, ?MQ_PERSISTENT_NODE};
+resolve_instance_id(?MQ_WORKER_NODE)     -> {ok, ?MQ_WORKER_NODE};
+resolve_instance_id(ServerType) ->
+    server_type_to_instance_id(ServerType).

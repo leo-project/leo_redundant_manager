@@ -7,3 +7,5 @@ leo_redundant_manager.dot
 leo_redundant_manager.png
 .rebar/
 doc/
+_build/
+log/

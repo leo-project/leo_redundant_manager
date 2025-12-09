@@ -224,6 +224,14 @@
                 ?SYNC_TARGET_RING_PREV
         end).
 
+-define(sync_target_to_member_tbl(_Target),
+        case _Target of
+            ?SYNC_TARGET_RING_CUR ->
+                ?MEMBER_TBL_CUR;
+            ?SYNC_TARGET_RING_PREV ->
+                ?MEMBER_TBL_PREV
+        end).
+
 
 %% Synchronization
 -define(SYNC_TARGET_BOTH, 'both').
@@ -472,7 +480,9 @@
 -record(ring_group,
         {index_from = 0 :: non_neg_integer(),          %% group-index's from
          index_to = 0 :: non_neg_integer(),            %% group-index's to
-         vnodeid_nodes_list = [] :: [#vnodeid_nodes{}] %% list of vnodeid(s)
+         vnodeid_nodes_list = [] :: [#vnodeid_nodes{}], %% list of vnodeid(s)
+         %% For binary search (tuple of {vnode_id_to, #vnodeid_nodes{}})
+         vnodeid_nodes_array :: tuple() | undefined
         }).
 
 -record(ring_info,
@@ -480,7 +490,9 @@
          first_vnode_id = 0 :: non_neg_integer(), %% start vnode-id
          last_vnode_id = 0 :: non_neg_integer(),  %% end vnode-id
          ring_group_list :: [#ring_group{}],      %% list of groups
-         members = [] :: [#member{}]              %% cluster-members
+         members = [] :: [#member{}],             %% cluster-members
+         %% For binary search (tuple of {index_to, #ring_group{}})
+         ring_group_array :: tuple() | undefined
         }).
 
 -record(node_state,
@@ -556,7 +568,7 @@
         begin
             {ok,_Options} = leo_redundant_manager_api:get_options(),
             _BitOfRing = leo_misc:get_value('bit_of_ring',_Options),
-            _AddrId    = random:uniform(leo_math:power(2,_BitOfRing)),
+            _AddrId    = rand:uniform(leo_math:power(2,_BitOfRing)),
 
             case leo_redundant_manager_api:get_redundancies_by_addr_id(_AddrId) of
                 {ok, #redundancies{nodes = _Redundancies}} ->
@@ -601,9 +613,9 @@
             case application:get_env(leo_redundant_manager, log_dir_ring) of
                 undefined -> ?DEF_LOG_DIR_RING;
                 {ok, _Dir} ->
-                    case (string:len(_Dir) == string:rstr(_Dir, "/")) of
-                        true  -> _Dir;
-                        false -> _Dir ++ "/"
+                    case lists:last(_Dir) of
+                        $/ -> _Dir;
+                        _  -> _Dir ++ "/"
                     end
             end
         end).

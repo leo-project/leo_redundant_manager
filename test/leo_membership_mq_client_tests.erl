@@ -49,22 +49,23 @@ setup() ->
     Me = list_to_atom("test_0@" ++ Hostname),
     net_kernel:start([Me, shortnames]),
 
-    Args = " -pa ../deps/*/ebin ",
-    {ok, Node0} = slave:start_link(list_to_atom(Hostname), 'node_0', Args),
-    {ok, Mgr0}  = slave:start_link(list_to_atom(Hostname), 'manager_master', Args),
+    PeerOpts = #{host => Hostname, connection_timeout => 30000},
+    {ok, Peer0, Node0} = peer:start_link(PeerOpts#{name => node_0}),
+    {ok, PeerMgr0, Mgr0} = peer:start_link(PeerOpts#{name => manager_master}),
 
-    true = rpc:call(Node0, code, add_path, ["../deps/meck/ebin"]),
-    true = rpc:call(Mgr0,  code, add_path, ["../deps/meck/ebin"]),
+    MeckPath = filename:absname("_build/default/lib/meck/ebin"),
+    true = rpc:call(Node0, code, add_path, [MeckPath]),
+    true = rpc:call(Mgr0,  code, add_path, [MeckPath]),
 
     S = os:cmd("pwd"),
-    Path = string:substr(S, 1, length(S) -1) ++ "/db",
+    Path = string:trim(S) ++ "/db",
 
     catch leo_redundant_manager_sup:stop(),
     application:start(mnesia),
-    {Mgr0, Node0, Path}.
+    {Mgr0, Node0, Path, Peer0, PeerMgr0}.
 
-teardown({Mgr0, Node0, Path}) ->
-    meck:unload(),
+teardown({_Mgr0, _Node0, Path, Peer0, PeerMgr0}) ->
+    catch meck:unload(),
 
     application:stop(mnesia),
     application:stop(leo_mq),
@@ -74,8 +75,8 @@ teardown({Mgr0, Node0, Path}) ->
     application:stop(leo_redundant_manager),
 
     net_kernel:stop(),
-    slave:stop(Mgr0),
-    slave:stop(Node0),
+    catch peer:stop(PeerMgr0),
+    catch peer:stop(Peer0),
 
     os:cmd("rm -rf " ++ Path),
 
@@ -84,7 +85,7 @@ teardown({Mgr0, Node0, Path}) ->
 
 %% @doc publish
 %%
-pubsub_manager_0_({Mgr0, _Node0, Path}) ->
+pubsub_manager_0_({Mgr0, _Node0, Path, _Peer0, _PeerMgr0}) ->
     prepare(),
     leo_redundant_manager_sup:start_link(
       ?MONITOR_NODE, [Mgr0], Path),
@@ -97,7 +98,7 @@ pubsub_manager_0_({Mgr0, _Node0, Path}) ->
     ?assertEqual(true, erlang:length(History0) > 0),
     ok.
 
-pubsub_manager_1_({Mgr0, _, Path}) ->
+pubsub_manager_1_({Mgr0, _, Path, _, _}) ->
     prepare(),
     leo_redundant_manager_sup:start_link(
       ?MONITOR_NODE, [Mgr0], Path),
@@ -110,7 +111,7 @@ pubsub_manager_1_({Mgr0, _, Path}) ->
     ?assertEqual(true, erlang:length(History0) > 0),
     ok.
 
-pubsub_storage_({Mgr0, _, Path}) ->
+pubsub_storage_({Mgr0, _, Path, _, _}) ->
     prepare(),
 
     ok = rpc:call(Mgr0, meck, new,    [leo_manager_api, [no_link, non_strict]]),
@@ -132,7 +133,7 @@ pubsub_storage_({Mgr0, _, Path}) ->
     ?assertEqual([], History1),
     ok.
 
-pubsub_gateway_0_({Mgr0, _, Path}) ->
+pubsub_gateway_0_({Mgr0, _, Path, _, _}) ->
     prepare(),
 
     ok = rpc:call(Mgr0, meck, new,    [leo_manager_api, [no_link, non_strict]]),
@@ -153,7 +154,7 @@ pubsub_gateway_0_({Mgr0, _, Path}) ->
     ?assertEqual([], History1),
     ok.
 
-pubsub_gateway_1_({Mgr0, _, Path}) ->
+pubsub_gateway_1_({Mgr0, _, Path, _, _}) ->
     prepare(),
 
     ok = rpc:call(Mgr0, meck, new,    [leo_manager_api, [no_link, non_strict]]),

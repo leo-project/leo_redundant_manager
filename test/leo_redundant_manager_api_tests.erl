@@ -80,7 +80,7 @@ check_redundancies_2() ->
 
     %% Test leo_redundant_manager_api:get_redundancies_by_addr_id/3
     Max = leo_math:power(2, ?MD5),
-    Id  = random:uniform(Max),
+    Id  = rand:uniform(Max),
 
     %% TestCase-1
     {ok, #redundancies{nodes = Nodes_1,
@@ -801,7 +801,7 @@ inspect_0(Hostname, NumOfIteration) ->
     ?assertEqual(3, length(Nodes1)),
 
     lists:foreach(fun(_) ->
-                          Id2 = random:uniform(Max),
+                          Id2 = rand:uniform(Max),
                           {ok, Res2} = leo_redundant_manager_api:range_of_vnodes(Id2),
                           inspect_1(Id2, Res2)
                   end, lists:seq(0, 300)),
@@ -871,7 +871,7 @@ inspect_redundancies_2(0) ->
 inspect_redundancies_2(Counter) ->
     %% Test leo_redundant_manager_api:get_redundancies_by_addr_id/3
     Max = leo_math:power(2, ?MD5),
-    Id  = random:uniform(Max),
+    Id  = rand:uniform(Max),
     {ok, #redundancies{id = _Id0,
                        vnode_id_to = _VNodeId0,
                        nodes = Nodes0,
