@@ -429,11 +429,9 @@ handle_call({reserve, Node, CurState, AwarenessL2,
                       {Node, Member#member{state = CurState}});
                 not_found ->
                     NodeStr = atom_to_list(Node),
-                    IP = case (string:chr(NodeStr, $@) > 0) of
-                             true ->
-                                 lists:nth(2,string:tokens(NodeStr,"@"));
-                             false ->
-                                 []
+                    IP = case string:split(NodeStr, "@") of
+                             [_, Host] -> Host;
+                             _ -> []
                          end,
 
                     leo_cluster_tbl_member:insert(
@@ -601,11 +599,9 @@ set_alias(TblInfo, #member{node  = Node,
                            alias = [],
                            grp_level_2 = GrpL2} = Member) ->
     NodeStr = atom_to_list(Node),
-    IP = case (string:chr(NodeStr, $@) > 0) of
-             true ->
-                 lists:nth(2,string:tokens(NodeStr,"@"));
-             false ->
-                 []
+    IP = case string:split(NodeStr, "@") of
+             [_, Host] -> Host;
+             _ -> []
          end,
 
     {ok, {_Member, Alias}} =
@@ -728,11 +724,9 @@ dump_member_tabs() ->
                  undefined ->
                      ?DEF_LOG_DIR_MEMBERS;
                  {ok, Dir} ->
-                     case (string:len(Dir) == string:rstr(Dir, "/")) of
-                         true ->
-                             Dir;
-                         false ->
-                             Dir ++ "/"
+                     case lists:last(Dir) of
+                         $/ -> Dir;
+                         _  -> Dir ++ "/"
                      end
              end,
     _ = filelib:ensure_dir(LogDir),

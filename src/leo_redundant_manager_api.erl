@@ -1006,9 +1006,9 @@ get_alias(init, Table, Node, GrpL2) ->
 
 %% @private
 get_alias_1([],_,Node,_GrpL2) ->
-    PartOfAlias = string:substr(
+    PartOfAlias = string:slice(
                     leo_hex:binary_to_hex(
-                      crypto:hash(md5, lists:append([atom_to_list(Node)]))),1,8),
+                      crypto:hash(md5, lists:append([atom_to_list(Node)]))), 0, 8),
     {ok, {[], lists:append([?NODE_ALIAS_PREFIX, PartOfAlias])}};
 
 get_alias_1([#member{node  = Node_1}|Rest], Table, Node, GrpL2) when Node == Node_1 ->

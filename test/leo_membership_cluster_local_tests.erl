@@ -52,17 +52,19 @@ setup() ->
     catch ets:delete_all_objects('leo_ring_cur'),
     catch ets:delete_all_objects('leo_ring_prv'),
 
-    {ok, Node0} = slave:start_link(list_to_atom(Hostname), 'node_0'),
-    {ok, Node1} = slave:start_link(list_to_atom(Hostname), 'node_1'),
-    {ok, Node2} = slave:start_link(list_to_atom(Hostname), 'node_2'),
-    {ok, Mgr0}  = slave:start_link(list_to_atom(Hostname), 'manager_master'),
-    {ok, Mgr1}  = slave:start_link(list_to_atom(Hostname), 'manager_slave'),
+    PeerOpts = #{host => Hostname, connection_timeout => 30000},
+    {ok, Peer0, Node0} = peer:start_link(PeerOpts#{name => node_0}),
+    {ok, Peer1, Node1} = peer:start_link(PeerOpts#{name => node_1}),
+    {ok, Peer2, Node2} = peer:start_link(PeerOpts#{name => node_2}),
+    {ok, PeerMgr0, Mgr0} = peer:start_link(PeerOpts#{name => manager_master}),
+    {ok, PeerMgr1, Mgr1} = peer:start_link(PeerOpts#{name => manager_slave}),
 
-    true = rpc:call(Node0, code, add_path, ["../deps/meck/ebin"]),
-    true = rpc:call(Node1, code, add_path, ["../deps/meck/ebin"]),
-    true = rpc:call(Node2, code, add_path, ["../deps/meck/ebin"]),
-    true = rpc:call(Mgr0,  code, add_path, ["../deps/meck/ebin"]),
-    true = rpc:call(Mgr1,  code, add_path, ["../deps/meck/ebin"]),
+    MeckPath = filename:absname("_build/default/lib/meck/ebin"),
+    true = rpc:call(Node0, code, add_path, [MeckPath]),
+    true = rpc:call(Node1, code, add_path, [MeckPath]),
+    true = rpc:call(Node2, code, add_path, [MeckPath]),
+    true = rpc:call(Mgr0,  code, add_path, [MeckPath]),
+    true = rpc:call(Mgr1,  code, add_path, [MeckPath]),
     timer:sleep(100),
 
     %% start applications
@@ -72,27 +74,27 @@ setup() ->
     application:start(mnesia),
     leo_cluster_tbl_member:create_table(ram_copies, [node()], ?MEMBER_TBL_CUR),
     %% leo_cluster_tbl_member:create_table(mnesia, ram_copies),
-    {Hostname, Mgr0, Mgr1, Node0, Node1, Node2}.
+    {Hostname, Mgr0, Mgr1, Node0, Node1, Node2, Peer0, Peer1, Peer2, PeerMgr0, PeerMgr1}.
 
-teardown({_, Mgr0, Mgr1, Node0, Node1, Node2}) ->
+teardown({_, _Mgr0, _Mgr1, _Node0, _Node1, _Node2, Peer0, Peer1, Peer2, PeerMgr0, PeerMgr1}) ->
     %% application:stop(leo_mq),
     %% application:stop(leo_backend_db),
     catch leo_redundant_manager:stop(),
     application:stop(mnesia),
-    meck:unload(),
+    catch meck:unload(),
 
     net_kernel:stop(),
-    slave:stop(Mgr0),
-    slave:stop(Mgr1),
-    slave:stop(Node0),
-    slave:stop(Node1),
-    slave:stop(Node2),
+    catch peer:stop(PeerMgr0),
+    catch peer:stop(PeerMgr1),
+    catch peer:stop(Peer0),
+    catch peer:stop(Peer1),
+    catch peer:stop(Peer2),
 
     Path = filename:absname("") ++ "db",
     os:cmd("rm -rf " ++ Path),
     ok.
 
-membership_manager_({Hostname, _, _, Node0, Node1, Node2}) ->
+membership_manager_({Hostname, _, _, Node0, Node1, Node2, _, _, _, _, _}) ->
     ok = rpc:call(Node0, meck, new,    [leo_redundant_manager_api, [no_link, non_strict]]),
     ok = rpc:call(Node0, meck, expect, [leo_redundant_manager_api, checksum,
                                         fun(ring) ->
@@ -132,7 +134,7 @@ membership_manager_({Hostname, _, _, Node0, Node1, Node2}) ->
     ok.
 
 
-membership_storage_({Hostname, Mgr0, Mgr1, Node0, Node1, Node2}) ->
+membership_storage_({Hostname, Mgr0, Mgr1, Node0, Node1, Node2, _, _, _, _, _}) ->
     ok = rpc:call(Node0, meck, new,    [leo_redundant_manager_api, [no_link, non_strict]]),
     ok = rpc:call(Node0, meck, expect, [leo_redundant_manager_api, checksum,
                                         fun(ring) ->
